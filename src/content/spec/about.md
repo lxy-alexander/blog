@@ -1,7 +1,6 @@
 # About
-[Liuziting Blog]{https://astro-lzt.netlify.app/posts/astro-blog/}
 
-::github{repo="https://github.com/lxy-alexander?tab=repositories"}
+::github{repo="lxy-alexander/blog"}
 
 > ### Sources of images used in this site
 > - [Unsplash](https://unsplash.com/)
