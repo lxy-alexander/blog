@@ -1,9 +1,9 @@
 ---
-title: Alexander Lee's Blog
-published: 2025-11-07
-description: "Sharing Learning Notes"
+title: Simple Guides
+published: 2024-04-01
+description: "How to use this blog template."
 image: "./cover.jpeg"
-tags: ["Blogging"]
+tags: ["Fuwari", "Blogging", "Customization"]
 category: Guides
 draft: false
 ---
