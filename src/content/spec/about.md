@@ -1,7 +1,7 @@
 # About
-This is the demo site for [Fuwari](https://github.com/saicaca/fuwari).
+[Liuziting Blog]{https://astro-lzt.netlify.app/posts/astro-blog/}
 
-::github{repo="saicaca/fuwari"}
+::github{repo="https://github.com/lxy-alexander?tab=repositories"}
 
 > ### Sources of images used in this site
 > - [Unsplash](https://unsplash.com/)
