@@ -8,10 +8,6 @@ category: Guides
 draft: false
 ---
 
-
-
-
-
 # Bitwise Algorithms
 
 ## I. Algorithm Overview (What)
