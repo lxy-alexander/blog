@@ -67,20 +67,28 @@ Make sure every explanation is clear enough for someone learning the algorithm f
 # Prompt for vLLM
 
 ```c++
-Please generate a systematic and comprehensive explanation for the system, component, or workflow: <TOPIC>.
+I will give a <TOPIC>. Please generate a systematic and comprehensive explanation for <TOPIC>.
 
 Very important requirements:
 1. Do NOT use any icons, emojis, or decorative symbols.
 2. Use Markdown heading levels strictly as follows:
-   - Use exactly one level-1 title for the topic name: "# <TOPIC>"
-   - Use level-2 headings for the main sections: "## I. ...", "## II. ...", "## III. ...", "## IV. ..."
-   - Use level-3 headings for each representative subcomponent, execution path, or usage scenario.
-   - Do NOT write subcomponent, path, or scenario names as plain text outside headings.
-3. Writing style should resemble lecture notes and interview preparation notes for systems, infrastructure, or software engineering topics.
-4. The output must strictly follow the structure below, and all sections must be included.
-5. All code examples must use appropriate languages for system usage (e.g., Python, shell commands, configuration snippets, or minimal C++ where relevant).
-6. **For every explanatory sentence or bullet point, first write the English version, then immediately follow with its Chinese translation on the next line. Do not merge the two languages into a single sentence.**
-7. All output uses simple and short sentences. No missing knowledge points.No skipped explanations.
+   - Use exactly one level-1 title: "# <TOPIC>"
+   - Use level-2 headings: "## 1. ...", "## 2. ...", "## 3. ...", "## 4. ..."
+3. All code examples must use appropriate languages for system usage.
+4. For each section (each level-2 heading):
+   - First, write the complete explanation of this section in Chinese.
+   - Immediately after that section, provide its full English translation.
+   - Do NOT interleave English and Chinese within the same paragraph.
+   - Do NOT translate sentence by sentence.
+   - Translation granularity is per section.
+5. STYLE REQUIREMENT (VERY IMPORTANT):
+   - Write in an interview-friendly, oral explanation style.
+   - Use short, independent sentences.
+   - Each sentence should express exactly one key idea.
+   - Each sentence should be easy to explain verbally to an interviewer.
+   - Avoid long or nested sentences.
+6. No missing knowledge points. No skipped explanations.
+7. If the topic has code, show how to use it.
 
 ```
 
