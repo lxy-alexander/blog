@@ -6,7 +6,6 @@ image: "./cover.jpeg"
 tags: ["Blogging", "warp"]
 category: Guides
 draft: false
-
 ---
 
 # Warp Group
