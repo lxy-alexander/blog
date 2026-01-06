@@ -17,14 +17,6 @@ draft: false
 
 Transformer follows an encoder–decoder architecture, where each layer consists of multi-head attention, feed-forward networks, residual connections, and layer normalization.
 
-<img src="/Users/alexanderlee/Library/Application Support/typora-user-images/image-20260105235257138.png" alt="image-20260105235257138" style="zoom:50%;" />
-
-
-
-
-
-
-
 
 
 ## Self-Attention 机制
