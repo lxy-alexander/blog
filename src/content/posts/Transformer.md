@@ -53,7 +53,7 @@ Q, K, and V are obtained by applying different linear projections to the same in
 
 
 
-### Why scale by √dₖ（square root of d sub k）?
+### Why scale by（square root of d sub k）?
 
 因为点积的数值会随着维度变大而变大，如果不做缩放，softmax 很容易饱和，导致训练变得困难。所以我们用 d_k 的平方根来进行缩放，这样就能让数值保持在一个合理的范围，让梯度不会太小，训练过程也更加稳定。这正是为什么我们选择用这个平方根作为缩放的原因。
 
@@ -74,8 +74,6 @@ Multi-head attention allows the model to attend to information from different re
 因为注意力机制本身不包含顺序信息，位置编码为模型提供序列的位置信息。
 
 Since self-attention is permutation-invariant, positional encoding is required to inject order information into the model.
-
-
 
 
 
