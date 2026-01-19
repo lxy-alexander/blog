@@ -1,9 +1,9 @@
 ---
-title: Prompt
+title: vocabulary
 published: 2025-12-18
-description: "Prompt"
+description: "vocabulary"
 image: "./cover.jpeg"
-tags: ["Blogging", "Prompt"]
+tags: ["Blogging", "vocabulary"]
 category: Guides
 draft: false
 ---

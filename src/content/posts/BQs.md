@@ -1,9 +1,9 @@
 ---
-title: interview
+title: BQs
 published: 2025-01-15
-description: "interview"
+description: "BQs"
 image: "./cover.jpeg"
-tags: ["Blogging", "interview"]
+tags: ["Blogging", "BQs"]
 category: Guides
 draft: false
 ---

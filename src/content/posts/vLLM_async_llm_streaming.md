@@ -130,12 +130,6 @@ if __name__ == "__main__":
 
 ```
 
-
-
-
-
-
-
 1. **初始化引擎**：用 `AsyncEngineArgs` 创建配置，并通过 `AsyncLLM.from_engine_args()` 启动异步推理引擎。
 2. **设置采样参数**：构造 `SamplingParams`，指定生成长度、随机性，并将 `output_kind` 设为 `DELTA` 以支持流式返回新 token。
 3. **发起生成请求**：调用 `engine.generate()`，传入 `prompt`、`request_id` 和采样参数。
