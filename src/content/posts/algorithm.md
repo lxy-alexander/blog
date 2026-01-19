@@ -1,16 +1,16 @@
 ---
-title: Bitwise
+title: algorithm
 published: 2025-12-18
-description: "Bitwise"
+description: "algorithm"
 image: "./cover.jpeg"
-tags: ["Blogging", "Algorithm", "Bitwise"]
+tags: ["Blogging", "algorithm"]
 category: Guides
 draft: false
 ---
 
-# Bitwise Algorithms
+# Algorithm
 
-## I. Algorithm Overview (What)
+## Bitwise
 
 - Bitwise algorithms solve problems by directly manipulating the binary representation of integers using bit-level operations.
 
