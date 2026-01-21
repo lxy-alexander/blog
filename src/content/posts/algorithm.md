@@ -1,10 +1,12 @@
-#### title: Algorithm
+---
+title: Algorithm
 published: 2025-12-18
 description: "Algorithm"
 image: "./cover.jpeg"
 tags: ["Blogging", "Algorithm"]
 category: Guides
 draft: false
+---
 
 # Algorithm
 
