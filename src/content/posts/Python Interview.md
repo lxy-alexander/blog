@@ -146,3 +146,72 @@ c in vowels
 
 `"aeiou"` is fast because it’s tiny, runs in optimized C code, and avoids hashing overhead 
 
+
+
+
+
+## Defaultdict
+
+defaultdict ` provides default values automatically; `dict` does not.
+
+`defaultdict(int)` comes from Python’s `collections` module. It’s a dictionary that **automatically creates missing keys** with a default value.↳
+
+In this case, `int()` is the default factory, and `int()` → `0`.
+
+`dict` (normal dictionary)
+
+```python
+d = {}
+d['a'] += 1   # ❌ KeyError
+```
+
+You must initialize first:
+
+```python
+if 'a' not in d:
+    d['a'] = 0
+d['a'] += 1
+```
+
+`defaultdict`
+
+```python
+from collections import defaultdict
+
+d = defaultdict(int)
+d['a'] += 1   # ✅ starts from 0 automatically
+```
+
+Key differences
+
+| Feature              | dict     | defaultdict  |
+| -------------------- | -------- | ------------ |
+| Missing key          | KeyError | Auto-created |
+| Needs initialization | Yes      | No           |
+| Code length          | Longer   | Shorter      |
+
+
+
+## Range & slice
+
+Both **`range`** and **slicing** use **left-closed, right-open intervals**:
+
+
+
+
+
+## Counter & dict
+
+**Use `Counter` for pure frequency counting.**
+
+**Use `dict` when counts are part of larger logic or need control.**
+
+| Scenario              | Use       |
+| --------------------- | --------- |
+| Counting frequencies  | `Counter` |
+| Sliding window counts | `Counter` |
+| Top-K frequent items  | `Counter` |
+| Key → last index      | `dict`    |
+| Config / strict data  | `dict`    |
+| Missing key = bug     | `dict`    |
+| Fixed small domain    | array     |

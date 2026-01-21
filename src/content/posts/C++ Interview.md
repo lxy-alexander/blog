@@ -53,46 +53,25 @@ void f(vector<int>& v);  // no copy ✅
 
 
 
-## Container
+## Integer division
 
-### vector
+**Fix:**
 
 ```
-#include <iostream>
-#include <vector>
-
-int main() {
-    std::vector<int> v = {2, 3, 1, 4};
-    v.push_back(5);
-    v.push_back(6);
-    v[2] = -1;
-    for (int x : v) {
-        std::cout << x << ' '; // 2 3 -1 4 5 6 
-    }
-    std::cout << '\n';
-}
+return (double)maxSum / k;
+// or
+return maxSum * 1.0 / k;
 ```
 
-
-
-### array
-
-C++ array with length `n`  
-
-int a[n];  Not allowed (standard C++) . 
-
-vector<int> a(n); 👉 Use vector when the size is decided at runtime.
-
-- **Runtime size → `vector`**
-- *Compile-time size → `int a[5]` / `std::array`**
-- **Fixed size → array**
-- *Variable size → vector**
+`int / int` truncates decimals, so you got **12.00000** instead of **12.75000**.
 
 
 
 
 
+## Std::max
 
+`std::max` needs both arguments to be the **same type**.  You’re passing `int` (`ans`) and `double` (`sum * 1.0 / k`).↳
 
 
 
