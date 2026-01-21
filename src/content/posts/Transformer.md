@@ -1,9 +1,9 @@
 ---
-title: transformer
+title: Transformer
 published: 2025-12-19
-description: "transformer"
+description: "Transformer"
 image: "./cover.jpeg"
-tags: ["Blogging", "transformer"]
+tags: ["Blogging", "Transformer"]
 category: Guides
 draft: false
 ---
