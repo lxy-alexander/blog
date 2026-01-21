@@ -1,21 +1,19 @@
 ---
-title: vLLM
+title: vLLM Plan
 published: 2025-12-19
-description: "vLLM"
+description: "vLLM Plan"
 image: "./cover.jpeg"
-tags: ["Blogging","vLLM","vLLM QuickStart"]
+tags: ["Blogging","vLLM","vLLM"]
 category: Guides
 draft: false
 
 ---
 
-
-
 # vLLM (v0.13.0)
 
-# vLLM 项目目录结构
+## vLLM 项目目录结构
 
-## 根目录文件
+### 根目录文件
 ```
 vllm/
 ├── CMakeLists.txt          # CMake 构建配置
@@ -32,9 +30,9 @@ vllm/
 └── codecov.yml             # 代码覆盖率配置
 ```
 
-## 主要目录结构
+### 主要目录结构
 
-### 1. **vllm/** - 核心源代码目录
+#### 1. **vllm/** - 核心源代码目录
 ```c++
 vllm/ 
 ├── assets/                 # 多模态资源处理（音频、图像、视频） 
@@ -107,7 +105,7 @@ vllm/
 
 
 
-### 2. **csrc/** - C++/CUDA 源代码
+#### 2. **csrc/** - C++/CUDA 源代码
 
 ```
 csrc/
@@ -135,7 +133,7 @@ csrc/
 └── sparse/                 # 稀疏矩阵
 ```
 
-### 3. **tests/** - 测试目录
+#### 3. **tests/** - 测试目录
 ```
 tests/
 ├── basic_correctness/      # 基本正确性测试
@@ -167,7 +165,7 @@ tests/
 └── v1/                     # v1 API 测试
 ```
 
-### 4. **examples/** - 示例代码
+#### 4. **examples/** - 示例代码
 ```
 examples/
 ├── offline_inference/      # 离线推理示例
@@ -179,7 +177,7 @@ examples/
 └── others/                 # 其他示例
 ```
 
-### 5. **docs/** - 文档目录
+#### 5. **docs/** - 文档目录
 ```
 docs/
 ├── api/                    # API 文档
@@ -197,7 +195,7 @@ docs/
 └── usage/                  # 使用文档
 ```
 
-### 6. **tools/** - 工具脚本
+#### 6. **tools/** - 工具脚本
 ```
 tools/
 ├── ep_kernels/             # EP 内核工具
@@ -206,13 +204,13 @@ tools/
 └── vllm-tpu/               # TPU 相关工具
 ```
 
-### 7. **benchmarks/** - 基准测试
+#### 7. **benchmarks/** - 基准测试
 ```
 benchmarks/
 └── [各种基准测试脚本]
 ```
 
-### 8. **docker/** - Docker 配置
+#### 8. **docker/** - Docker 配置
 ```
 docker/
 ├── Dockerfile              # 主 Dockerfile
@@ -222,7 +220,7 @@ docker/
 └── [其他平台 Dockerfile]
 ```
 
-### 9. **requirements/** - 依赖管理
+#### 9. **requirements/** - 依赖管理
 ```
 requirements/
 ├── build.txt               # 构建依赖
@@ -235,42 +233,42 @@ requirements/
 └── [其他依赖文件]
 ```
 
-### 10. **其他重要目录**
+#### 10. **其他重要目录**
 ```
 .buildkite/                 # Buildkite CI/CD 配置
 .github/                    # GitHub 配置（workflows, issue templates）
 cmake/                      # CMake 模块
 ```
 
-## 核心模块说明
+### 核心模块说明
 
-### 引擎系统
+#### 引擎系统
 - **vllm/engine/**: 主要的 LLM 引擎实现
 - **vllm/v1/engine/**: v1 版本的引擎（新架构）
 
-### 模型执行
+#### 模型执行
 - **vllm/model_executor/**: 模型加载和执行
 - **vllm/model_executor/models/**: 各种模型架构的实现
 
-### 注意力机制
+#### 注意力机制
 - **vllm/attention/**: Python 层面的注意力实现
 - **csrc/attention/**: CUDA 内核级别的注意力实现
 
-### 分布式支持
+#### 分布式支持
 - **vllm/distributed/**: 分布式训练和推理支持
 
-### 量化支持
+#### 量化支持
 - **vllm/model_executor/layers/quantization/**: Python 量化层
 - **csrc/quantization/**: CUDA 量化内核
 
-### LoRA 支持
+#### LoRA 支持
 - **vllm/lora/**: LoRA 适配器的完整实现
 
-### 多模态支持
+#### 多模态支持
 - **vllm/multimodal/**: 多模态模型支持
 - **vllm/assets/**: 多模态资源处理
 
-## 平台支持
+#### 平台支持
 - **CUDA**: NVIDIA GPU
 - **ROCM**: AMD GPU
 - **CPU**: CPU 推理
@@ -279,30 +277,24 @@ cmake/                      # CMake 模块
 
 
 
+## vLLM 代码学习计划
 
+### 📊 代码规模统计
 
-
-
-## 学习计划
-
-# vLLM 代码学习计划
-
-## 📊 代码规模统计
-
-### 总体规模
+#### 总体规模
 - **总代码文件数**: 2,433 个
 - **Python 代码**: ~659,437 行（包括测试）
 - **C++/CUDA 代码**: ~84,243 行
 - **核心模块代码**: ~132,410 行
 - **注意力模块**: ~7,311 行
 
-### 文件分布
+#### 文件分布
 - **vllm 核心 Python 文件**: 1,131 个
 - **C++/CUDA 文件**: 169 个
 - **测试文件**: 856 个
 - **示例代码**: 114 个 Python 文件
 
-### 主要模块代码量
+#### 主要模块代码量
 - **引擎核心** (`vllm/engine/`): ~2,000 行
 - **模型执行器** (`vllm/model_executor/`): ~50,000+ 行
 - **注意力机制** (`vllm/attention/`): ~7,311 行
@@ -311,20 +303,20 @@ cmake/                      # CMake 模块
 
 ---
 
-## 🎯 学习目标
+### 🎯 学习目标
 
-### 初级目标（理解基本架构）
+#### 初级目标（理解基本架构）
 - 理解 vLLM 的整体架构和设计理念
 - 掌握基本的推理流程
 - 能够使用 vLLM 进行简单的模型推理
 
-### 中级目标（深入核心模块）
+#### 中级目标（深入核心模块）
 - 理解 LLM Engine 的工作原理
 - 掌握 PagedAttention 机制
 - 理解调度器和内存管理
 - 能够阅读和修改核心代码
 
-### 高级目标（全面掌握）
+#### 高级目标（全面掌握）
 - 理解 CUDA 内核实现
 - 掌握分布式推理机制
 - 能够贡献代码和优化性能
@@ -332,16 +324,13 @@ cmake/                      # CMake 模块
 
 ---
 
-## 📅 学习计划（总计：8-12 周）
+### 📅 学习计划（总计：8-12 周）
 
-### 第一阶段：基础入门（第 1-2 周）
+#### 第一阶段：基础入门（第 1-2 周）
 
-#### 目标
 - 了解项目结构和基本概念
 - 能够运行简单的推理示例
 - 理解核心数据流
-
-#### 学习内容
 
 **第 1 周：项目概览和基础使用**
 
@@ -384,14 +373,11 @@ cmake/                      # CMake 模块
 
 ---
 
-### 第二阶段：引擎核心（第 3-5 周）
+#### 第二阶段：引擎核心（第 3-5 周）
 
-#### 目标
 - 深入理解 LLM Engine 的工作原理
 - 掌握调度机制
 - 理解内存管理
-
-#### 学习内容
 
 **第 3 周：LLM Engine 基础**
 
@@ -449,14 +435,12 @@ cmake/                      # CMake 模块
 
 ---
 
-### 第三阶段：模型执行（第 6-7 周）
+#### 第三阶段：模型执行（第 6-7 周）
 
-#### 目标
 - 理解模型加载和执行流程
 - 掌握注意力机制实现
-- 理解量化等高级特性
+  - 理解量化等高级特性
 
-#### 学习内容
 
 **第 6 周：模型加载和执行**
 
@@ -496,14 +480,11 @@ cmake/                      # CMake 模块
 
 ---
 
-### 第四阶段：高级主题（第 8-10 周）
+#### 第四阶段：高级主题（第 8-10 周）
 
-#### 目标
 - 理解 CUDA 内核实现
 - 掌握分布式推理
 - 理解性能优化技巧
-
-#### 学习内容
 
 **第 8 周：CUDA 内核**
 
@@ -563,14 +544,11 @@ cmake/                      # CMake 模块
 
 ---
 
-### 第五阶段：实战和贡献（第 11-12 周）
+#### 第五阶段：实战和贡献（第 11-12 周）
 
-#### 目标
 - 能够独立解决实际问题
 - 能够贡献代码
 - 深入理解特定模块
-
-#### 学习内容
 
 **第 11 周：深入特定模块**
 

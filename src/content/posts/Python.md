@@ -10,9 +10,9 @@ draft: false
 
 # Python
 
-## CPython
+## Basics
 
-### Definition
+### CPython
 
 Python is a **language specification**, while CPython is a **concrete implementation** of that specification.
 
@@ -25,9 +25,9 @@ Python is a **language specification**, while CPython is a **concrete implementa
 - Compiles source code into bytecode (`.pyc`)
 - Executes bytecode using the Python Virtual Machine (PVM)
 
-##### 
 
-## GIL
+
+### GIL
 
 The **GIL (Global Interpreter Lock)** is a mechanism for thread safty. It <u>ensures **only one thread executes Python bytecode at a time**.</u>
 
@@ -63,7 +63,7 @@ In CPython, the convoy effect <u>may occur when a CPU-bound thread holds the GIL
 
 
 
-## Descriptor
+### Descriptor
 
 A descriptor is <u>an object that is stored as a **class attribute** and implements one or more of `__get__`, `__set__`, or `__delete__`.</u>When the attribute is accessed, Python invokes these methods instead of returning a value directly. 描述符（Descriptor）是一个对象，只要它作为**类属性**存在，并且实现了 `__get__`、`__set__` 或 `__delete__` 中的任意一个，Python 在访问该属性时就会调用这些方法，而不是直接取值。
 
@@ -102,11 +102,49 @@ obj.attr
 
 
 
+### **`{}`, `[]`, and `()` in Python**
+
+| Symbols | Name            | Common uses                       |
+| ------- | --------------- | --------------------------------- |
+| `{}`    | curly braces    | `dict`, `set`                     |
+| `[]`    | square brackets | `list`, indexing                  |
+| `()`    | parentheses     | `tuple`, function calls, grouping |
+
+| Type  | Mutable | Ordered | Literal |
+| ----- | ------- | ------- | ------- |
+| list  | ✅       | ✅       | `[]`    |
+| tuple | ❌       | ✅       | `()`    |
+| set   | ✅       | ❌       | `{}`    |
+| dict  | ✅       | ✅       | `{}`    |
 
 
 
 
 
+### Set
 
+`{'a','i','o','e','u'}` is a Python `set`; the semicolon is harmless but unnecessary.
 
+Typically this question means:↳
+
+```python
+# set
+vowels = {'a', 'e', 'i', 'o', 'u'}
+c in vowels
+```
+
+vs
+
+```python
+# list
+vowels = ['a', 'e', 'i', 'o', 'u']
+c in vowels
+```
+
+| Type   | Operation `c in container` | Time complexity  |
+| ------ | -------------------------- | ---------------- |
+| `set`  | hash lookup                | **O(1)** average |
+| `list` | linear scan                | **O(n)**         |
+
+`"aeiou"` is fast because it’s tiny, runs in optimized C code, and avoids hashing overhead 
 

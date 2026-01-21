@@ -8,7 +8,7 @@ category: Guides
 draft: false
 ---
 
-# Numpy
+# CUDA
 
 
 

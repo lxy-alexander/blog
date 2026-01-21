@@ -8,7 +8,7 @@ category: Guides
 draft: false
 ---
 
-# Algorithm
+# Leetcode150
 
 ## Array / String
 
