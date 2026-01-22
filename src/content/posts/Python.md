@@ -1,6 +1,6 @@
 ---
 title: Python
-published: 2025-01-15
+published: 2026-01-16
 description: "Python"
 image: "./cover.jpeg"
 tags: ["Blogging", "Python"]

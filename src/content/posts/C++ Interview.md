@@ -1,6 +1,6 @@
 ---
 title: C++ Interview
-published: 2025-01-15
+published: 2026-01-20
 description: "C++ Interview"
 image: "./cover.jpeg"
 tags: ["Blogging", "C++ Interview"]
@@ -67,11 +67,41 @@ return maxSum * 1.0 / k;
 
 
 
-
-
-## Std::max
+## std::max
 
 `std::max` needs both arguments to be the **same type**.  You’re passing `int` (`ans`) and `double` (`sum * 1.0 / k`).↳
+
+
+
+## map for loop
+
+**Use `auto` when the type is obvious from the initializer or when the exact type is not important.**  Containers + iterators = **perfect for `auto`**.
+
+```c++
+for (const auto& n : cnt)
+    print_key_value(n.first, n.second);
+
+for (const std::pair<const char, int>& n : cnt)
+    print_key_value(n.first, n.second);
+
+// or even better (C++17):
+for (const auto& [ch, freq] : cnt)
+    print_key_value(ch, freq);
+```
+
+
+
+## unordered_set
+
+`unordered_set<char> vowels = {'a','e','i','o','u'};`
+
+OR
+
+`bool isVowel(char c) {return c=='a'||c=='e'||c=='i'||c=='o'||c=='u';}`
+
+
+
+
 
 
 

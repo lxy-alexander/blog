@@ -1,6 +1,6 @@
 ---
 title: C++
-published: 2025-01-20
+published: 2026-01-20
 description: "C++"
 image: "./cover.jpeg"
 tags: ["Blogging", "C++"]

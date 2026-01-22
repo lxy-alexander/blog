@@ -1,6 +1,6 @@
 ---
 title: Transformer
-published: 2025-12-19
+published: 2026-01-14
 description: "Transformer"
 image: "./cover.jpeg"
 tags: ["Blogging", "Transformer"]

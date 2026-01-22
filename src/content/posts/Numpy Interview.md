@@ -1,6 +1,6 @@
 ---
 title: Numpy Interview
-published: 2025-01-20
+published: 2026-01-17
 description: "Numpy Interview"
 image: "./cover.jpeg"
 tags: ["Blogging", "Numpy Interview"]

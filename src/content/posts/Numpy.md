@@ -1,6 +1,6 @@
 ---
 title: Numpy
-published: 2025-01-20
+published: 2026-01-17
 description: "Numpy"
 image: "./cover.jpeg"
 tags: ["Blogging", "Numpy"]

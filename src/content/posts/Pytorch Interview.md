@@ -1,6 +1,6 @@
 ---
 title: Pytorch
-published: 2025-01-20
+published: 2026-01-25
 description: "Pytorch"
 image: "./cover.jpeg"
 tags: ["Blogging", "Pytorch"]

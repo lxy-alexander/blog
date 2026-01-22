@@ -1,6 +1,6 @@
 ---
 title: Algorithm
-published: 2025-12-18
+published: 2026-01-20
 description: "Algorithm"
 image: "./cover.jpeg"
 tags: ["Blogging", "Algorithm"]
@@ -713,6 +713,189 @@ class Solution:
 At least k distinct elements, You cannot simply shrink when invalid
 
 :::
+
+### [2062. Count Vowel Substrings of a String](https://leetcode.com/problems/count-vowel-substrings-of-a-string/)
+
+A **substring** is a contiguous (non-empty) sequence of characters within a string.
+
+A **vowel substring** is a substring that **only** consists of vowels (`'a'`, `'e'`, `'i'`, `'o'`, and `'u'`) and has **all five** vowels present in it.
+
+Given a string `word`, return *the number of **vowel substrings** in* `word`.
+
+ 
+
+**Example 1:**
+
+```
+Input: word = "aeiouu"
+Output: 2
+Explanation: The vowel substrings of word are as follows (underlined):
+- "aeiouu"
+- "aeiouu"
+```
+
+**Example 2:**
+
+```
+Input: word = "unicornarihan"
+Output: 0
+Explanation: Not all 5 vowels are present, so there are no vowel substrings.
+```
+
+**Example 3:**
+
+```
+Input: word = "cuaieuouac"
+Output: 7
+Explanation: The vowel substrings of word are as follows (underlined):
+- "cuaieuouac"
+- "cuaieuouac"
+- "cuaieuouac"
+- "cuaieuouac"
+- "cuaieuouac"
+- "cuaieuouac"
+- "cuaieuouac"
+```
+
+**Constraints:**
+
+- `1 <= word.length <= 100`
+- `word` consists of lowercase English letters only.
+
+```c++
+class Solution {
+public:
+    bool isVowel(char c) {
+        return c == 'a' || c == 'e' || c == 'i'
+            || c == 'o' || c == 'u';
+    }
+
+    int countVowelSubstrings(string word) {
+        int ans = 0;
+        int n = word.size();
+
+        for (int i = 0; i < n; ) {
+            if (!isVowel(word[i])) {
+                i++;
+                continue;
+            }
+
+            int j = i;
+            while (j < n && isVowel(word[j])) j++;
+
+            if (j - i >= 5) {
+                unordered_map<char, int> cnt;
+                int l = i;
+
+                for (int r = i; r < j; r++) {
+                    cnt[word[r]]++;
+                    while (cnt.size() == 5) {
+                        ans += j - r;
+                        cnt[word[l]]--;
+                        if (cnt[word[l]] == 0)
+                            cnt.erase(word[l]);
+                        l++;
+                    }
+                }
+            }
+            i = j;
+        }
+
+        return ans;
+    }
+};
+
+```
+
+```python
+class Solution:
+    def countVowelSubstrings(self, word: str) -> int:
+        ans = 0
+        vowels = set('aeiou')
+        i = 0
+        while i < len(word):
+            if word[i] not in vowels:
+                i += 1
+                continue
+            j = i
+            while j < len(word) and word[j] in vowels:
+                j += 1
+            if j - i >= len(vowels):
+                cnt = defaultdict(int)
+                l = i
+                for r in range(i, j):
+                    cnt[word[r]] += 1
+                    while len(cnt) == len(vowels):
+                        ans += j - r
+                        cnt[word[l]] -= 1
+                        if cnt[word[l]] == 0:
+                            del cnt[word[l]]
+                        l += 1
+            i = j
+
+        return ans 
+
+```
+
+```python
+
+class Solution:
+    def countVowelSubstrings(self, word: str) -> int:
+        """
+        当窗口 [l, r] 已经包含 a e i o u：
+        [l, r]
+        [l, r+1]
+        [l, r+2]
+        ……
+        全部都是合法子串
+        所以是 len(s) - r
+        """
+        ans = 0
+        for s in re.findall(r'[aeiou]+', word):
+            if len(s) < 5:
+                continue
+            cnt = defaultdict(int)
+            l = 0
+            for r, c in enumerate(s):
+                cnt[c] += 1
+                while len(cnt) == 5:
+                    ans += len(s) - r
+                    cnt[s[l]] -= 1
+                    if cnt[s[l]] == 0:
+                        del cnt[s[l]]
+                    l += 1
+        return ans
+```
+
+
+
+### At least k occurrences
+
+- **2516** — Take K of Each Character From Left and Right↳
+- **395** — Longest Substring with At Least K Repeating Characters↳
+
+### Subarray sum / cost ≤ k
+
+- **209** — Minimum Size Subarray Sum
+- **1208** — Get Equal Substrings Within Budget↳
+- **1004** — Max Consecutive Ones III
+
+### “Replace / delete / flip at most k”
+
+- **2024** — Maximize the Confusion of an Exam↳
+- **1493** — Longest Subarray of 1’s After Deleting One Element↳
+- **487** — Max Consecutive Ones II *(premium)*
+
+### Range / window aggregation
+
+- **2271** — Maximum White Tiles Covered by a Carpet
+- **2106** — Maximum Fruits Harvested After at Most K Steps↳
+- **2555** — Maximize Win From Two Segments
+- **632** — Smallest Range Covering Elements from K Lists
+
+
+
+
 
 
 

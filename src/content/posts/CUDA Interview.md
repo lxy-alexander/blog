@@ -1,6 +1,6 @@
 ---
 title: CUDA Interview
-published: 2025-01-20
+published: 2025-01-19
 description: "CUDA Interview"
 image: "./cover.jpeg"
 tags: ["Blogging", "CUDA Interview"]

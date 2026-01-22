@@ -1,6 +1,6 @@
 ---
 title: BQs
-published: 2025-01-15
+published: 2026-01-15
 description: "BQs"
 image: "./cover.jpeg"
 tags: ["Blogging", "BQs"]
