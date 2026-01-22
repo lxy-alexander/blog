@@ -10,13 +10,21 @@ draft: false
 
 # BQs
 
-我是一名拥有五年以上科技行业经验的软件开发人员，专长于全栈开发。我的软件开发之旅始于计算机科学学士学位，这为我的编程和问题解决能力奠定了坚实的基础。
+https://www.mockquestions.com/position/Engineer/
 
-在我的职业生涯中，我曾使用过多种技术和编程语言，包括 JavaScript、Python 和 Java。我拥有丰富的 Web 应用开发经验，尤其热衷于打造用户友好、高效且可扩展的解决方案。我最近就职于 XYZ Tech 公司，参与开发了一套基于云的物流管理系统。这个项目不仅磨练了我的技术技能，也提升了我的团队合作和沟通能力。
+## Describe a difficult project and how you overcame it.
 
-我始终保持着强烈的学习和成长意愿。除了项目工作之外，我还定期参与专业发展活动，包括参加在线课程以了解最新的技术趋势、参与编程挑战以及为开源项目做贡献。
+The GPU x project was a low-level and highly complex project. One major challenge for me was switching from **Java to C++**, while also learning **OpenGL** and GPU-related concepts at the same time
 
-闲暇时，我喜欢参加技术交流会和研讨会，这有助于我与技术社区保持联系，并不断向同行学习。我对人工智能和机器学习也充满热情，目前正在开发一个个人项目，该项目利用机器学习算法来分析和预测用户行为。
+GPU x 项目是一个非常底层、技术复杂度很高的项目。我面临的主要挑战是需要从 **Java 切换到 C++**，同时还要学习 **OpenGL** 以及 GPU 相关的底层知识。.
 
-我非常高兴有机会将我多元化的技能、对技术的热情以及协作精神带到您的团队。我期待着参与创新项目，并成为贵公司充满活力和前瞻性思维的一份子。
+Since the project involved low-level graphics and performance optimization, the learning curve was steep. To overcome this, I actively asked experienced teammates for guidance and collected high-quality internal technical documents within the company. I combined these resources with official documentation and hands-on experiments to gradually build my  understanding.
+
+为了克服学习成本高的问题，我主动向周围有经验的同事请教，并整理和学习了公司内部已有的优质技术资料，同时结合官方文档和实践不断验证理解。
+
+Through this process, I successfully adapted to C++ development and gained a much deeper understanding of low-level graphics systems and GPU optimization.
+
+通过这个过程，我顺利完成了语言和技术栈的切换，也对底层图形系统和 GPU 优化有了更深入的认识。
+
+------
 
