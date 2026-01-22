@@ -240,8 +240,8 @@ if c == 'a' or c == 'e' or c == 'i' or c == 'o' or c == 'u':  ❌  not good
 
 `\d+`  本质上，反斜杠的作用就是“转义”，它会改变后面字符的意义,  反斜杠就是一个切换器，让普通字符变高级，或者让特殊字符变普通
 
-- **`\d` (Digit):** Matches any single character that is a digit (0 to 9). It is a shorthand for `[0-9]`.
-- **`+` (Plus sign):** A quantifier meaning **"one or more."** It tells the engine to keep matching the preceding element as long as it repeats.
+-   **`\d` (Digit):** Matches any single character that is a digit (0 to 9). It is a shorthand for `[0-9]`.
+-   **`+` (Plus sign):** A quantifier meaning **"one or more."** It tells the engine to keep matching the preceding element as long as it repeats.
 
 | **Lowercase** | **Matches...**                     | **Uppercase** | **Matches NOT...**                          |
 | ------------- | ---------------------------------- | ------------- | ------------------------------------------- |
@@ -253,10 +253,10 @@ Multi-Separator Pattern
 
 To split a string by `/`, `-`, `,`, `;`, and spaces, use: `[/\-,;\s]+`
 
-- **`[ ]`**: The "Container." Matches any **one** character inside. (匹配括号内任意**一个**字符)
-- **`\s`**: Matches any **space** (space, tab, newline). (匹配所有**空白符**)
-- **`\-`**: Matches a **dash**. We use a backslash `\` because `-` usually means a range (like a-z). (匹配**横杠**，加反斜杠是为了防止被识别为范围符号)
-- **`+`**: Matches **one or more**. This treats `,,,` or `; ` as a single separator. (匹配**一个或多个**，把连续的多个符号当成一个分隔符)
+-   **`[ ]`**: The "Container." Matches any **one** character inside. (匹配括号内任意**一个**字符)
+-   **`\s`**: Matches any **space** (space, tab, newline). (匹配所有**空白符**)
+-   **`\-`**: Matches a **dash**. We use a backslash `\` because `-` usually means a range (like a-z). (匹配**横杠**，加反斜杠是为了防止被识别为范围符号)
+-   **`+`**: Matches **one or more**. This treats `,,,` or `; ` as a single separator. (匹配**一个或多个**，把连续的多个符号当成一个分隔符)
 
 `r''` 代表 **Raw String（原始字符串）**
 
@@ -266,37 +266,37 @@ result = re.split(r'[/\-,;\s]+', text)
 
 1. Common Separators (分隔符)
 
-- **`-`** : **Hyphen** (or Dash)
-- **`/`** : **Forward Slash** (or just Slash)
-- **`,`** : **Comma**
-- **`;`** : **Semicolon**
-- **` `** : **Space** (or Whitespace)
-- **`_`** : **Underscore**
+-   **`-`** : **Hyphen** (or Dash)
+-   **`/`** : **Forward Slash** (or just Slash)
+-   **`,`** : **Comma**
+-   **`;`** : **Semicolon**
+-   **` `** : **Space** (or Whitespace)
+-   **`_`** : **Underscore**
 
 2. Regex Structural Symbols (正则结构符号)
 
-- **`r''`** : **Raw String**
-- **`[ ]`** : **Square Brackets** (used for Character Classes)
-- **`[^ ]`** : **Caret** (when inside brackets, it means **Negation**)
-- **`\`** : **Backslash** (used for Escaping转义)
-- **`+`** : **Plus Sign** (a Quantifier meaning "one or more")
-- **`\*`** : **Asterisk** (or Star, meaning "zero or more")
-- **`.`** : **Dot** (or Period)
+-   **`r''`** : **Raw String**
+-   **`[ ]`** : **Square Brackets** (used for Character Classes)
+-   **`[^ ]`** : **Caret** (when inside brackets, it means **Negation**)
+-   **`\`** : **Backslash** (used for Escaping转义)
+-   **`+`** : **Plus Sign** (a Quantifier meaning "one or more")
+-   **`\*`** : **Asterisk** (or Star, meaning "zero or more")
+-   **`.`** : **Dot** (or Period)
 
 3. Shorthand Character Classes (速记字符集)
 
-- **`\d`** : **Digit** (matches numbers)
-- **`\D`** : **Non-digit** (anything but a number)
-- **`\w`** : **Word character** (letters, numbers, underscores)
-- **`\W`** : **Non-word character** (symbols, spaces)
-- **`\s`** : **Whitespace** (spaces, tabs, newlines)
-- **`\S`** : **Non-whitespace** (anything visible)
-- **`\n`** : **New Line**
-- **`\t`** : Tab
-- **`\r`** : Carriage Return
-- **`\'`** : Single quote
-- **`\'`** : Double quote
--  **`\\'`** : Backslash `\`
+-   **`\d`** : **Digit** (matches numbers)
+-   **`\D`** : **Non-digit** (anything but a number)
+-   **`\w`** : **Word character** (letters, numbers, underscores)
+-   **`\W`** : **Non-word character** (symbols, spaces)
+-   **`\s`** : **Whitespace** (spaces, tabs, newlines)
+-   **`\S`** : **Non-whitespace** (anything visible)
+-   **`\n`** : **New Line**
+-   **`\t`** : Tab
+-   **`\r`** : Carriage Return
+-   **`\'`** : Single quote
+-   **`\'`** : Double quote
+-    **`\\'`** : Backslash `\`
 
 
 
@@ -341,4 +341,50 @@ print(re.findall(r'[^0-9]', 'a1b2c3')) # means “anything except …” ['a', '
 | 关注点   | 分隔符         | 匹配项           |
 | 返回内容 | 被切开的部分   | 匹配到的内容     |
 |          |                |                  |
+
+
+
+## Comparison: `10**18` vs `1e18`
+
+| Expression | Value                     | Type    | Exact?               |
+| ---------- | ------------------------- | ------- | -------------------- |
+| `10**18`   | 1,000,000,000,000,000,000 | `int`   | ✅ exact              |
+| `1e18`     | 1,000,000,000,000,000,000 | `float` | ❌ may lose precision |
+
+-   **C++**
+
+| Type        | Very Large Value | Very Small Value | Recommended                             |
+| ----------- | ---------------- | ---------------- | --------------------------------------- |
+| `int`       | `INT_MAX`        | `INT_MIN`        | `std::numeric_limits<int>::max()`       |
+| `long long` | `LLONG_MAX`      | `LLONG_MIN`      | `std::numeric_limits<long long>::max()` |
+
+| Type     | +Infinity                                 | −Infinity                                  | Max Finite                           | Min Finite                              |
+| -------- | ----------------------------------------- | ------------------------------------------ | ------------------------------------ | --------------------------------------- |
+| `double` | `std::numeric_limits<double>::infinity()` | `-std::numeric_limits<double>::infinity()` | `std::numeric_limits<double>::max()` | `std::numeric_limits<double>::lowest()` |
+| `float`  | `std::numeric_limits<float>::infinity()`  | `-std::numeric_limits<float>::infinity()`  | `std::numeric_limits<float>::max()`  | `std::numeric_limits<float>::lowest()`  |
+
+-   **Python**
+
+| Purpose           | Value                       |
+| ----------------- | --------------------------- |
+| Very large number | `10**18`, `10**100`, etc.   |
+| Very small number | `-10**18`, `-10**100`, etc. |
+
+>   Python `int` has **arbitrary precision**, no overflow.
+
+| Purpose    | Value                     |
+| ---------- | ------------------------- |
+| +Infinity  | `float('inf')`            |
+| −Infinity  | `float('-inf')`           |
+| Max finite | `1.7976931348623157e308`  |
+| Min finite | `-1.7976931348623157e308` |
+
+Practical Recommendation (Algorithms / Contests)
+
+| Language | Best Practice                        |
+| -------- | ------------------------------------ |
+| C++      | `std::numeric_limits<T>::infinity()` |
+| Python   | `float('inf')`                       |
+
+
 

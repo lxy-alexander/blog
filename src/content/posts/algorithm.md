@@ -61,9 +61,9 @@ Explanation: "lee", "eet" and "ode" contain 2 vowels.
 
 **Constraints:**
 
-- `1 <= s.length <= 105`
-- `s` consists of lowercase English letters.
-- `1 <= k <= s.length`
+-   `1 <= s.length <= 105`
+-   `s` consists of lowercase English letters.
+-   `1 <= k <= s.length`
 
 ```cpp
 class Solution {
@@ -135,9 +135,9 @@ Output: 5.00000
 
 **Constraints:**
 
-- `n == nums.length`
-- `1 <= k <= n <= 105`
-- `-104 <= nums[i] <= 104`
+-   `n == nums.length`
+-   `1 <= k <= n <= 105`
+-   `-104 <= nums[i] <= 104`
 
 ```c++
 class Solution {
@@ -179,8 +179,8 @@ class Solution:
 
 You are given an integer array `nums` and an integer `k`. Find the maximum subarray sum of all the subarrays of `nums` that meet the following conditions:
 
-- The length of the subarray is `k`, and
-- All the elements of the subarray are **distinct**.
+-   The length of the subarray is `k`, and
+-   All the elements of the subarray are **distinct**.
 
 Return *the maximum subarray sum of all the subarrays that meet the conditions**.* If no subarray meets the conditions, return `0`.
 
@@ -216,8 +216,8 @@ We return 0 because no subarrays meet the conditions.
 
 **Constraints:**
 
-- `1 <= k <= nums.length <= 105`
-- `1 <= nums[i] <= 105`
+-   `1 <= k <= nums.length <= 105`
+-   `1 <= nums[i] <= 105`
 
 ```c++
 class Solution {
@@ -276,7 +276,7 @@ You are given a string `s` and an array of strings `words`. All the strings of `
 
 A **concatenated string** is a string that exactly contains all the strings of any permutation of `words` concatenated.
 
-- For example, if `words = ["ab","cd","ef"]`, then `"abcdef"`, `"abefcd"`, `"cdabef"`, `"cdefab"`, `"efabcd"`, and `"efcdab"` are all concatenated strings. `"acdbef"` is not a concatenated string because it is not the concatenation of any permutation of `words`.
+-   For example, if `words = ["ab","cd","ef"]`, then `"abcdef"`, `"abefcd"`, `"cdabef"`, `"cdefab"`, `"efabcd"`, and `"efcdab"` are all concatenated strings. `"acdbef"` is not a concatenated string because it is not the concatenation of any permutation of `words`.
 
 Return an array of *the starting indices* of all the concatenated substrings in `s`. You can return the answer in **any order**.
 
@@ -319,10 +319,10 @@ The substring starting at 12 is `"thefoobar"`. It is the concatenation of `["the
 
 **Constraints:**
 
-- `1 <= s.length <= 104`
-- `1 <= words.length <= 5000`
-- `1 <= words[i].length <= 30`
-- `s` and `words[i]` consist of lowercase English letters.
+-   `1 <= s.length <= 104`
+-   `1 <= words.length <= 5000`
+-   `1 <= words[i].length <= 30`
+-   `s` and `words[i]` consist of lowercase English letters.
 
 
 
@@ -414,176 +414,68 @@ class Solution:
 
 ### Variable-length sliding window
 
-> Variable-length sliding windows are mainly divided into three categories: finding the longest subarray, finding the shortest subarray, and finding the number of subarrays.
+>   Variable-length sliding windows are mainly divided into three categories: finding the longest subarray, finding the shortest subarray, and finding the number of subarrays.
 >
->  A sliding window is equivalent to maintaining a queue . Moving the right pointer can be seen as enqueuing , and moving the left pointer can be seen as dequeuing .
+>    A sliding window is equivalent to maintaining a queue . Moving the right pointer can be seen as enqueuing , and moving the left pointer can be seen as dequeuing .
 >
-
-
-
-#### [3. Longest Substring Without Repeating Characters](https://leetcode.com/problems/longest-substring-without-repeating-characters/)
-
-Given a string `s`, find the length of the **longest** **substring** without duplicate characters.
-
-给定一个字符串 s，求没有重复字符的最长子串的长度。
-
- 
-
-**Example 1:**
-
-```
-Input: s = "abcabcbb"
-Output: 3
-Explanation: The answer is "abc", with the length of 3. Note that "bca" and "cab" are also correct answers.
-```
-
-**Example 2:**
-
-```
-Input: s = "bbbbb"
-Output: 1
-Explanation: The answer is "b", with the length of 1.
-```
-
-**Example 3:**
-
-```
-Input: s = "pwwkew"
-Output: 3
-Explanation: The answer is "wke", with the length of 3.
-Notice that the answer must be a substring, "pwke" is a subsequence and not a substring.
-```
-
-```c++
-class Solution {
-public:
-    int lengthOfLongestSubstring(string s) {
-        int ans = 0;
-        int l = 0; // l is leftbound and r is right bound
-        map<char, int> map; // create a map
-        int n = s.size();
-        for (int r = 0; r < n; r++) {
-            // If map contains the current character and this charater is inside the sliding window
-            if (map.contains(s[r]) && map[s[r]] >= l) {
-                l = map[s[r]] + 1; // satisfy above the condition, it will move the left pointer(that is left boundary) to next postion.
-            }
-            ans = max(ans, r - l + 1); // you need compare with the newest window size and old value, and then update the answer
-            map[s[r]] = r; // update the character's index
-        }
-        return ans;
-    }
-};
-```
-
-```python
-class Solution:
-    def lengthOfLongestSubstring(self, s: str) -> int:
-        ans = 0
-        l = 0
-        cnt = defaultdict(int)
-        for r, c in enumerate(s):
-            cnt[c] += 1
-            while cnt[c] > 1:
-                cnt[s[l]] -= 1
-                l += 1
-            ans = max(ans, r - l + 1)
-        return ans
-
-```
+>   <  ≤  → direct sliding window
+>   ==     → at most K − at most (K − 1)
+>   ≥      → total − at most (K − 1)
 
 
 
 :::important
 
-| 题目条件      | 位置法 | 计数法 |
-| ------------- | ------ | ------ |
-| 不允许重复    | ✅      | ✅      |
-| 最多出现 1 次 | ✅      | ✅      |
-| 最多出现 2 次 | ❌      | ✅      |
-| 最多出现 k 次 | ❌      | ✅      |
-| 至多 k 种元素 | ❌      | ✅      |
-| 至少 k 次     | ❌      | ✅      |
-| 子数组和 ≤ k  | ❌      | ✅      |
-| 单一最近冲突  | ✅      | ❌      |
+At Most（至多）
+
+-   ≤ K
+-   **单调性最好**
+-   滑动窗口首选
+
+**“至多”之所以单调性最好，是因为扩张和收缩对合法性的影响方向是完全相反且确定的。**
+
+-   at most K distinct
+-   at most K occurrences
+-   sum ≤ K
 
 :::
 
+#### [[LeetCode\] 340. Longest Substring with At Most K Distinct Characters](https://www.cnblogs.com/grandyang/p/5351347.html) (at most k distinct elements )
 
+ Given a string, find the length of the longest substring T that contains at most *k* distinct characters.
 
-:::note
+Example 1:
 
- At most 2 occurrences
+```
+Input: s = "eceba", k = 2
+Output: 3
+Explanation: T is "ece" which its length is 3.
+```
 
-:::
+Example 2:
 
-
-
-#### [3090. Maximum Length Substring With Two Occurrences](https://leetcode.com/problems/maximum-length-substring-with-two-occurrences/)
-
-Given a string `s`, return the **maximum** 
-
-length
-
- of a substring such that it contains *at most two occurrences* of each character.
-
- 
-
-**Example 1:**
-
-**Input:** s = "bcbbbcba"
-
-**Output:** 4
-
-**Explanation:**
-
-The following substring has a 
-
-length
-
- of 4 and contains at most two 
-
-occurrences
-
- of each character: `"bcbbbcba"`.
-
-**Example 2:**
-
-**Input:** s = "aaaa"
-
-**Output:** 2
-
-**Explanation:**
-
-The following substring has a 
-
-length
-
- of 2 and contains at most two 
-
-occurrences
-
- of each character: `"aaaa"`.
-
- 
-
-**Constraints:**
-
-- `2 <= s.length <= 100`
-- `s` consists only of lowercase English letters.
+```
+Input: s = "aa", k = 1
+Output: 2
+Explanation: T is "aa" which its length is 2.
+```
 
 ```c++
 class Solution {
 public:
-    int maximumLengthSubstring(string s) {
+    int lengthOfLongestSubstringKDistinct(string s, int k) {
         int ans = 0;
         map<char, int> cnt;
         int l = 0;
         int n = s.size();
         for (int r = 0; r < n; r++) {
             cnt[s[r]]++;
-            while (cnt[s[r]] > 2) { // if the count exceed 2, the window becomes invalid. we will shrink the window from the left
-                cnt[s[l]]--; // decreses the count of s[l]
-                l++; // move the left boundary to next position
+            while (cnt.size() > k) {
+                cnt[s[l]]--;
+                if (cnt[s[l]] == 0) {
+                    cnt.erase(s[l]);
+                }
+                l++;
             }
             ans = max(ans, r - l + 1);
         }
@@ -594,41 +486,34 @@ public:
 
 ```python
 class Solution:
-    def maximumLengthSubstring(self, s: str) -> int:
+    def lengthOfLongestSubstringKDistinct(self, s: str, k: int) -> int:
         ans = 0
-        d = defaultdict(int)
+        cnt = defaultdict(int)
         l = 0
         for r, c in enumerate(s):
-            d[c] += 1
-            while d[c] > 2:
-                d[s[l]] -= 1
+            cnt[c] += 1 # cnt[c] is an integer (the frequency of character c)
+            while len(cnt) > k: // we need check how many distinct characters are currently in the sliding window. 
+                cnt[s[l]] -= 1
+                if cnt[s[l]] == 0:
+                    del cnt[s[l]]
                 l += 1
             ans = max(ans, r - l + 1)
         return ans
-
 ```
 
 
 
-:::note
-
-At most k distinct elements
-
-:::
-
-#### [904. Fruit Into Baskets](https://leetcode.com/problems/fruit-into-baskets/)
+#### [904. Fruit Into Baskets](https://leetcode.com/problems/fruit-into-baskets/)  (at most 2 distinct elements )
 
 You are visiting a farm that has a single row of fruit trees arranged from left to right. The trees are represented by an integer array `fruits` where `fruits[i]` is the **type** of fruit the `ith` tree produces.
 
 You want to collect as much fruit as possible. However, the owner has some strict rules that you must follow:
 
-- You only have **two** baskets, and each basket can only hold a **single type** of fruit. There is no limit on the amount of fruit each basket can hold.
-- Starting from any tree of your choice, you must pick **exactly one fruit** from **every** tree (including the start tree) while moving to the right. The picked fruits must fit in one of your baskets.
-- Once you reach a tree with fruit that cannot fit in your baskets, you must stop.
+-   You only have **two** baskets, and each basket can only hold a **single type** of fruit. There is no limit on the amount of fruit each basket can hold.
+-   Starting from any tree of your choice, you must pick **exactly one fruit** from **every** tree (including the start tree) while moving to the right. The picked fruits must fit in one of your baskets.
+-   Once you reach a tree with fruit that cannot fit in your baskets, you must stop.
 
-Given the integer array `fruits`, return *the **maximum** number of fruits you can pick*.
-
- 
+Given the integer array `fruits`, return *the **maximum** number of fruits you can pick*. 
 
 **Example 1:**
 
@@ -660,8 +545,8 @@ If we had started at the first tree, we would only pick from trees [1,2].
 
 **Constraints:**
 
-- `1 <= fruits.length <= 105`
-- `0 <= fruits[i] < fruits.length`
+-   `1 <= fruits.length <= 105`
+-   `0 <= fruits[i] < fruits.length`
 
 ```c++
 class Solution {
@@ -708,13 +593,255 @@ class Solution:
 
 
 
-:::note
+#### [3. Longest Substring Without Repeating Characters](https://leetcode.com/problems/longest-substring-without-repeating-characters/) （at most 1 occurrence）
 
-At least k distinct elements, You cannot simply shrink when invalid
+Given a string `s`, find the length of the **longest** **substring** without duplicate characters.
+
+**Example 1:**
+
+```
+Input: s = "abcabcbb"
+Output: 3
+Explanation: The answer is "abc", with the length of 3. Note that "bca" and "cab" are also correct answers.
+```
+
+**Example 2:**
+
+```
+Input: s = "bbbbb"
+Output: 1
+Explanation: The answer is "b", with the length of 1.
+```
+
+**Example 3:**
+
+```
+Input: s = "pwwkew"
+Output: 3
+Explanation: The answer is "wke", with the length of 3.
+Notice that the answer must be a substring, "pwke" is a subsequence and not a substring.
+```
+
+```c++
+class Solution {
+public:
+    int lengthOfLongestSubstring(string s) {
+        int ans = 0;
+        int l = 0; // l is leftbound and r is right bound
+        map<char, int> cnt;
+        int n = s.size();
+        for (int r = 0; r < n; r++) {
+            cnt[s[r]]++;
+            
+            // if the occurrences of the current character is greater than one, it is not valid substring, we need shrink the left boundary to make it valid
+            while (cnt[s[r]] > 1) {
+                cnt[s[l]]--;
+                if (cnt[s[l]] == 0) {
+                    cnt.erase(s[l]);
+                }
+                l++;
+            }
+            ans = max(ans, r - l + 1); 
+            
+        }
+        return ans;
+    }
+};
+```
+
+```python
+class Solution:
+    def lengthOfLongestSubstring(self, s: str) -> int:
+        ans = 0
+        l = 0
+        cnt = defaultdict(int)
+        for r, c in enumerate(s):
+            cnt[c] += 1
+            while cnt[c] > 1:
+                cnt[s[l]] -= 1
+                l += 1
+            ans = max(ans, r - l + 1)
+        return ans
+
+```
+
+
+
+
+
+#### [3090. Maximum Length Substring With Two Occurrences](https://leetcode.com/problems/maximum-length-substring-with-two-occurrences/) （at most 2 occurrences）
+
+Given a string `s`, return the **maximum** length of a substring such that it contains *at most two occurrences* of each character.
+
+**Example 1:**
+
+**Input:** s = "bcbbbcba"
+
+**Output:** 4
+
+**Explanation:**
+
+The following substring has a 
+
+length
+
+ of 4 and contains at most two 
+
+occurrences
+
+ of each character: `"bcbbbcba"`.
+
+**Example 2:**
+
+**Input:** s = "aaaa"
+
+**Output:** 2
+
+**Explanation:**
+
+The following substring has a 
+
+length
+
+ of 2 and contains at most two 
+
+occurrences
+
+ of each character: `"aaaa"`.
+
+ 
+
+**Constraints:**
+
+-   `2 <= s.length <= 100`
+-   `s` consists only of lowercase English letters.
+
+```c++
+class Solution {
+public:
+    int maximumLengthSubstring(string s) {
+        int ans = 0;
+        map<char, int> cnt;
+        int l = 0;
+        int n = s.size();
+        for (int r = 0; r < n; r++) {
+            cnt[s[r]]++;
+            while (cnt[s[r]] > 2) { // if the count exceed 2, the window becomes invalid. we will shrink the window from the left
+                cnt[s[l]]--; // decreses the count of s[l]
+                l++; // move the left boundary to next position
+            }
+            ans = max(ans, r - l + 1);
+        }
+        return ans;
+    }
+};
+```
+
+```python
+class Solution:
+    def maximumLengthSubstring(self, s: str) -> int:
+        ans = 0
+        d = defaultdict(int)
+        l = 0
+        for r, c in enumerate(s):
+            d[c] += 1
+            while d[c] > 2:
+                d[s[l]] -= 1
+                l += 1
+            ans = max(ans, r - l + 1)
+        return ans
+
+```
+
+
+
+:::important
+
+Exactly K Distinct Elements
 
 :::
 
-### [2062. Count Vowel Substrings of a String](https://leetcode.com/problems/count-vowel-substrings-of-a-string/)
+#### [1248. Count Number of Nice Subarrays](https://leetcode.com/problems/count-number-of-nice-subarrays/)
+
+Given an array of integers `nums` and an integer `k`. A continuous subarray is called **nice** if there are `k` odd numbers on it.
+
+Return *the number of **nice** sub-arrays*.
+
+ 
+
+**Example 1:**
+
+```
+Input: nums = [1,1,2,1,1], k = 3
+Output: 2
+Explanation: The only sub-arrays with 3 odd numbers are [1,1,2,1] and [1,2,1,1].
+```
+
+**Example 2:**
+
+```
+Input: nums = [2,4,6], k = 1
+Output: 0
+Explanation: There are no odd numbers in the array.
+```
+
+**Example 3:**
+
+```
+Input: nums = [2,2,2,1,2,2,1,2,2,2], k = 2
+Output: 16
+```
+
+ 
+
+**Constraints:**
+
+-   `1 <= nums.length <= 50000`
+-   `1 <= nums[i] <= 10^5`
+-   `1 <= k <= nums.length`
+
+
+
+```python
+# Why exactly K cannot be handled directly with a sliding window
+# Imagine the current window contains exactly k odd numbers.
+# When the right pointer moves:
+# If the new number is odd → the count becomes k + 1 (invalid)
+# If the new number is even → the count stays k (still valid)
+# When the left pointer moves:
+# If the removed number is odd → the count becomes k − 1 (invalid)
+# If the removed number is even → the count stays k (still valid)
+class Solution:
+    """
+    exactly K = at most K - at most (k - 1)
+    """
+
+    def numberOfSubarrays(self, nums: List[int], k: int) -> int: 
+        # This nested function exists only to help solve this problem.
+        # share the context via closures
+        def atMost(k):
+            ans = l = cnt = 0
+            for r, x in enumerate(nums):
+                cnt += x & 1
+                while cnt > k:
+                    cnt -= nums[l] & 1
+                    l += 1
+                # when the while loop finishes, cnt must be less than or equal to k, it means the window [l, r] satisfies the constraint. so all subarrays ending at r and starting from any index between l and r are valid, so we add r - l + 1.
+                ans += r - l + 1
+            return ans
+        
+        # To compute the number of subarrays with exactly k odd numbers by using the numbers of subarrays with at most k odd numbers to substracting the one with at most k - 1 odd numbers.
+        return atMost(k) - atMost(k - 1)
+                
+```
+
+
+
+
+
+
+
+#### [2062. Count Vowel Substrings of a String](https://leetcode.com/problems/count-vowel-substrings-of-a-string/) （exactly including 5 all vowels）
 
 A **substring** is a contiguous (non-empty) sequence of characters within a string.
 
@@ -759,8 +886,8 @@ Explanation: The vowel substrings of word are as follows (underlined):
 
 **Constraints:**
 
-- `1 <= word.length <= 100`
-- `word` consists of lowercase English letters only.
+-   `1 <= word.length <= 100`
+-   `word` consists of lowercase English letters only.
 
 ```c++
 class Solution {
@@ -773,8 +900,9 @@ public:
     int countVowelSubstrings(string word) {
         int ans = 0;
         int n = word.size();
-
-        for (int i = 0; i < n; ) {
+        
+        int i = 0;
+        while (i < n) {
             if (!isVowel(word[i])) {
                 i++;
                 continue;
@@ -786,11 +914,11 @@ public:
             if (j - i >= 5) {
                 unordered_map<char, int> cnt;
                 int l = i;
-
                 for (int r = i; r < j; r++) {
                     cnt[word[r]]++;
                     while (cnt.size() == 5) {
-                        ans += j - r;
+                        ans += j - r; // [l, r] is a valid substring, so [l, r], [l, r+1], [l, r+2], ..., [l, j-1] are also valid.
+
                         cnt[word[l]]--;
                         if (cnt[word[l]] == 0)
                             cnt.erase(word[l]);
@@ -838,7 +966,6 @@ class Solution:
 ```
 
 ```python
-
 class Solution:
     def countVowelSubstrings(self, word: str) -> int:
         """
@@ -869,29 +996,263 @@ class Solution:
 
 
 
-### At least k occurrences
 
-- **2516** — Take K of Each Character From Left and Right↳
-- **395** — Longest Substring with At Least K Repeating Characters↳
 
-### Subarray sum / cost ≤ k
+#### [992. Subarrays with K Different Integers](https://leetcode.com/problems/subarrays-with-k-different-integers/) （Exactly K Different Integers）
 
-- **209** — Minimum Size Subarray Sum
-- **1208** — Get Equal Substrings Within Budget↳
-- **1004** — Max Consecutive Ones III
+Given an integer array `nums` and an integer `k`, return *the number of **good subarrays** of* `nums`.
 
-### “Replace / delete / flip at most k”
+A **good array** is an array where the number of different integers in that array is exactly `k`.
 
-- **2024** — Maximize the Confusion of an Exam↳
-- **1493** — Longest Subarray of 1’s After Deleting One Element↳
-- **487** — Max Consecutive Ones II *(premium)*
+-   For example, `[1,2,3,1,2]` has `3` different integers: `1`, `2`, and `3`.
 
-### Range / window aggregation
+A **subarray** is a **contiguous** part of an array.
 
-- **2271** — Maximum White Tiles Covered by a Carpet
-- **2106** — Maximum Fruits Harvested After at Most K Steps↳
-- **2555** — Maximize Win From Two Segments
-- **632** — Smallest Range Covering Elements from K Lists
+**Example 1:**
+
+```
+Input: nums = [1,2,1,2,3], k = 2
+Output: 7
+Explanation: Subarrays formed with exactly 2 different integers: [1,2], [2,1], [1,2], [2,3], [1,2,1], [2,1,2], [1,2,1,2]
+```
+
+**Example 2:**
+
+```
+Input: nums = [1,2,1,3,4], k = 3
+Output: 3
+Explanation: Subarrays formed with exactly 3 different integers: [1,2,1,3], [2,1,3], [1,3,4].
+```
+
+ 
+
+**Constraints:**
+
+-   `1 <= nums.length <= 2 * 104`
+-   `1 <= nums[i], k <= nums.length`
+
+```c++
+class Solution {
+public:
+    int subarrayAtMostKDistinct(vector<int>& nums, int k) {
+        int n = nums.size();
+        int ans = 0;
+        map<int, int>cnt;
+        int l = 0;
+        for (int r = 0; r < n; r++) {
+            cnt[nums[r]]++;
+            while (cnt.size() > k) { // distinc elements is greater than k
+                cnt[nums[l]]--;
+                if (cnt[nums[l]] == 0) {
+                    cnt.erase(nums[l]);
+                }
+                l++;
+            }
+            /**
+            [l, r] 中最多有 k 个不同元素
+
+            [l, r]
+            [l+1, r]
+            [l+2, r]
+            ...
+            [r, r]
+
+            r - l + 1 个
+            **/
+            ans += r - l + 1;
+        }
+        return ans;
+
+    }
+    int subarraysWithKDistinct(vector<int>& nums, int k) {
+        return subarrayAtMostKDistinct(nums, k) - subarrayAtMostKDistinct(nums, k - 1);
+    }
+};
+```
+
+
+
+
+
+#### [713. Subarray Product Less Than K](https://leetcode.com/problems/subarray-product-less-than-k/)  (less than k (belong to at most))
+
+Given an array of integers `nums` and an integer `k`, return *the number of contiguous subarrays where the product of all the elements in the subarray is strictly less than* `k`.
+
+**Example 1:**
+
+```
+Input: nums = [10,5,2,6], k = 100
+Output: 8
+Explanation: The 8 subarrays that have product less than 100 are:
+[10], [5], [2], [6], [10, 5], [5, 2], [2, 6], [5, 2, 6]
+Note that [10, 5, 2] is not included as the product of 100 is not strictly less than k.
+```
+
+**Example 2:**
+
+```
+Input: nums = [1,2,3], k = 0
+Output: 0
+```
+
+ 
+
+**Constraints:**
+
+-   `1 <= nums.length <= 3 * 104`
+-   `1 <= nums[i] <= 1000`
+-   `0 <= k <= 106`
+
+```python
+class Solution:
+    def numSubarrayProductLessThanK(self, nums: List[int], k: int) -> int:
+        # 当 k ≤ 1 时，不可能存在 product < k 的子数组，所以答案必为 0。
+        if k <= 1:
+            return 0
+        ans, product, l = 0, 1, 0
+        for r, x in enumerate(nums):
+            product *= x
+            while product >= k:
+                product //= nums[l] # /会使变成float
+                l += 1
+            ans += r - l + 1
+        return ans
+```
+
+
+
+
+
+
+
+:::important
+
+At Least（至少）
+
+-   ≥ K
+-   **不稳定**
+-   通常转化为 at most
+
+满足 ≥ K 的数量  = 所有可能的数量 − 不满足 ≥ K（也就是 ≤ K−1）的数量
+
+`at least K = total − at most (K − 1)`
+
+:::
+
+
+
+
+
+
+
+
+
+
+
+
+
+### Greedy + Two Pointers + run-based scanning
+
+#### [1839. Longest Substring Of All Vowels in Order](https://leetcode.com/problems/longest-substring-of-all-vowels-in-order/)
+
+A string is considered **beautiful** if it satisfies the following conditions:
+
+-   Each of the 5 English vowels (`'a'`, `'e'`, `'i'`, `'o'`, `'u'`) must appear **at least once** in it.
+-   The letters must be sorted in **alphabetical order** (i.e. all `'a'`s before `'e'`s, all `'e'`s before `'i'`s, etc.).
+
+For example, strings `"aeiou"` and `"aaaaaaeiiiioou"` are considered **beautiful**, but `"uaeio"`, `"aeoiu"`, and `"aaaeeeooo"` are **not beautiful**.
+
+Given a string `word` consisting of English vowels, return *the **length of the longest beautiful substring** of* `word`*. If no such substring exists, return* `0`.
+
+A **substring** is a contiguous sequence of characters in a string.
+
+ 
+
+**Example 1:**
+
+```
+Input: word = "aeiaaioaaaaeiiiiouuuooaauuaeiu"
+Output: 13
+Explanation: The longest beautiful substring in word is "aaaaeiiiiouuu" of length 13.
+```
+
+**Example 2:**
+
+```
+Input: word = "aeeeiiiioooauuuaeiou"
+Output: 5
+Explanation: The longest beautiful substring in word is "aeiou" of length 5.
+```
+
+**Example 3:**
+
+```
+Input: word = "a"
+Output: 0
+Explanation: There is no beautiful substring, so return 0.
+```
+
+
+
+```c++
+class Solution {
+public:
+    int longestBeautifulSubstring(string word) {
+        int ans = 0;
+        int l = 0, r = 0;
+        int n = word.size();
+        while (r < n) {
+            if (word[r] != 'a') {
+                r++;
+                continue;
+            }
+            int l = r;
+            r += 1;
+            int type = 1;
+            while (r < n && word[r] >= word[r - 1]) {
+                if (word[r] > word[r - 1]) {
+                    type++;
+                }
+                r++;
+            }
+            if (type == 5)
+                ans = max(ans, r - l);
+        }
+        return ans;
+    }
+};
+```
+
+```python
+class Solution:
+    def longestBeautifulSubstring(self, word: str) -> int:
+        ans, l, r = 0, 0, 0
+        n = len(word)
+        while r < n:
+            if word[r] != 'a':
+                r += 1
+                continue
+            l = r
+            r += 1
+            type = 1 # initially we set the type to be 1, because the first char is 'a'
+            while r < n and word[r] >= word[r - 1]: # if next char is greater than or equal to previous one, it means it is sorted in alphabetical order
+                if word[r] != word[r - 1]:
+                    type += 1
+                r += 1
+
+            if type == 5:
+                ans = max(ans, r - l)
+        return ans
+
+```
+
+
+
+
+
+
+
+
 
 
 
