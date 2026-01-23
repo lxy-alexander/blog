@@ -18,7 +18,6 @@ draft: false
 https://leetcode.cn/discuss/post/3141566/ru-he-ke-xue-shua-ti-by-endlesscheng-q3yd/
 
 
-
 ## Sliding Window
 
 >**Sliding Window** is a way to look at a small part of data and move it forward one step at a time, instead of starting over each time.
@@ -32,7 +31,6 @@ Given a string `s` and an integer `k`, return *the maximum number of vowel lette
 **Vowel letters** in English are `'a'`, `'e'`, `'i'`, `'o'`, and `'u'`.
 
  
-
 **Example 1:**
 
 ```
