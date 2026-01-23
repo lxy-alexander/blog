@@ -37,7 +37,8 @@ const {
 const className = Astro.props.class;
 
 // 如果有图片，或者提供了entry.slug（可以生成动态图片），则显示封面
-const hasCover = (image !== undefined && image !== null && image !== "") || entry.slug;
+const hasCover =
+	(image !== undefined && image !== null && image !== "") || entry.slug;
 
 const coverWidth = "28%";
 

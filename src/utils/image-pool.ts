@@ -113,20 +113,20 @@ export const DEFAULT_IMAGE = "/favicon/favicon-light-192.png";
 
 /**
  * 根据日期和文章ID生成稳定的随机图片链接
- * 
+ *
  * @param postId 文章的唯一标识符（如slug或id）
  * @param date 日期字符串，格式为 YYYY-MM-DD，用于每天更新
  * @returns 图片链接
  */
 export function getRandomImageForPost(postId: string, date?: string): string {
 	const today = date || getTodayDateString();
-	
+
 	// 使用日期和文章ID生成一个稳定的种子
 	const seed = hashString(`${today}-${postId}`);
-	
+
 	// 基于种子选择图片索引
 	const imageIndex = seed % IMAGE_POOL.length;
-	
+
 	return IMAGE_POOL[imageIndex];
 }
 
@@ -150,7 +150,7 @@ function hashString(str: string): number {
 	let hash = 0;
 	for (let i = 0; i < str.length; i++) {
 		const char = str.charCodeAt(i);
-		hash = ((hash << 5) - hash) + char;
+		hash = (hash << 5) - hash + char;
 		hash = hash & hash; // Convert to 32bit integer
 	}
 	return Math.abs(hash);

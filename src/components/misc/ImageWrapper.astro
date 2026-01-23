@@ -12,10 +12,21 @@ interface Props {
 }
 
 import { Image } from "astro:assets";
+import {
+	DEFAULT_IMAGE,
+	getRandomImageForPost,
+	isNetworkImage,
+} from "../../utils/image-pool";
 import { url } from "../../utils/url-utils";
-import { getRandomImageForPost, DEFAULT_IMAGE, isNetworkImage } from "../../utils/image-pool";
 
-const { id, src, alt, position = "center", basePath = "/", postId } = Astro.props;
+const {
+	id,
+	src,
+	alt,
+	position = "center",
+	basePath = "/",
+	postId,
+} = Astro.props;
 const className = Astro.props.class;
 
 // 如果src为空字符串，且提供了postId，则使用动态图片
@@ -56,7 +67,8 @@ if (isLocal) {
 
 const imageClass = "w-full h-full object-cover";
 const imageStyle = `object-position: ${position}`;
-const hasValidImage = (isLocal && img) || (!isLocal && finalSrc && finalSrc.trim() !== "");
+const hasValidImage =
+	(isLocal && img) || (!isLocal && finalSrc && finalSrc.trim() !== "");
 ---
 {hasValidImage && (
 	<div id={id} class:list={[className, 'overflow-hidden relative']}>
