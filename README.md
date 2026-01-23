@@ -1,8 +1,6 @@
-这是一份基于 **Fuwari** 模板与 **Astro** 框架的博客构建全流程指南。本指南整合了从本地环境搭建到 GitHub Pages 自动化部署的完整步骤。
-
----
-
 ## 🚀 Fuwari 博客构建全流程指南
+
+这是一份基于 **Fuwari** 模板与 **Astro** 框架的博客构建全流程指南。本指南整合了从本地环境搭建到 GitHub Pages 自动化部署的完整步骤。
 
 ### 1. 环境准备
 
@@ -91,7 +89,6 @@ draft: false
 export default defineConfig({
   site: "https://<你的用户名>.github.io",
   base: "/<仓库名>/", // 如果仓库名是 username.github.io，则此项留空或填 "/"
-  output: "static",
 });
 
 ```
@@ -99,6 +96,53 @@ export default defineConfig({
 #### B. 创建部署脚本 (GitHub Actions)
 
 在项目根目录创建 `.github/workflows/deploy.yml`，并粘贴以下核心配置：
+
+```sh
+name: Deploy to GitHub Pages
+
+on:
+  # 每次推送到 `main` 分支时触发这个“工作流程”
+  # 如果你使用了别的分支名，请按需将 `main` 替换成你的分支名
+  push:
+    branches: [ main ]
+  # 允许你在 GitHub 上的 Actions 标签中手动触发此“工作流程”
+  workflow_dispatch:
+
+# 允许 job 克隆 repo 并创建一个 page deployment
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout your repository using git
+        uses: actions/checkout@v5
+      - name: Install, build, and upload your site
+        uses: withastro/action@v5
+        # with:
+          # path: . # 存储库中 Astro 项目的根位置。（可选）
+          # node-version: 20 # 用于构建站点的特定 Node.js 版本，默认为 20。（可选）
+          # package-manager: pnpm@latest # 应使用哪个 Node.js 包管理器来安装依赖项和构建站点。会根据存储库中的 lockfile 自动检测。（可选）
+          # build-cmd: pnpm run build # 用于构建你的网站的命令。默认运行软件包的构建脚本或任务。（可选）
+        # env:
+          # PUBLIC_POKEAPI: 'https://pokeapi.co/api/v2' # 对变量值使用单引号。（可选）
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+```
+
+
 
 > 该脚本会在你每次 `git push` 时自动完成安装、构建并发布。
 
@@ -117,7 +161,6 @@ export default defineConfig({
 git add .
 git commit -m "Initial blog setup"
 git push origin main
-
 ```
 
 **检查进度**: 在 GitHub 仓库的 **Actions** 选项卡中可以看到部署进度。完成后，你的博客将运行在 `https://<用户名>.github.io/<仓库名>/`。
