@@ -2,7 +2,7 @@
 title: Popular Questions
 published: 2026-01-01
 description: "Popular Questions"
-image: "./cover.jpeg"
+image: "./../cover.jpeg"
 tags: ["Blogging", "Popular Questions"]
 category: Guides
 draft: false

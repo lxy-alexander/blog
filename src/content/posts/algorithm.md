@@ -8,7 +8,7 @@ category: Guides
 draft: false
 ---
 
-# Algorithm
+
 
 <img src="https://raw.githubusercontent.com/lxy-alexander/pico/main/typora/image-20260120171400651.png" alt="image-20260120171400651" style="zoom: 33%;" /> 
 
@@ -18,11 +18,11 @@ draft: false
 https://leetcode.cn/discuss/post/3141566/ru-he-ke-xue-shua-ti-by-endlesscheng-q3yd/
 
 
-## Sliding Window
+# Sliding Window
 
 >**Sliding Window** is a way to look at a small part of data and move it forward one step at a time, instead of starting over each time.
 
-### Fixed-length sliding window
+## Fixed-length sliding window
 
 #### [1456. Maximum Number of Vowels in a Substring of Given Length](https://leetcode.com/problems/maximum-number-of-vowels-in-a-substring-of-given-length/)
 
@@ -30,7 +30,7 @@ Given a string `s` and an integer `k`, return *the maximum number of vowel lette
 
 **Vowel letters** in English are `'a'`, `'e'`, `'i'`, `'o'`, and `'u'`.
 
- 
+
 **Example 1:**
 
 ```
@@ -106,7 +106,7 @@ class Solution:
 
 
 
-[643. Maximum Average Subarray I](https://leetcode.com/problems/maximum-average-subarray-i/)
+#### [643. Maximum Average Subarray I](https://leetcode.com/problems/maximum-average-subarray-i/)
 
 You are given an integer array `nums` consisting of `n` elements, and an integer `k`.
 
@@ -410,7 +410,7 @@ class Solution:
 
 
 
-### Variable-length sliding window
+## Variable-length sliding window
 
 >   Variable-length sliding windows are mainly divided into three categories: finding the longest subarray, finding the shortest subarray, and finding the number of subarrays.
 >
@@ -421,6 +421,10 @@ class Solution:
 >   ≥      → total − at most (K − 1)
 
 
+
+
+
+### At Most
 
 :::important
 
@@ -752,6 +756,10 @@ class Solution:
 ```
 
 
+
+
+
+### Exactly K Distinct
 
 :::important
 
@@ -1148,17 +1156,7 @@ class Solution:
 
 
 
-
-
-### At Most
-
-
-
-
-
-
-
-
+### At Least
 
 :::important
 
@@ -1170,7 +1168,7 @@ At Least（至少）
 
 满足 ≥ K 的数量  = 所有可能的数量 − 不满足 ≥ K（也就是 ≤ K−1）的数量
 
-`at least K = total − at most (K − 1)`
+`at least K = total − at most (K − 1) ` 这种还没遇到这样的题目
 
 :::
 
