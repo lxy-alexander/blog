@@ -3,8 +3,8 @@
  * 从 blog 总目录下的 pinterest_image_urls.json 文件读取图片链接
  */
 import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 
 // 获取当前文件的目录路径
 const __filename = fileURLToPath(import.meta.url);
@@ -17,13 +17,15 @@ function loadImagePool(): string[] {
 		const jsonPath = join(__dirname, "../../pinterest_image_urls.json");
 		const fileContent = readFileSync(jsonPath, "utf-8");
 		const imageUrls = JSON.parse(fileContent) as string[];
-		
+
 		// 验证是否为数组
 		if (!Array.isArray(imageUrls)) {
-			console.warn("pinterest_image_urls.json 应该包含一个字符串数组，使用默认值");
+			console.warn(
+				"pinterest_image_urls.json 应该包含一个字符串数组，使用默认值",
+			);
 			return getDefaultImagePool();
 		}
-		
+
 		// 过滤掉空值
 		return imageUrls.filter((url) => url && typeof url === "string");
 	} catch (error) {
@@ -44,7 +46,8 @@ export const IMAGE_POOL: string[] = loadImagePool();
 /**
  * 默认图片链接（当网络图片加载失败时使用）
  */
-export const DEFAULT_IMAGE = "https://i.pinimg.com/736x/a1/15/f4/a115f49dda91046eaf2759f93991c0c5.jpg";
+export const DEFAULT_IMAGE =
+	"https://i.pinimg.com/736x/a1/15/f4/a115f49dda91046eaf2759f93991c0c5.jpg";
 
 /**
  * 根据日期和文章ID生成稳定的随机图片链接
