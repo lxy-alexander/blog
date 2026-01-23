@@ -1,16 +1,50 @@
 /**
  * 图片链接池配置
- * 包含100张图片链接，用于博客文章的封面图
+ * 从 blog 总目录下的 pinterest_image_urls.json 文件读取图片链接
  */
-export const IMAGE_POOL: string[] = [
-	// 示例图片链接 - 请替换为实际的图片链接
-	"https://i.pinimg.com/736x/a1/15/f4/a115f49dda91046eaf2759f93991c0c5.jpg",
-];
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { dirname, join } from "node:path";
+
+// 获取当前文件的目录路径
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+// 读取 JSON 文件（相对于项目根目录）
+function loadImagePool(): string[] {
+	try {
+		// 从 src/utils 目录向上两级到达项目根目录
+		const jsonPath = join(__dirname, "../../pinterest_image_urls.json");
+		const fileContent = readFileSync(jsonPath, "utf-8");
+		const imageUrls = JSON.parse(fileContent) as string[];
+		
+		// 验证是否为数组
+		if (!Array.isArray(imageUrls)) {
+			console.warn("pinterest_image_urls.json 应该包含一个字符串数组，使用默认值");
+			return getDefaultImagePool();
+		}
+		
+		// 过滤掉空值
+		return imageUrls.filter((url) => url && typeof url === "string");
+	} catch (error) {
+		console.warn("无法读取 pinterest_image_urls.json，使用默认图片池:", error);
+		return getDefaultImagePool();
+	}
+}
+
+// 默认图片池（作为后备）
+function getDefaultImagePool(): string[] {
+	return [
+		"https://i.pinimg.com/736x/a1/15/f4/a115f49dda91046eaf2759f93991c0c5.jpg",
+	];
+}
+
+export const IMAGE_POOL: string[] = loadImagePool();
 
 /**
  * 默认图片链接（当网络图片加载失败时使用）
  */
-export const DEFAULT_IMAGE = "/favicon/favicon-light-192.png";
+export const DEFAULT_IMAGE = "https://i.pinimg.com/736x/a1/15/f4/a115f49dda91046eaf2759f93991c0c5.jpg";
 
 /**
  * 根据日期和文章ID生成稳定的随机图片链接
