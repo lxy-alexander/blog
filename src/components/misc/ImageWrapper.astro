@@ -8,21 +8,31 @@ interface Props {
 	alt?: string;
 	position?: string;
 	basePath?: string;
+	postId?: string; // 文章ID，用于生成动态图片
 }
 
 import { Image } from "astro:assets";
 import { url } from "../../utils/url-utils";
+import { getRandomImageForPost, DEFAULT_IMAGE, isNetworkImage } from "../../utils/image-pool";
 
-const { id, src, alt, position = "center", basePath = "/" } = Astro.props;
+const { id, src, alt, position = "center", basePath = "/", postId } = Astro.props;
 const className = Astro.props.class;
 
+// 如果src为空字符串，且提供了postId，则使用动态图片
+// 如果用户明确指定了相对路径或网络链接，则使用用户指定的图片
+let finalSrc = src;
+if ((!src || src.trim() === "") && postId) {
+	finalSrc = getRandomImageForPost(postId);
+}
+
 const isLocal = !(
-	src.startsWith("/") ||
-	src.startsWith("http") ||
-	src.startsWith("https") ||
-	src.startsWith("data:")
+	finalSrc.startsWith("/") ||
+	finalSrc.startsWith("http") ||
+	finalSrc.startsWith("https") ||
+	finalSrc.startsWith("data:")
 );
-const isPublic = src.startsWith("/");
+const isPublic = finalSrc.startsWith("/");
+const isNetwork = isNetworkImage(finalSrc);
 
 // TODO temporary workaround for images dynamic import
 // https://github.com/withastro/astro/issues/3373
@@ -33,7 +43,7 @@ if (isLocal) {
 		import: "default",
 	});
 	let normalizedPath = path
-		.normalize(path.join("../../", basePath, src))
+		.normalize(path.join("../../", basePath, finalSrc))
 		.replace(/\\/g, "/");
 	const file = files[normalizedPath];
 	if (!file) {
@@ -46,9 +56,46 @@ if (isLocal) {
 
 const imageClass = "w-full h-full object-cover";
 const imageStyle = `object-position: ${position}`;
+const hasValidImage = (isLocal && img) || (!isLocal && finalSrc && finalSrc.trim() !== "");
 ---
-<div id={id} class:list={[className, 'overflow-hidden relative']}>
-    <div class="transition absolute inset-0 dark:bg-black/10 bg-opacity-50 pointer-events-none"></div>
-    {isLocal && img && <Image src={img} alt={alt || ""} class={imageClass} style={imageStyle}/>}
-    {!isLocal && <img src={isPublic ? url(src) : src} alt={alt || ""} class={imageClass} style={imageStyle}/>}
-</div>
+{hasValidImage && (
+	<div id={id} class:list={[className, 'overflow-hidden relative']}>
+		<div class="transition absolute inset-0 dark:bg-black/10 bg-opacity-50 pointer-events-none"></div>
+		{isLocal && img && <Image src={img} alt={alt || ""} class={imageClass} style={imageStyle}/>}
+		{!isLocal && finalSrc && (
+			<img 
+				src={isPublic ? url(finalSrc) : finalSrc} 
+				alt={alt || ""} 
+				class={imageClass} 
+				style={imageStyle}
+				data-fallback={DEFAULT_IMAGE}
+			/>
+		)}
+	</div>
+)}
+<script is:inline>
+	// 处理图片加载失败时的fallback
+	(function() {
+		function setupImageFallback() {
+			const images = document.querySelectorAll('img[data-fallback]');
+			images.forEach((img) => {
+				// 如果图片已经设置了error处理，跳过
+				if (img.dataset.fallbackSetup) return;
+				img.dataset.fallbackSetup = 'true';
+				
+				img.addEventListener('error', function() {
+					const fallback = this.getAttribute('data-fallback');
+					if (fallback && this.src !== fallback) {
+						this.src = fallback;
+					}
+				});
+			});
+		}
+		
+		if (document.readyState === 'loading') {
+			document.addEventListener('DOMContentLoaded', setupImageFallback);
+		} else {
+			setupImageFallback();
+		}
+	})();
+</script>

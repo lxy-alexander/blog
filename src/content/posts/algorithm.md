@@ -2,7 +2,7 @@
 title: Algorithm
 published: 2026-01-20
 description: "Algorithm"
-image: "./cover.jpeg"
+image: ""
 tags: ["Blogging", "Algorithm"]
 category: Guides
 draft: false
