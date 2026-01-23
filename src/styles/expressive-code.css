@@ -1,124 +1,29 @@
-/* =========================================================
-   Expressive Code — Light Theme (Source Code Pro)
-   ========================================================= */
-
 .expressive-code {
-  /* ---------- 基础容器 ---------- */
-  background-color: #ffffff !important;
-  border: 1px solid #e5e7eb;
-  border-radius: 12px;
-
-  /* ---------- 字体（只需要这一处） ---------- */
-  font-family: "Source Code Pro",
-    ui-monospace,
-    SFMono-Regular,
-    Menlo,
-    Monaco,
-    Consolas,
-    "Liberation Mono",
-    "Courier New",
-    monospace;
-
-  /* ---------- frame ---------- */
-  .frame {
-    @apply !shadow-none;
+    /* 整个代码块容器 */
     background-color: #ffffff !important;
-  }
+    border: 1px solid #e5e7eb;
+    border-radius: 10px;
 
-  /* ---------- 代码区 ---------- */
-  pre,
-  code,
-  .ec-code {
-    background-color: #ffffff !important;
-    color: #24292f !important;
-    line-height: 1.6;
-    font-weight: 450;
-  }
+    .frame {
+        @apply !shadow-none;
+        background-color: #ffffff !important;
+    }
 
-  /* ---------- 顶部 header ---------- */
-  .ec-header {
-    background-color: #f9fafb !important;
-    border-bottom: 1px solid #e5e7eb;
-  }
+    /* 真正的代码区域 */
+    pre,
+    code,
+    .ec-code {
+        background-color: #ffffff !important;
+        color: #000000 !important;
+    }
 
-  /* ---------- 右上角语言标签 ---------- */
-  .ec-language,
-  .ec-lang {
-    background-color: #e5e7eb !important;
-    color: #111827 !important;
-    border-radius: 9999px;
-    font-size: 12px;
-    font-weight: 500;
-    padding: 2px 10px;
-  }
+    /* 顶部语言栏 */
+    .ec-header {
+        background-color: #f9fafb !important;
+        color: #111827 !important;
+    }
 
-  .ec-language:hover,
-  .ec-lang:hover {
-    background-color: #d1d5db !important;
-  }
-
-  /* ---------- 标题 ---------- */
-  .title {
-    color: #111827 !important;
-    font-family: inherit;
-  }
-
-  /* =========================================================
-     Syntax Highlight — GitHub Light style
-     ========================================================= */
-
-  /* 注释 */
-  .token.comment,
-  .token.prolog,
-  .token.doctype,
-  .token.cdata {
-    color: #6b7280 !important;
-    font-style: italic;
-  }
-
-  /* 关键字 */
-  .token.keyword,
-  .token.control,
-  .token.directive {
-    color: #d73a49 !important;
-    font-weight: 500;
-  }
-
-  /* 字符串 / 字符 */
-  .token.string,
-  .token.char,
-  .token.attr-value {
-    color: #032f62 !important;
-  }
-
-  /* 函数 / 方法 */
-  .token.function,
-  .token.method {
-    color: #6f42c1 !important;
-  }
-
-  /* 类 / 类型 */
-  .token.class-name,
-  .token.type {
-    color: #005cc5 !important;
-  }
-
-  /* 数字 / 常量 / 布尔 */
-  .token.number,
-  .token.boolean,
-  .token.constant {
-    color: #005cc5 !important;
-  }
-
-  /* 变量 / 参数 */
-  .token.variable,
-  .token.parameter {
-    color: #24292f !important;
-  }
-
-  /* 运算符 / 标点 */
-  .token.operator,
-  .token.punctuation {
-    color: #24292f !important;
-  }
+    .title {
+        font-family: "JetBrains Mono Variable", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    }
 }
