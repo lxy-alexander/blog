@@ -1,35 +1,9 @@
-/* =========================================================
-   FORCE FIX: Expressive Code text contrast
-   ========================================================= */
-
 .expressive-code {
-  /* 切断所有正文变量继承 */
-  color: #24292f !important;
-}
+    .frame {
+        @apply !shadow-none;
+    }
 
-.expressive-code * {
-  color: inherit !important;
-  opacity: 1 !important;
-}
-
-/* 示例块（Input / Output / Explanation） */
-.expressive-code[data-theme],
-.expressive-code.is-muted,
-.expressive-code.muted {
-  color: #24292f !important;
-  opacity: 1 !important;
-}
-
-/* 行号 */
-.expressive-code .ec-line-number {
-  color: #6b7280 !important;
-}
-
-/* 禁止任何正文 text-xx 类影响代码 */
-.expressive-code .text-90,
-.expressive-code .text-75,
-.expressive-code .text-50,
-.expressive-code .text-30,
-.expressive-code .text-25 {
-  color: inherit !important;
+    .title {
+        font-family: "JetBrains Mono Variable", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    }
 }
