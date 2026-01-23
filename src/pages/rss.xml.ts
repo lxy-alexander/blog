@@ -22,7 +22,7 @@ export async function GET(context: APIContext) {
 	return rss({
 		title: siteConfig.title,
 		description: siteConfig.subtitle || "No description",
-		site: context.site ?? "https://lxy-alexander.github.io/blog/",		// TODO: 请替换为您的实际域名
+		site: context.site ?? "https://lxy-alexander.github.io/blog/", // TODO: 请替换为您的实际域名
 		items: blog.map((post) => {
 			const content =
 				typeof post.body === "string" ? post.body : String(post.body || "");
