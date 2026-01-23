@@ -2,7 +2,7 @@
 title: Python Interview
 published: 2026-01-16
 description: "Python Interview"
-image: "./cover.jpeg"
+image: ""
 tags: ["Blogging", "Python Interview"]
 category: Guides
 draft: false

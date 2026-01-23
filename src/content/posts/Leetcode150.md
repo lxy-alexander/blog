@@ -2,7 +2,7 @@
 title: leetcode150
 published: 2026-01-18
 description: "leetcode150"
-image: "./cover.jpeg"
+image: ""
 tags: ["Blogging", "leetcode150"]
 category: Guides
 draft: false

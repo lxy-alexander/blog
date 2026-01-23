@@ -2,7 +2,7 @@
 title: BQs
 published: 2026-01-15
 description: "BQs"
-image: "./cover.jpeg"
+image: ""
 tags: ["Blogging", "BQs"]
 category: Guides
 draft: false

@@ -2,7 +2,7 @@
 title: C++
 published: 2026-01-20
 description: "C++"
-image: "./cover.jpeg"
+image: ""
 tags: ["Blogging", "C++"]
 category: Guides
 draft: false

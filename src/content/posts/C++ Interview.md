@@ -2,7 +2,7 @@
 title: C++ Interview
 published: 2026-01-20
 description: "C++ Interview"
-image: "./cover.jpeg"
+image: ""
 tags: ["Blogging", "C++ Interview"]
 category: Guides
 draft: false

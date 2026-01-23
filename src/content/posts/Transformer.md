@@ -2,7 +2,7 @@
 title: Transformer
 published: 2026-01-14
 description: "Transformer"
-image: "./cover.jpeg"
+image: ""
 tags: ["Blogging", "Transformer"]
 category: Guides
 draft: false
