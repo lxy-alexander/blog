@@ -802,6 +802,35 @@ Output: 16
 
 
 
+```c++
+class Solution {
+public:
+    int numberOfSubarrays(vector<int>& nums, int k) {
+        return atMostNumberOfSubarrays(nums, k)
+            - atMostNumberOfSubarrays(nums, k - 1);
+
+    }
+
+private:
+    int atMostNumberOfSubarrays(vector<int>& nums, int k) {
+        int ans = 0;
+        int oddCnt = 0;
+        int left = 0;
+        int n = nums.size();
+        for (int right = 0; right < n; right++) {
+            oddCnt += nums[right] & 1;
+            while (oddCnt > k) {
+                oddCnt -= nums[left] & 1;
+                left++;
+            }
+            ans += right - left + 1;
+        }
+        return ans;
+    }
+};
+
+```
+
 ```python
 # Why exactly K cannot be handled directly with a sliding window
 # Imagine the current window contains exactly k odd numbers.
@@ -1123,6 +1152,14 @@ class Solution:
 
 
 
+### At Most
+
+
+
+
+
+
+
 
 
 :::important
@@ -1138,14 +1175,6 @@ At Least（至少）
 `at least K = total − at most (K − 1)`
 
 :::
-
-
-
-
-
-
-
-
 
 
 

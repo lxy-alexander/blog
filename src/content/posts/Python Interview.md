@@ -388,3 +388,10 @@ Practical Recommendation (Algorithms / Contests)
 
 
 
+
+
+
+
+## int(not x)
+
+is equalvalent to `1 if x == 0 else 0`

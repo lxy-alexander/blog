@@ -1,6 +1,26 @@
 .expressive-code {
+    /* 整个代码块容器 */
+    background-color: #ffffff !important;
+    border: 1px solid #e5e7eb;
+    border-radius: 10px;
+
     .frame {
         @apply !shadow-none;
+        background-color: #ffffff !important;
+    }
+
+    /* 真正的代码区域 */
+    pre,
+    code,
+    .ec-code {
+        background-color: #ffffff !important;
+        color: #000000 !important;
+    }
+
+    /* 顶部语言栏 */
+    .ec-header {
+        background-color: #f9fafb !important;
+        color: #111827 !important;
     }
 
     .title {
