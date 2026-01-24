@@ -8,8 +8,6 @@ category: Guides
 draft: false
 ---
 
-# BQs
-
 https://www.mockquestions.com/position/Engineer/
 
 ## Describe a difficult project and how you overcame it.
