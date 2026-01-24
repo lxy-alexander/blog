@@ -8,8 +8,6 @@ category: Guides
 draft: false
 ---
 
-# Numpy
-
 
 
 

@@ -8,8 +8,6 @@ category: Guides
 draft: false
 ---
 
-# Python Interview 
-
 ## CPython
 
 Python is a **language specification**, while CPython is a **concrete implementation** of that specification.

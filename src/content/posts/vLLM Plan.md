@@ -1,6 +1,6 @@
 ---
 title: vLLM Plan
-published: 2025-01-22
+published: 2026-01-22
 description: "vLLM Plan"
 image: ""
 tags: ["Blogging","vLLM","vLLM"]

@@ -1,30 +1,18 @@
 ---
-title: Algorithm
+title: Sliding Window
 published: 2026-01-20
-description: "Algorithm"
+description: "Sliding Window"
 image: ""
-tags: ["Blogging", "Algorithm"]
+tags: ["Blogging", "Algorithm", "Sliding Window"]
 category: Guides
 draft: false
 ---
 
-
-
-<img src="https://raw.githubusercontent.com/lxy-alexander/pico/main/typora/image-20260120171400651.png" alt="image-20260120171400651" style="zoom: 33%;" /> 
-
-按照专题刷题，而不是随机刷题。同一个专题，一个套路可以解决多个题目，刷题效率高。此外，这能让你从不同的角度去观察、思考同一个算法，从而深刻地理解算法的本质。
-螺旋上升式学习：先完成难度分 ≤1700 的题目。把各个题单、各个知识点的基础题刷一遍，再刷更难的题目。难度分低的题目一般只会考察一个知识点，而难度分高的题目会同时考察多个知识点。
-
-https://leetcode.cn/discuss/post/3141566/ru-he-ke-xue-shua-ti-by-endlesscheng-q3yd/
-
-
-# Sliding Window
-
 >**Sliding Window** is a way to look at a small part of data and move it forward one step at a time, instead of starting over each time.
 
-## Fixed-length sliding window
+# Fixed-length sliding window
 
-#### [1456. Maximum Number of Vowels in a Substring of Given Length](https://leetcode.com/problems/maximum-number-of-vowels-in-a-substring-of-given-length/)
+### [1456. Maximum Number of Vowels in a Substring of Given Length](https://leetcode.com/problems/maximum-number-of-vowels-in-a-substring-of-given-length/)
 
 Given a string `s` and an integer `k`, return *the maximum number of vowel letters in any substring of* `s` *with length* `k`.
 
@@ -106,7 +94,7 @@ class Solution:
 
 
 
-#### [643. Maximum Average Subarray I](https://leetcode.com/problems/maximum-average-subarray-i/)
+### [643. Maximum Average Subarray I](https://leetcode.com/problems/maximum-average-subarray-i/)
 
 You are given an integer array `nums` consisting of `n` elements, and an integer `k`.
 
@@ -173,7 +161,7 @@ class Solution:
 
 
 
-#### [2461. Maximum Sum of Distinct Subarrays With Length K](https://leetcode.com/problems/maximum-sum-of-distinct-subarrays-with-length-k/)
+### [2461. Maximum Sum of Distinct Subarrays With Length K](https://leetcode.com/problems/maximum-sum-of-distinct-subarrays-with-length-k/)
 
 You are given an integer array `nums` and an integer `k`. Find the maximum subarray sum of all the subarrays of `nums` that meet the following conditions:
 
@@ -268,7 +256,7 @@ class Solution:
 
 
 
-#### [30. Substring with Concatenation of All Words](https://leetcode.com/problems/substring-with-concatenation-of-all-words/)
+### [30. Substring with Concatenation of All Words](https://leetcode.com/problems/substring-with-concatenation-of-all-words/)
 
 You are given a string `s` and an array of strings `words`. All the strings of `words` are of **the same length**.
 
@@ -410,7 +398,7 @@ class Solution:
 
 
 
-## Variable-length sliding window
+# Variable-length sliding window
 
 >   Variable-length sliding windows are mainly divided into three categories: finding the longest subarray, finding the shortest subarray, and finding the number of subarrays.
 >
@@ -424,7 +412,7 @@ class Solution:
 
 
 
-### At Most
+## At Most
 
 :::important
 
@@ -442,7 +430,7 @@ At Most（至多）
 
 :::
 
-#### [[LeetCode\] 340. Longest Substring with At Most K Distinct Characters](https://www.cnblogs.com/grandyang/p/5351347.html) (at most k distinct elements )
+### [[LeetCode\] 340. Longest Substring with At Most K Distinct Characters](https://www.cnblogs.com/grandyang/p/5351347.html) (at most k distinct elements )
 
  Given a string, find the length of the longest substring T that contains at most *k* distinct characters.
 
@@ -505,7 +493,7 @@ class Solution:
 
 
 
-#### [904. Fruit Into Baskets](https://leetcode.com/problems/fruit-into-baskets/)  (at most 2 distinct elements )
+### [904. Fruit Into Baskets](https://leetcode.com/problems/fruit-into-baskets/)  (at most 2 distinct elements )
 
 You are visiting a farm that has a single row of fruit trees arranged from left to right. The trees are represented by an integer array `fruits` where `fruits[i]` is the **type** of fruit the `ith` tree produces.
 
@@ -595,7 +583,7 @@ class Solution:
 
 
 
-#### [3. Longest Substring Without Repeating Characters](https://leetcode.com/problems/longest-substring-without-repeating-characters/) （at most 1 occurrence）
+### [3. Longest Substring Without Repeating Characters](https://leetcode.com/problems/longest-substring-without-repeating-characters/) （at most 1 occurrence）
 
 Given a string `s`, find the length of the **longest** **substring** without duplicate characters.
 
@@ -671,7 +659,7 @@ class Solution:
 
 
 
-#### [3090. Maximum Length Substring With Two Occurrences](https://leetcode.com/problems/maximum-length-substring-with-two-occurrences/) （at most 2 occurrences）
+### [3090. Maximum Length Substring With Two Occurrences](https://leetcode.com/problems/maximum-length-substring-with-two-occurrences/) （at most 2 occurrences）
 
 Given a string `s`, return the **maximum** length of a substring such that it contains *at most two occurrences* of each character.
 
@@ -759,7 +747,7 @@ class Solution:
 
 
 
-### Exactly K Distinct
+## Exactly K Distinct
 
 :::important
 
@@ -767,13 +755,11 @@ Exactly K Distinct Elements
 
 :::
 
-#### [1248. Count Number of Nice Subarrays](https://leetcode.com/problems/count-number-of-nice-subarrays/)
+### [1248. Count Number of Nice Subarrays](https://leetcode.com/problems/count-number-of-nice-subarrays/)
 
 Given an array of integers `nums` and an integer `k`. A continuous subarray is called **nice** if there are `k` odd numbers on it.
 
 Return *the number of **nice** sub-arrays*.
-
- 
 
 **Example 1:**
 
@@ -876,7 +862,22 @@ class Solution:
 
 
 
-#### [2062. Count Vowel Substrings of a String](https://leetcode.com/problems/count-vowel-substrings-of-a-string/) （exactly including 5 all vowels）
+### [2062. Count Vowel Substrings of a String](https://leetcode.com/problems/count-vowel-substrings-of-a-string/) （exactly including 5 all vowels 这个和其他exactly k 不一样）
+
+:::note
+
+For “contains all 5 vowels”, expanding `r` is monotonic (valid stays valid), but shrinking `l` can break validity, so the classic “invalid → shrink” template doesn’t directly apply.
+
+那还能用滑窗吗？
+
+可以，只是换一种形式（合法时缩）：
+
+-   不合法 → 扩 r 去变合法
+-   合法 → 尝试缩 l，并统计答案
+
+扩到合法，再缩到刚好不合法，再继续扩
+
+:::
 
 A **substring** is a contiguous (non-empty) sequence of characters within a string.
 
@@ -1033,7 +1034,7 @@ class Solution:
 
 
 
-#### [992. Subarrays with K Different Integers](https://leetcode.com/problems/subarrays-with-k-different-integers/) （Exactly K Different Integers）
+### [992. Subarrays with K Different Integers](https://leetcode.com/problems/subarrays-with-k-different-integers/) （Exactly K Different Integers）
 
 Given an integer array `nums` and an integer `k`, return *the number of **good subarrays** of* `nums`.
 
@@ -1105,11 +1106,35 @@ public:
 };
 ```
 
+```python
+class Solution:
+    def subarraysWithKDistinct(self, nums: List[int], k: int) -> int:
+        def atMost(K):
+            cnt = defaultdict(int)
+            l = 0
+            res = 0
+
+            for r, x in enumerate(nums):
+                cnt[x] += 1
+
+                while len(cnt) > K:
+                    cnt[nums[l]] -= 1
+                    if cnt[nums[l]] == 0:
+                        del cnt[nums[l]]
+                    l += 1
+
+                res += (r - l + 1)
+            return res
+        
+        return atMost(k) - atMost(k - 1)
+
+```
 
 
 
 
-#### [713. Subarray Product Less Than K](https://leetcode.com/problems/subarray-product-less-than-k/)  (less than k (belong to at most))
+
+### [713. Subarray Product Less Than K](https://leetcode.com/problems/subarray-product-less-than-k/)  (less than k (belong to at most))
 
 Given an array of integers `nums` and an integer `k`, return *the number of contiguous subarrays where the product of all the elements in the subarray is strictly less than* `k`.
 
@@ -1156,7 +1181,13 @@ class Solution:
 
 
 
-### At Least
+
+
+
+
+
+
+## At Least
 
 :::important
 
@@ -1176,9 +1207,9 @@ At Least（至少）
 
 
 
-### Greedy + Two Pointers + run-based scanning
+## Greedy + Two Pointers + run-based scanning
 
-#### [1839. Longest Substring Of All Vowels in Order](https://leetcode.com/problems/longest-substring-of-all-vowels-in-order/)
+### [1839. Longest Substring Of All Vowels in Order](https://leetcode.com/problems/longest-substring-of-all-vowels-in-order/)
 
 A string is considered **beautiful** if it satisfies the following conditions:
 
@@ -1272,98 +1303,4 @@ class Solution:
 ```
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-## Bitwise
-
-> Bitwise algorithms solve problems by directly manipulating the binary representation of integers using bit-level operations.
-
-### Check if a Number Is Odd
-
-```cpp
-bool isOdd(int n) {
-    return (n & 1) != 0;
-}
-
-def is_odd(n: int) -> bool:
-    return (n & 1) != 0
-```
-
-Time complexity is O(1) because it uses a single bit operation.
-Space complexity is O(1) because no extra memory is used.
-
-------
-
-### Count Set Bits (Brian Kernighan’s Method)
-
-```cpp
-int countSetBits(int n) {
-    int count = 0;
-    while (n != 0) {
-        n &= (n - 1);
-        count++;
-    }
-    return count;
-}
-
-def count_set_bits(n: int) -> int:
-    count = 0
-    while n != 0:
-        n &= (n - 1)
-        count += 1
-    return count
-```
-
-Time complexity is O(k), where k is the number of set bits in the integer.
-Space complexity is O(1) because only constant extra space is used.
-
-------
-
-### Find the Unique Element Using XOR
-
-```cpp
-int singleNumber(const vector<int>& nums) {
-    int result = 0;
-    for (int x : nums) {
-        result ^= x;
-    }
-    return result;
-}
-def single_number(nums: list[int]) -> int:
-    result = 0
-    for x in nums:
-        result ^= x
-    return result
-```
-
-Time complexity is O(n), where n is the number of elements in the array.
-Space complexity is O(1) because no additional data structures are required.
-
-------
-
-### Check if a Number Is a Power of Two
-
-```cpp
-bool isPowerOfTwo(int n) {
-    return n > 0 && (n & (n - 1)) == 0;
-}
-def is_power_of_two(n: int) -> bool:
-    return n > 0 and (n & (n - 1)) == 0
-```
-
-Time complexity is O(1) since it uses a constant number of operations.
-Space complexity is O(1) because it uses constant extra space.
 
