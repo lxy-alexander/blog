@@ -27,5 +27,6 @@ https://leetcode.cn/discuss/post/3141566/ru-he-ke-xue-shua-ti-by-endlesscheng-q3
 -   At most k occurrences of each element (by using `cnt[s[r]] > k` to check if the window is valid.  If  adding s[r] makes the window not valid, we need shrink the window to make it valid again)
 -   Exactly K Distinct Elements = At most(K) - At most(K-1)  
 -   Some variant questions: 
-    -   Exactly including 5 vowels(还有其他字符) need to divide and conquer firstly. and then do the at most
+    -   Including exactly 5 vowels(other character are not vowels) need to divide and conquer firstly. and then do the at most
     -   exactly 
+

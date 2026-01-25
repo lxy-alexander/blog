@@ -8,6 +8,37 @@ category: Guides
 draft: false
 ---
 
+
+
+## Python bisect_left
+
+>   Finding the insertion position In a sorted array and return the leftmost position
+
+```python
+from bisect import bisect_left
+
+arr = [1, 3, 3, 5]
+print(bisect_left(arr, 3))  # 1  find the first postion that correspoding value greater than or euqal to 3
+print(bisect_left(arr, 4))  # 3  
+print(bisect_left(arr, 0))  # 0
+print(bisect_left(arr, 6))  # 4  insert into the lastmost position
+```
+
+
+
+## return 0 if ans == float('inf') else ans
+
+```python
+if ans == float('inf'):
+    return 0
+else:
+    return ans
+```
+
+
+
+
+
 ## CPython
 
 Python is a **language specification**, while CPython is a **concrete implementation** of that specification.
