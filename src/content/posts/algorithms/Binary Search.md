@@ -3,8 +3,8 @@ title: Binary Search
 published: 2026-01-24
 description: "Binary Search"
 image: ""
-tags: ["algorithm", "Binary Search"]
-category: Guides
+tags: ["Binary Search"]
+category: algorithm
 draft: false
 
 ---

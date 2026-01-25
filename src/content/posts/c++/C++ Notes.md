@@ -4,7 +4,7 @@ published: 2026-01-20
 description: "C++ Notes"
 image: ""
 tags: ["C++ Notes"]
-category: Guides
+category: c++
 draft: false
 ---
 

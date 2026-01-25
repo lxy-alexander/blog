@@ -3,8 +3,8 @@ title: BQs
 published: 2026-01-15
 description: "BQs"
 image: ""
-tags: ["interview", "BQs"]
-category: Guides
+tags: ["BQs"]
+category: interview
 draft: false
 ---
 

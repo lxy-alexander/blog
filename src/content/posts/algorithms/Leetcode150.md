@@ -1,10 +1,10 @@
 ---
-title: leetcode150
+title: Leetcode150
 published: 2026-01-18
-description: "leetcode150"
+description: "Leetcode150"
 image: ""
-tags: ["algorithm", "leetcode150"]
-category: Guides
+tags: ["Leetcode150"]
+category: leetcode
 draft: false
 ---
 

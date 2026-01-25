@@ -1,10 +1,10 @@
 ---
-title: Python Interview
+title: Python Notes
 published: 2026-01-16
-description: "Python Interview"
+description: "Python Notes"
 image: ""
-tags: ["Python Interview"]
-category: Guides
+tags: ["Python Notes"]
+category: python
 draft: false
 ---
 

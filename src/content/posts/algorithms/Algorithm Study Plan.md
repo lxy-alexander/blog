@@ -4,7 +4,7 @@ published: 2026-01-20
 description: "Algorithm"
 image: ""
 tags: ["algorithm", "Algorithm Study Plan"]
-category: Guides
+category: algorithm
 draft: false
 ---
 

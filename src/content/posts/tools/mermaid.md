@@ -3,8 +3,8 @@ title: Mermaid
 published: 2026-01-25
 description: "Mermaid"
 image: ""
-tags: ["tools", "Mermaid"]
-category: Guides
+tags: ["Mermaid"]
+category: tools
 draft: false
 ---
 

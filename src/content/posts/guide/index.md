@@ -3,8 +3,8 @@ title: Build Guides
 published: 2025-10-01
 description: "How to buid the blog website"
 image: "./cover.jpeg"
-tags: ["guild", "Build Guides"]
-category: Guides
+tags: ["Build Guides"]
+category: guides
 draft: false
 ---
 

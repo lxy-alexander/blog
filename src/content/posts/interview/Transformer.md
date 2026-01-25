@@ -3,8 +3,8 @@ title: Transformer
 published: 2026-01-14
 description: "Transformer"
 image: ""
-tags: ["interview", "Transformer"]
-category: Guides
+tags: ["Transformer"]
+category: interview
 draft: false
 ---
 

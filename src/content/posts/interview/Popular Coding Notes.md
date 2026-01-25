@@ -3,8 +3,8 @@ title: Popular Coding Notes
 published: 2026-01-22
 description: "Popular Coding Notes"
 image: ""
-tags: ["interview", "Popular Coding Notes"]
-category: Guides
+tags: ["Popular Coding Notes"]
+category: interview
 draft: false
 ---
 

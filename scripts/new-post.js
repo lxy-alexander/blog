@@ -81,7 +81,7 @@ published: ${getDate()}
 description: "${fileBaseName}"
 image: ""
 tags: ${JSON.stringify(tags)}
-category: ""
+category: ${tagDirs.join(" / ")}
 draft: false
 lang: ""
 ---

@@ -3,8 +3,8 @@ title: Bitwise
 published: 2026-01-20
 description: "Bitwise"
 image: ""
-tags: ["algorithm", "Bitwise"]
-category: Guides
+tags: ["Bitwise"]
+category: algorithm
 draft: false
 
 ---

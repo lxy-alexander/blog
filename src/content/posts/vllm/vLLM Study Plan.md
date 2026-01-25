@@ -3,8 +3,8 @@ title: vLLM Study Plan
 published: 2026-01-22
 description: "vLLM Study Plan"
 image: ""
-tags: ["vLLM","vLLM Study Plan"]
-category: Guides
+tags: ["vLLM Study Plan"]
+category: vllm
 draft: false
 
 ---
