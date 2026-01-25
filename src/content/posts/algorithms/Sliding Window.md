@@ -3,7 +3,7 @@ title: Sliding Window
 published: 2026-01-20
 description: "Sliding Window"
 image: ""
-tags: ["Blogging", "Algorithm", "Sliding Window"]
+tags: ["algorithm", "Sliding Window"]
 category: Guides
 draft: false
 ---

@@ -3,7 +3,7 @@ title: Bitwise
 published: 2026-01-20
 description: "Bitwise"
 image: ""
-tags: ["Blogging", "Algorithm", "Bitwise"]
+tags: ["algorithm", "Bitwise"]
 category: Guides
 draft: false
 

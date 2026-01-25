@@ -3,7 +3,7 @@ title: vLLM Arch
 published: 2026-01-23
 description: "vLLM Arch"
 image: ""
-tags: ["Blogging","vLLM", "vLLM Arch"]
+tags: ["vllm", "vLLM Arch"]
 category: Guides
 draft: false
 ---

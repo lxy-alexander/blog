@@ -1,9 +1,9 @@
 ---
-title: Popular Questions
-published: 2026-01-01
-description: "Popular Questions"
+title: Popular Coding Notes
+published: 2026-01-22
+description: "Popular Coding Notes"
 image: ""
-tags: ["Blogging", "Popular Questions"]
+tags: ["interview", "Popular Coding Notes"]
 category: Guides
 draft: false
 ---

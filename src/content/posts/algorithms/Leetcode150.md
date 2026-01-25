@@ -3,7 +3,7 @@ title: leetcode150
 published: 2026-01-18
 description: "leetcode150"
 image: ""
-tags: ["Blogging", "leetcode150"]
+tags: ["algorithm", "leetcode150"]
 category: Guides
 draft: false
 ---

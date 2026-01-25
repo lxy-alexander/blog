@@ -1,9 +1,9 @@
 ---
-title: Algorithm
+title: Algorithm Study Plan
 published: 2026-01-20
 description: "Algorithm"
 image: ""
-tags: ["Blogging", "Algorithm"]
+tags: ["algorithm", "Algorithm Study Plan"]
 category: Guides
 draft: false
 ---

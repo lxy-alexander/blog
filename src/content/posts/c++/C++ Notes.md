@@ -1,9 +1,9 @@
 ---
-title: C++ Interview
+title: C++ Notes
 published: 2026-01-20
-description: "C++ Interview"
+description: "C++ Notes"
 image: ""
-tags: ["Blogging", "C++ Interview"]
+tags: ["C++ Notes"]
 category: Guides
 draft: false
 ---

@@ -1,9 +1,9 @@
 ---
 title: Build Guides
-published: 2025-05-01
+published: 2025-10-01
 description: "How to buid the blog website"
 image: "./cover.jpeg"
-tags: ["Blogging", "Build Guides"]
+tags: ["guild", "Build Guides"]
 category: Guides
 draft: false
 ---
