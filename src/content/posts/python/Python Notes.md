@@ -8,6 +8,36 @@ category: python
 draft: false
 ---
 
+## list ` vs  `Sequence
+
+`list` is a specific mutable list type; 
+
+`Sequence` is a more general “sequence interface” that guarantees readable/indexable behavior.
+
+
+
+## Type Checking
+
+\# 判断 prompts 这个变量，是不是 字符串(str) 或者 字典(dict) 之一。
+
+\# 允许参数既可以传字符串，也可以传字典（两种格式都支持）。
+
+prompts = "hello"
+
+print(isinstance(prompts, (str, dict)))  # True
+
+
+
+prompts = {"a": 1}
+
+print(isinstance(prompts, (str, dict)))  # True
+
+
+
+prompts = ["hello"]
+
+print(isinstance(prompts, (str, dict)))  # False
+
 
 
 ## Python bisect_left
