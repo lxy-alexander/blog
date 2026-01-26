@@ -8,7 +8,7 @@ category: tools
 draft: false
 ---
 
-# Export using Mermaid CLI (best for batch export)
+## Export using Mermaid CLI
 
 ## 1) Install Mermaid CLI
 
