@@ -10,7 +10,7 @@ lang: ""
 
 ---
 
-# 使用
+# Offline Batching Example
 
 ```python
 # SPDX-License-Identifier: Apache-2.0
@@ -648,9 +648,7 @@ SamplingParams()  ← 使用默认值
 
 
 
-## validate + add requests（ processor 核心入口）
-
-
+## 5. validate + add requests（ processor 核心入口）
 
 ```python
 # -------------------------------------------
@@ -715,6 +713,7 @@ def _validate_and_add_requests(
 
         # -----------------------------
         # 3）合法性检查：params 如果是 list，必须跟 prompts 等长
+        # params
         # -----------------------------
         if isinstance(params, list) and len(params) != num_requests:
             raise ValueError("The lengths of prompts and params "
@@ -722,6 +721,7 @@ def _validate_and_add_requests(
 
         # -----------------------------
         # 4）合法性检查：lora_request 如果是 list，也必须跟 prompts 等长
+        # 正确：每条 prompt 对应一个 LoRA lora_request = [lora1, lora2, lora3]
         # -----------------------------
         if isinstance(lora_request,
                       list) and len(lora_request) != num_requests:
@@ -905,6 +905,28 @@ adapter_model.bin  (或 safetensors)
 -   **LoRA**：训练模型内部的一部分线性层增量权重，更像“改模型能力”
 
 
+
+
+
+
+
+## 6.运行引擎直到所有请求完成
+
+```
+# 6. 运行引擎直到所有请求完成
+outputs = self._run_engine(use_tqdm=use_tqdm)
+```
+
+
+
+
+
+## 7.验证并返回输出
+
+```
+# 7. 验证并返回输出
+return self.engine_class.validate_outputs(outputs, RequestOutput)
+```
 
 
 

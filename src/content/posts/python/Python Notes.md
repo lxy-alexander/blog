@@ -8,11 +8,22 @@ category: python
 draft: false
 ---
 
-## list ` vs  `Sequence
+## list ` vs   ` Sequence
 
 `list` is a specific mutable list type; 
 
 `Sequence` is a more general “sequence interface” that guarantees readable/indexable behavior.
+
+```
+from typing import Sequence
+
+def f(x: Sequence[int]):
+    print(x[0])
+
+f([1, 2, 3])     # OK
+f((1, 2, 3))     # OK
+
+```
 
 
 
