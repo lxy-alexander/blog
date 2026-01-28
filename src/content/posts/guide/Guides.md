@@ -8,7 +8,7 @@ category: guides
 draft: false
 ---
 
-## 🚀 Fuwari 博客构建全流程指南
+## 🚀  博客构建全流程指南
 
 这是一份基于 **Fuwari** 模板与 **Astro** 框架的博客构建全流程指南。本指南整合了从本地环境搭建到 GitHub Pages 自动化部署的完整步骤。
 

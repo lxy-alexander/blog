@@ -1,16 +1,147 @@
 ---
-title: "The porcess of offline batching"
+title: "Offline Batching on vLLM"
 published: 2026-01-26
-description: "The porcess of offline batching"
+description: "Offline Batching on vLLM"
 image: ""
-tags: ["vllm","The porcess of offline batching"]
+tags: ["vllm","Offline Batching on vLLM"]
 category: vllm
 draft: false
 lang: ""
 
 ---
 
-# 用例
+# Offline Batching Example
+
+## 1) 导入
+
+```
+from vllm import LLM, SamplingParams
+```
+
+-   `LLM`：vLLM 的模型执行器，用来加载模型并做推理/生成。
+-   `SamplingParams`：采样参数对象，用来控制生成的随机性、截断策略等。
+
+------
+
+## 2) 准备输入 prompts
+
+```
+prompts = [
+    "Hello, my name is",
+    "The president of the United States is",
+    "The capital of France is",
+    "The future of AI is",
+]
+```
+
+-   `prompts` 是一个字符串列表。
+-   vLLM 会把它们当成**4 个独立请求**，一次批量生成（batching），效率更高。
+
+------
+
+## 3) 设置采样参数 SamplingParams
+
+`vllm/sampling_params.py`
+
+
+
+
+
+```
+sampling_params = SamplingParams(temperature=0.8, top_p=0.95)
+```
+
+这两项最常见：
+
+-   `temperature=0.8`
+     控制“随机性/发散程度”。
+    -   更小（如 0.2）：更保守、更确定
+    -   更大（如 1.2）：更随机、更有创意但更飘
+-   `top_p=0.95`（核采样 / nucleus sampling）
+     每一步只在“累计概率达到 0.95 的候选 token 集合”里采样，避免长尾极小概率 token 造成胡言乱语。
+
+（你也可以常用 `max_tokens=...` 控制输出长度，否则默认可能生成较长。）
+
+------
+
+## 4) 创建并加载模型 LLM
+
+```
+llm = LLM(model="facebook/opt-125m")
+```
+
+-   这里指定 Hugging Face 模型名：`facebook/opt-125m`。
+-   vLLM 会：
+    1.  从 HF 下载/读取模型权重（本地缓存则直接用缓存）
+    2.  初始化推理引擎（CUDA / CPU 取决于你的环境）
+    3.  准备 KV cache、调度器等以支持高吞吐生成
+
+**常见注意：**
+
+-   vLLM 通常在 **Linux + NVIDIA GPU** 上最顺畅；纯 CPU 或 Windows 可能不支持/体验差（取决于版本与安装方式）。
+-   如果你离线环境，需要提前把模型下载到本地并指向本地路径。
+
+------
+
+## 5) 调用 generate 批量生成
+
+```
+outputs = llm.generate(prompts, sampling_params)
+```
+
+-   输入：prompt 列表 + 采样参数
+-   输出：一个列表，每个元素对应一个 prompt 的结果对象（`RequestOutput`）
+-   vLLM 内部做了：
+    -   自动 batching、动态调度
+    -   对每个 prompt 进行 tokenization
+    -   自回归逐 token 生成，直到满足停止条件（EOS、长度限制、stop tokens 等）
+
+------
+
+## 6) 读取并打印每条结果
+
+```
+for output in outputs:
+    prompt = output.prompt
+    generated_text = output.outputs[0].text
+    print(f"Prompt: {prompt!r}, Generated text: {generated_text!r}")
+```
+
+这里有几个层次：
+
+-   `output.prompt`：原始 prompt 字符串
+-   `output.outputs`：**一个列表**，因为一次请求可能生成多条候选（当你设置 `n>1` 或类似参数时）
+-   `output.outputs[0].text`：取第一条候选的生成文本（仅“续写部分”，不一定包含原 prompt）
+
+打印格式里：
+
+-   `{prompt!r}` 用 `repr()` 形式打印字符串，会把换行、引号等显示得更清晰。
+
+------
+
+## 7)（建议）让输出更可控的常用补充
+
+如果你想每条只生成固定长度，比如 32 token：
+
+```
+sampling_params = SamplingParams(
+    temperature=0.8,
+    top_p=0.95,
+    max_tokens=32,
+)
+```
+
+如果你想遇到某些字符串就停止：
+
+```
+sampling_params = SamplingParams(
+    temperature=0.8,
+    top_p=0.95,
+    stop=["\n\n", "###"]
+)
+```
+
+------
 
 ```python
 # SPDX-License-Identifier: Apache-2.0
@@ -41,8 +172,6 @@ for output in outputs:
     print(f"Prompt: {prompt!r}, Generated text: {generated_text!r}")
 ```
 
-# 创建LLM
-
 ```python
 from vllm import LLM, SamplingParams
 
@@ -65,11 +194,9 @@ with LLM.deprecate_legacy_api():
 
 
 
+# LLM 调用流程
 
-
-# 主体逻辑
-
-`vllm/entrypoints/llm.py`
+`vllm/entrypoints/llm.py `
 
 ```python
 def generate(self, prompts, sampling_params=None, ...):
@@ -105,8 +232,6 @@ def generate(self, prompts, sampling_params=None, ...):
     return self.engine_class.validate_outputs(outputs, RequestOutput)
 ```
 
-
-
 `vllm/entrypoints/llm.py`
 
 ```python
@@ -127,8 +252,6 @@ def generate(
     # -------------------------------------------
     # 1. 验证 runner_type
     # -------------------------------------------
-
-      
     # 读取当前 engine 初始化时指定的 runner 类型（即 task 类型）
     # 常见是 generate / embedding / scoring / transcription 等
     runner_type = self.llm_engine.model_config.runner_type
@@ -748,7 +871,21 @@ class TextPrompt(TypedDict):
 
 
 
+`vllm/entrypoints/llm.py`
 
+`_validate_and_add_requests()` 做的是：
+
+**批量处理 + 输入格式统一 + 一次性校验**
+
+它负责：
+
+-   把单条 prompt 统一变成 list
+-   检查 `prompts` 和 `params / lora_request` 长度是否匹配
+-   处理 guided_options 旧接口兼容
+-   给 SamplingParams 做统一设置（比如 `FINAL_ONLY`）
+-   最后循环逐个调用 `_add_request()`
+
+✅ 就像一个“批量装配线入口”
 
 ```python
 def _validate_and_add_requests(
@@ -862,8 +999,6 @@ def _add_request(
             priority=priority,
         )
 ```
-
-
 
 
 
@@ -1013,6 +1148,131 @@ adapter_model.bin  (或 safetensors)
 
 -   **Prompt Adapter**：训练“输入前缀向量”，更像“隐形 prompt”
 -   **LoRA**：训练模型内部的一部分线性层增量权重，更像“改模型能力”
+
+
+
+
+
+`vllm/engine/llm_engine.py`
+
+`add_request()` 做的是：
+
+**单条 request 的严格处理 + 转换成 scheduler 里的可运行对象**
+
+它负责：
+
+-   兼容旧参数 `inputs` → prompt
+-   校验 LoRA / priority / multi-step decoding 限制
+-   设置 arrival_time↳
+-   tokenizer 校验 prompt↳
+-   preprocess → process↳
+-   `_add_processed_request()` 真正加入 scheduler
+
+✅ 就像“真正把请求塞进引擎执行系统里”的那一步
+
+```python
+@deprecate_kwargs(
+    "inputs",
+    additional_message="Please use the 'prompt' parameter instead.",
+)
+# 1) 装饰器：标记 inputs 参数已废弃（deprecated）
+#    如果用户仍然传 inputs=xxx，会提示“请改用 prompt 参数”
+
+def add_request(
+        self,
+        request_id: str,
+        prompt: Optional[PromptType] = None,
+        params: Optional[Union[SamplingParams, PoolingParams]] = None,
+        arrival_time: Optional[float] = None,
+        lora_request: Optional[LoRARequest] = None,
+        trace_headers: Optional[Mapping[str, str]] = None,
+        prompt_adapter_request: Optional[PromptAdapterRequest] = None,
+        priority: int = 0,
+        *,
+        inputs: Optional[PromptType] = None,  # DEPRECATED
+) -> None:
+    """
+    ... 省略 docstring ...
+    """
+
+    if inputs is not None:
+        prompt = inputs
+    # 2) 兼容旧参数 inputs：
+    #    如果用户传入 inputs，就把它当成 prompt 用（向后兼容）
+
+    assert prompt is not None and params is not None
+    # 3) 断言检查：prompt 和 params 必须都有
+    #    否则直接报错（AssertionError）
+
+    if lora_request is not None and not self.lora_config:
+        raise ValueError(f"Got lora_request {lora_request} but LoRA is "
+                         "not enabled!")
+    # 4) LoRA 检查：
+    #    如果用户传了 lora_request，但 engine 没有启用 LoRA 功能，就报错
+
+    if priority != 0 and not self.scheduler_config.policy == "priority":
+        raise ValueError(f"Got priority {priority} but "
+                         "Priority scheduling is not enabled.")
+    # 5) priority 调度检查：
+    #    如果用户设置 priority（非0），但 scheduler 不是 priority 模式，就报错
+
+    if isinstance(params, SamplingParams) \
+        and (params.guided_decoding or params.logits_processors) \
+        and self.scheduler_config.num_scheduler_steps > 1:
+        raise ValueError(
+            "Guided decoding and logits processors are not supported "
+            "in multi-step decoding")
+    # 6) 多步解码限制：
+    #    如果 params 是 SamplingParams（生成模式）
+    #    且使用 guided decoding 或 logits processors
+    #    且 scheduler 处于 multi-step decoding（num_scheduler_steps > 1）
+    #    就报错：因为这些功能在多步解码下不支持
+
+    if arrival_time is None:
+        arrival_time = time.time()
+    # 7) arrival_time 默认值：
+    #    如果没传 arrival_time，就用当前时间（秒级时间戳）
+    #    用于调度器判断请求先后/等待时间等
+
+    if self.tokenizer is not None:
+        self._validate_token_prompt(
+            prompt,
+            tokenizer=self.get_tokenizer(lora_request=lora_request))
+    # 8) prompt token 校验：
+    #    如果 engine 有 tokenizer，则验证 prompt 的格式/内容是否合法
+    #    注意这里 tokenizer 可能和 lora_request 绑定（LoRA可能换词表）
+
+    preprocessed_inputs = self.input_preprocessor.preprocess(
+        prompt,
+        lora_request=lora_request,
+        prompt_adapter_request=prompt_adapter_request,
+    )
+    # 9) 输入预处理 preprocess：
+    #    将用户传入的 prompt（各种 PromptType）
+    #    统一转换成 vLLM 内部标准结构（可能包含 tokenization、multi-modal解析等）
+
+    processed_inputs = self.input_processor(preprocessed_inputs)
+    # 10) 输入处理 input_processor：
+    #     在 preprocess 基础上进一步加工成 engine 真正可执行的结构
+    #     比如 prompt_token_ids、attention metadata、batch 信息等
+
+    self._add_processed_request(
+        request_id=request_id,
+        processed_inputs=processed_inputs,
+        params=params,
+        arrival_time=arrival_time,
+        lora_request=lora_request,
+        prompt_adapter_request=prompt_adapter_request,
+        trace_headers=trace_headers,
+        priority=priority,
+    )
+    # 11) 把请求加入调度器/队列（关键一步）：
+    #     创建内部的 Sequence / SequenceGroup，并注册到 scheduler 中
+    #     之后通过 engine.step() 执行推理，逐步生成 token
+
+```
+
+## PromptType
 
 
 
