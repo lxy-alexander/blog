@@ -10,7 +10,7 @@ lang: ""
 
 ---
 
-# Offline Batching Example
+# 用例
 
 ```python
 # SPDX-License-Identifier: Apache-2.0
@@ -40,6 +40,30 @@ for output in outputs:
     generated_text = output.outputs[0].text
     print(f"Prompt: {prompt!r}, Generated text: {generated_text!r}")
 ```
+
+# 创建LLM
+
+```python
+from vllm import LLM, SamplingParams
+
+llm = LLM(model="facebook/opt-125m")
+
+with LLM.deprecate_legacy_api():
+    # 在这个 with 块里，LLM.DEPRECATE_LEGACY == True
+    # 这里调用一些“legacy 用法”时，会按装饰器里的 is_deprecated=lambda: LLM.DEPRECATE_LEGACY
+    # 去决定是否触发弃用提示/行为（例如某些 deprecated 参数路径）
+    outputs = llm.generate(
+        prompts="Hello",
+        sampling_params=SamplingParams(),
+        prompt_token_ids=None,  # legacy 路径相关参数（示例）
+    )
+
+# 出了 with 块，LLM.DEPRECATE_LEGACY == False
+```
+
+
+
+
 
 
 
@@ -676,6 +700,56 @@ self._validate_and_add_requests(
 -   **校验输入是否匹配**（prompt 数量、params 数量、lora 数量）
 -   **把请求逐条塞到引擎队列**（每条 prompt 对应一条 request）
 
+
+
+`vllm/inputs/data.py`
+
+```
+PromptType = Union[SingletonPrompt, ExplicitEncoderDecoderPrompt]
+```
+
+PromptType` 要么是 `SingletonPrompt`，要么是 `ExplicitEncoderDecoderPrompt
+
+
+
+```
+SingletonPrompt = Union[str, TextPrompt, TokensPrompt]
+```
+
+SingletonPrompt = 普通字符串 str 或 TextPrompt 类型对象 TextPrompt 或 TokensPrompt 类型对象 TokensPrompt
+
+:::note
+
+Python 3.10+ 简写
+
+```
+SingletonPrompt = str | TextPrompt | TokensPrompt
+```
+
+:::
+
+
+
+```
+class TextPrompt(TypedDict):
+    prompt: str
+    multi_modal_data: NotRequired["MultiModalDataDict"]
+    mm_processor_kwargs: NotRequired[dict[str, Any]]
+```
+
+-   **`prompt: str`（必填）**
+     你直接输入的原始文本，后续会先 tokenization，再喂给模型。
+-   **`multi_modal_data`（可选）**
+     如果模型支持多模态，这里可以附带图片/音频等额外输入数据。
+-   **`mm_processor_kwargs`（可选）**
+     给多模态处理器用的额外参数，比如图像 resize、归一化、采样率等配置。
+
+
+
+
+
+
+
 ```python
 def _validate_and_add_requests(
         self,
@@ -767,10 +841,44 @@ def _validate_and_add_requests(
                 # 否则默认优先级为 0
                 priority=priority[i] if priority else 0,
             )
+```
 
+```python
+def _add_request(
+        self,
+        prompt: PromptType,
+        params: Union[SamplingParams, PoolingParams],
+        lora_request: Optional[LoRARequest] = None,
+        prompt_adapter_request: Optional[PromptAdapterRequest] = None,
+        priority: int = 0,
+    ) -> None:
+        request_id = str(next(self.request_counter))
+        self.llm_engine.add_request(
+            request_id,
+            prompt,
+            params,
+            lora_request=lora_request,
+            prompt_adapter_request=prompt_adapter_request,
+            priority=priority,
+        )
 ```
 
 
+
+
+
+
+
+### When would you NOT force FINAL_ONLY?
+
+They force `FINAL_ONLY` to **standardize outputs, simplify engine logic, improve batching performance, and avoid breaking callers**. 强制 `FINAL_ONLY` 是为了 **统一返回格式、降低引擎复杂度、提升 batch 性能、避免调用方出错**。
+
+Many frameworks separate generation into:
+
+-   non-streaming (final result only)
+-   streaming (token-by-token)
+
+This function is likely the non-streaming path, so it forces `FINAL_ONLY`.
 
 
 
@@ -817,7 +925,7 @@ WHERE airport = 'lilongwe international airport';
 
 
 
-### `prompt_adapter_request` 是什么？
+### prompt_adapter_request是什么？
 
 **Prompt Adapter**：更像“自动加一个固定的系统提示/前缀”（改输入形式）
 
@@ -871,6 +979,8 @@ adapter_name = "sql_adapter"
 
 ------
 
+
+
 ### Prompt Adapter 常见训练方式
 
 训练完会保存一份小权重，比如：
@@ -903,8 +1013,6 @@ adapter_model.bin  (或 safetensors)
 
 -   **Prompt Adapter**：训练“输入前缀向量”，更像“隐形 prompt”
 -   **LoRA**：训练模型内部的一部分线性层增量权重，更像“改模型能力”
-
-
 
 
 

@@ -9,6 +9,109 @@ draft: false
 
 ---
 
+
+
+# vLLM 后端 & 工程能力
+
+------
+
+## 1）API 服务能力（Web 后端）
+
+**你要把模型变成“可调用的服务”**
+
+-   设计 API（OpenAI compatible / 自定义 REST）
+-   流式输出（SSE / WebSocket）
+-   并发处理（异步 / 连接池 / 超时控制）
+-   鉴权（API Key / JWT）
+-   请求校验、参数限制（max_tokens、上下文长度等）
+
+✅ 常见技术：FastAPI / Flask / Node / Go / Java
+
+------
+
+## 2）性能与高并发（系统能力）
+
+vLLM 本质就是为了吞吐和并发，所以你会碰到：
+
+-   QPS / 延迟（TP50/90/99）怎么衡量
+-   限流（令牌桶/漏桶）
+-   排队与超时（队列堆积怎么处理）
+-   多租户隔离（不同用户互相不影响）
+-   背压机制（服务忙了怎么降级）
+
+------
+
+## 3）GPU 推理与资源管理（Infra 核心）
+
+这块是 vLLM 的“护城河”
+
+-   GPU 显存管理（KV Cache、PagedAttention）
+-   Batch / Continuous batching 的吞吐原理
+-   多卡并行（Tensor Parallel / 多 GPU 部署）
+-   选型：vLLM vs TensorRT-LLM vs Triton
+
+------
+
+## 4）工程化部署能力（DevOps / SRE）
+
+真正落地必须能跑得稳
+
+-   Docker 打包镜像、依赖管理
+-   K8s 部署（GPU 调度、弹性伸缩）
+-   配置管理（环境变量、config map）
+-   灰度发布、回滚、版本管理
+
+------
+
+## 5）可观测性（监控 + 排障能力）
+
+线上最重要的能力之一
+
+-   Metrics：吞吐、延迟、队列长度、GPU 利用率、显存占用
+-   Logs：请求日志、错误堆栈、trace id
+-   Tracing：链路追踪（OpenTelemetry）
+-   告警：服务不可用 / 延迟暴涨 / OOM
+
+------
+
+## 6）稳定性与容灾（生产级能力）
+
+vLLM 服务常见事故很多：
+
+-   OOM（上下文太长、并发太高）
+-   偶发卡死（GPU/驱动问题）
+-   请求抖动（长尾延迟）
+-   模型热更新失败、缓存污染
+
+对应能力：
+
+-   熔断降级
+-   超时重试（要注意幂等）
+-   fallback（切换到更小模型/备用实例）
+-   健康检查、自动重启
+
+------
+
+## 7）数据与存储（看产品形态）
+
+如果你做的是“ChatGPT 类产品”，还会涉及：
+
+-   对话历史存储（MySQL/Postgres）
+-   Redis 缓存（会话、限流、用户状态）
+-   向量库（RAG：Milvus/pgvector）
+-   文件上传与解析（PDF/Doc/网页抓取）
+
+------
+
+## 8）安全与合规（容易被忽略）
+
+-   prompt 注入防护（RAG 场景）
+-   内容安全（敏感词过滤、策略模型）
+-   秘钥管理（KMS / Vault）
+-   审计日志（谁调用了什么、输出了什么）
+
+
+
 # ✅ 检查清单
 
 ## 第一阶段检查点
@@ -16,12 +119,12 @@ draft: false
 - [x] 能够运行 vLLM 进行推理
 - [x] 理解 LLM 类的基本用法
 - [x] 能够跟踪一个请求的流程
-- [ ] 理解 Sequence 和 SequenceGroup 的概念
+- [x] 理解 Sequence 和 SequenceGroup 的概念
 
 ## 第二阶段检查点
 
-- [ ] 理解 LLM Engine 的主要方法
-- [ ] 理解调度机制的基本原理
+- [x] 理解 LLM Engine 的主要方法
+- [x] 理解调度机制的基本原理
 - [ ] 理解 KV Cache 的管理方式
 - [ ] 能够解释 PagedAttention 的核心思想
 

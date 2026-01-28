@@ -394,6 +394,79 @@ class Solution:
 
 
 
+### [1004. Max Consecutive Ones III](https://leetcode.com/problems/max-consecutive-ones-iii/)
+
+Given a binary array `nums` and an integer `k`, return *the maximum number of consecutive* `1`*'s in the array if you can flip at most* `k` `0`'s.↳
+
+**Example 1:**
+
+```
+Input: nums = [1,1,1,0,0,0,1,1,1,1,0], k = 2
+Output: 6
+Explanation: [1,1,1,0,0,1,1,1,1,1,1]
+Bolded numbers were flipped from 0 to 1. The longest subarray is underlined.
+```
+
+**Example 2:**
+
+```
+Input: nums = [0,0,1,1,0,0,1,1,1,0,1,1,0,0,0,1,1,1,1], k = 3
+Output: 10
+Explanation: [0,0,1,1,1,1,1,1,1,1,1,1,0,0,0,1,1,1,1]
+Bolded numbers were flipped from 0 to 1. The longest subarray is underlined.
+```
+
+**Constraints:**
+
+-   `1 <= nums.length <= 105`
+-   `nums[i]` is either `0` or `1`.
+-   `0 <= k <= nums.length`
+
+```python
+class Solution:
+    def longestOnes(self, nums: List[int], k: int) -> int:
+        ans = 0
+        l = 0
+        cnt = 0
+        for r, x in enumerate(nums):
+            cnt += int(not x)
+            while cnt > k:
+                cnt -= int(not nums[l])
+                l += 1
+            ans = max(ans, r - l + 1)
+        return ans
+        
+```
+
+
+
+```python
+class Solution {
+public:
+    int longestOnes(vector<int>& nums, int k) {
+        // you can flip at most k 0, it means the window has at most k zero, it can be 0, 1, to k.
+        int ans = 0;
+        int cnt = 0;
+        int l = 0;
+        int n = nums.size();
+        for (int r = 0; r < n; r++) {
+            // accumulate the amount of zero
+            cnt += !nums[r];
+            while (cnt > k) {
+                cnt -= !nums[l];
+                l++;
+            }
+            ans = max(ans, r - l + 1);
+        }
+        return ans;
+    }
+};
+```
+
+
+
+
+
 
 
 
@@ -429,6 +502,151 @@ At Most（至多）
 -   sum ≤ K
 
 :::
+
+### [1446. Consecutive Characters](https://leetcode.com/problems/consecutive-characters/)
+
+The **power** of the string is the maximum length of a non-empty substring that contains only one unique character.
+
+Given a string `s`, return *the **power** of* `s`.
+
+**Example 1:**
+
+```
+Input: s = "leetcode"
+Output: 2
+Explanation: The substring "ee" is of length 2 with the character 'e' only.
+```
+
+**Example 2:**
+
+```
+Input: s = "abbcccddddeeeeedcba"
+Output: 5
+Explanation: The substring "eeeee" is of length 5 with the character 'e' only.
+```
+
+**Constraints:**
+
+-   `1 <= s.length <= 500`
+-   `s` consists of only lowercase English letters.
+
+```python
+class Solution:
+    def maxPower(self, s: str) -> int:
+        ans = 0
+        l = 0
+        cnt = defaultdict(int)
+        for r, c in enumerate(s):
+            cnt[c] += 1
+            while len(cnt) > 1:
+                cnt[s[l]] -= 1
+                if cnt[s[l]] == 0: #因为你的check条件是size，所以当这个map中的某个元素的个数为0，要把它移出，不移除会让这个check条件一直符合，最终会让l一直++，到最后会超过s的长度，导致溢出。
+                    del cnt[s[l]]
+                l += 1
+            ans = max(ans, r - l + 1)
+        return ans
+```
+
+```c++
+class Solution {
+public:
+    int maxPower(string s) {
+        int ans = 0;
+        int l = 0;
+        int n = s.size();
+        map<char, int> cnt;
+        for (int r = 0; r < n; r++) {
+            cnt[s[r]]++;
+            while (cnt.size() > 1) {
+                cnt[s[l]]--;
+                if (cnt[s[l]] == 0) {
+                    cnt.erase(s[l]);
+                }
+                l++;
+            }
+            ans = max(ans, r - l + 1);
+        }
+        return ans;
+    }
+};
+```
+
+
+
+
+
+
+
+### [1004. Max Consecutive Ones III](https://leetcode.com/problems/max-consecutive-ones-iii/)
+
+Given a binary array `nums` and an integer `k`, return *the maximum number of consecutive* `1`*'s in the array if you can flip at most* `k` `0`'s.
+
+**Example 1:**
+
+```
+Input: nums = [1,1,1,0,0,0,1,1,1,1,0], k = 2
+Output: 6
+Explanation: [1,1,1,0,0,1,1,1,1,1,1]
+Bolded numbers were flipped from 0 to 1. The longest subarray is underlined.
+```
+
+**Example 2:**
+
+```
+Input: nums = [0,0,1,1,0,0,1,1,1,0,1,1,0,0,0,1,1,1,1], k = 3
+Output: 10
+Explanation: [0,0,1,1,1,1,1,1,1,1,1,1,0,0,0,1,1,1,1]
+Bolded numbers were flipped from 0 to 1. The longest subarray is underlined.
+```
+
+**Constraints:**
+
+-   `1 <= nums.length <= 105`
+-   `nums[i]` is either `0` or `1`.
+-   `0 <= k <= nums.length`
+
+```python
+class Solution:
+    def longestOnes(self, nums: List[int], k: int) -> int:
+        ans = 0
+        l = 0
+        cnt = 0
+        for r, x in enumerate(nums):
+            cnt += int(not x)
+            while cnt > k:
+                cnt -= int(not nums[l])
+                l += 1
+            ans = max(ans, r - l + 1)
+        return ans
+```
+
+```c++
+class Solution {
+public:
+    int longestOnes(vector<int>& nums, int k) {
+        // you can flip at most k 0, it means the window has at most k zero, it can be 0, 1, to k.
+        int ans = 0;
+        int cnt = 0;
+        int l = 0;
+        int n = nums.size();
+        for (int r = 0; r < n; r++) {
+            // accumulate the amount of zero
+            cnt += !nums[r];
+            while (cnt > k) {
+                cnt -= !nums[l];
+                l++;
+            }
+            ans = max(ans, r - l + 1);
+        }
+        return ans;
+    }
+};
+
+```
+
+
+
+
 
 ### [[LeetCode\] 340. Longest Substring with At Most K Distinct Characters](https://www.cnblogs.com/grandyang/p/5351347.html) (at most k distinct elements )
 
@@ -1258,10 +1476,6 @@ class Solution:
 
 
 
-
-
-
-
 ## Greedy + Two Pointers + run-based scanning
 
 ### [1839. Longest Substring Of All Vowels in Order](https://leetcode.com/problems/longest-substring-of-all-vowels-in-order/)
@@ -1276,8 +1490,6 @@ For example, strings `"aeiou"` and `"aaaaaaeiiiioou"` are considered **beautiful
 Given a string `word` consisting of English vowels, return *the **length of the longest beautiful substring** of* `word`*. If no such substring exists, return* `0`.
 
 A **substring** is a contiguous sequence of characters in a string.
-
- 
 
 **Example 1:**
 

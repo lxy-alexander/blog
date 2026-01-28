@@ -8,7 +8,33 @@ category: python
 draft: false
 ---
 
-## list ` vs   ` Sequence
+
+
+## Union & Sequence
+
+`Union[A, B]`: **A or B**
+
+`Sequence[T]`: an ordered `T` (like `list[T]`, ↳`tuple[T, ...]`)
+
+“Ordered” means the elements have a **fixed, meaningful position** (first, second, third…), and you can usually access them by **index**.
+
+
+
+## list & tuple
+
+`(params,)` is a tuple (immutable)
+
+`[params]` is a list (mutable, also fine)
+
+```python
+for sp in params if isinstance(params, list) else (params,):
+```
+
+
+
+
+
+## list & Sequence
 
 `list` is a specific mutable list type; 
 

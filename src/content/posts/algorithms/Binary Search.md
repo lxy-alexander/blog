@@ -285,6 +285,10 @@ l=r+1
 
 `l` 就是 **它右边第一个位置**（第一个 True）
 
+Because we always move `l` right when `m` is invalid, and move `r` left when `m` is valid, the search ends with `r` at the last invalid value and `l` at the first valid value — therefore `l` is the smallest feasible answer.
+
+因为当 m 无效时我们总是将 l 右移，而当 m 有效时我们将 r 左移，所以搜索结束时 r 在最后一个无效值，l 在第一个有效值——因此 l 是最小的可行答案。
+
 ```python
 # 这道题你并需要排序，因为题目没有要求是数组中元素，只需要最小值和数组的最大值进行二分法
 # (x + m - 1) // m 这个是ceil的实现， import math  math.ceil(x / m) 也可以
@@ -517,4 +521,165 @@ class Solution:
                 l = m + 1
         return l
 ```
+
+
+
+
+
+### [475. Heaters](https://leetcode.com/problems/heaters/)
+
+Winter is coming! During the contest, your first job is to design a standard heater with a fixed warm radius to warm all the houses.
+
+Every house can be warmed, as long as the house is within the heater's warm radius range. 
+
+Given the positions of `houses` and `heaters` on a horizontal line, return *the minimum radius standard of heaters so that those heaters could cover all houses.*
+
+**Notice** that all the `heaters` follow your radius standard, and the warm radius will be the same.
+
+ 
+
+**Example 1:**
+
+```
+Input: houses = [1,2,3], heaters = [2]
+Output: 1
+Explanation: The only heater was placed in the position 2, and if we use the radius 1 standard, then all the houses can be warmed.
+```
+
+**Example 2:**
+
+```
+Input: houses = [1,2,3,4], heaters = [1,4]
+Output: 1
+Explanation: The two heaters were placed at positions 1 and 4. We need to use a radius 1 standard, then all the houses can be warmed.
+```
+
+**Example 3:**
+
+```
+Input: houses = [1,5], heaters = [2]
+Output: 3
+```
+
+ 
+
+**Constraints:**
+
+-   `1 <= houses.length, heaters.length <= 3 * 104`
+-   `1 <= houses[i], heaters[i] <= 109`
+
+
+
+
+
+If you compute the distance from **each heater to every house**, the time complexity is **O(m·n)**. But if you use **house** as a query point and “insert” it into the sorted `heaters` array using binary search, the time complexity becomes **O(m log n)**.
+
+#### Nearest Neighbor Search 
+
+In a **1D array / number line**:
+
+-   You want to find the point **closest to `x`**
+-   After sorting, you don’t need to check all elements
+-   You only need to check the **two neighbors around the insertion position** given by `lower_bound`
+
+| Category                                       | Problem / Pattern                    | Key Idea                                                     | Common Technique                        | Typical Time Complexity |
+| ---------------------------------------------- | ------------------------------------ | ------------------------------------------------------------ | --------------------------------------- | ----------------------- |
+| ⭐ A Nearest / Min Difference                   | **Minimum Absolute Difference**      | After sorting, the closest pair must be adjacent             | `sort + compare neighbors`              | `O(n log n)`            |
+| ⭐ A Nearest / Min Difference                   | **Find K Closest Elements**          | Find insertion point, then expand outward                    | `sort + bisect + two pointers`          | `O(log n + k)` (often)  |
+| ⭐ B Min Distance Between Two Sets              | **Heaters (this problem)**           | For each house, nearest heater is either left neighbor or right neighbor | `sort + bisect (lower_bound)`           | `O(m log n)`            |
+| ⭐ B Min Distance Between Two Sets              | **Shortest Distance to a Character** | For each index, nearest target position matters              | `two passes` or `bisect over positions` | `O(n)` or `O(n log n)`  |
+| ⭐ C Coverage / Radius / “Answer Binary Search” | **Magnetic Force Between Two Balls** | Maximize the minimum distance → binary search the answer     | `binary search answer + greedy check`   | `O(n log range)`        |
+| ⭐ C Coverage / Radius / “Answer Binary Search” | **Koko Eating Bananas**              | Minimize the maximum speed → binary search the answer        | `binary search answer + check function` | `O(n log range)`        |
+
+```python
+# find the closest position on the left and on the right
+class Solution:
+    def findRadius(self, houses: List[int], heaters: List[int]) -> int:
+        ans = 0
+        houses.sort()
+        heaters.sort()
+        n = len(heaters)
+        for x in houses:
+            i = bisect.bisect_left(heaters, x)
+            # edge case
+            # if i == 0, it means x is before the first heater, so there is no heater on the left.
+            ld = x - heaters[i - 1] if i > 0 else float('inf')
+            rd = heaters[i] - x if i < n else float('inf')
+            ans = max(ans, min(ld, rd))
+        return ans
+```
+
+
+
+
+
+
+
+### [875. Koko Eating Bananas](https://leetcode.com/problems/koko-eating-bananas/)
+
+Koko loves to eat bananas. There are `n` piles of bananas, the `ith` pile has `piles[i]` bananas. The guards have gone and will come back in `h` hours.
+
+Koko can decide her bananas-per-hour eating speed of `k`. Each hour, she chooses some pile of bananas and eats `k` bananas from that pile. If the pile has less than `k` bananas, she eats all of them instead and will not eat any more bananas during this hour.
+
+Koko likes to eat slowly but still wants to finish eating all the bananas before the guards return.
+
+Return *the minimum integer* `k` *such that she can eat all the bananas within* `h` *hours*.
+
+**Example 1:**
+
+```
+Input: piles = [3,6,7,11], h = 8
+Output: 4
+```
+
+**Example 2:**
+
+```
+Input: piles = [30,11,23,4,20], h = 5
+Output: 30
+```
+
+**Example 3:**
+
+```
+Input: piles = [30,11,23,4,20], h = 6
+Output: 23 
+```
+
+**Constraints:**
+
+-   `1 <= piles.length <= 104`
+-   `piles.length <= h <= 109`
+-   `1 <= piles[i] <= 109`
+
+一定要记住m符合<=h, 我们一直缩小右边界，让其不符合，m>h，我们缩小左边界让其符合，最终的while loop是在l > r结束，最终l是落在符合条件的区间，而r是在不符合条件的区间。
+
+```python
+# Because we always move l right when m is invalid, and move r left when m is valid, the search ends with r at the last invalid value and l at the first valid value — therefore l is the smallest feasible answer.
+class Solution:
+    def minEatingSpeed(self, piles: List[int], h: int) -> int:
+        l = 1
+        r = sum(piles)
+        while l <= r:
+            m = (l + r) // 2
+            if sum((x + m - 1) // m for x in piles) <= h:
+                r = m - 1
+            else:
+                l = m + 1
+        return l       
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
