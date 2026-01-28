@@ -64,6 +64,10 @@ sampling_params = SamplingParams(temperature=0.8, top_p=0.95)
 
 ## 4) 创建并加载模型 LLM
 
+`vllm/entrypoints/llm.py`
+
+https://lxy-alexander.github.io/blog/posts/vllm/params-on-vllm/
+
 ```
 llm = LLM(model="facebook/opt-125m")
 ```
