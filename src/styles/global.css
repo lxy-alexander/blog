@@ -1,0 +1,12 @@
+mark {
+  background: linear-gradient(
+    90deg,
+    rgba(255, 244, 138, 0.75),
+    rgba(255, 211, 77, 0.55)
+  );
+  color: inherit;
+  padding: 0.08em 0.28em;
+  border-radius: 0.35em;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}

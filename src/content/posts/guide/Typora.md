@@ -17,7 +17,9 @@ https://github.com/wyf9661/typora-free
 
 ## HighLight
 
-Setting - Markdown - 扩展语法 - 勾选高亮 - 重启
+Setting - Markdown - 扩展语法 - 勾选高亮 - 重启(渲染失效的)
+
+
 
 
 
