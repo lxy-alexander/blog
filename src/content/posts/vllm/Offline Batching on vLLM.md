@@ -66,17 +66,463 @@ sampling_params = SamplingParams(temperature=0.8, top_p=0.95)
 
 `vllm/entrypoints/llm.py`
 
-https://lxy-alexander.github.io/blog/posts/vllm/params-on-vllm/
-
 ```
 llm = LLM(model="facebook/opt-125m")
 ```
 
--   这里指定 Hugging Face 模型名：`facebook/opt-125m`。
--   vLLM 会：
-    1.  从 HF 下载/读取模型权重（本地缓存则直接用缓存）
-    2.  初始化推理引擎（CUDA / CPU 取决于你的环境）
-    3.  准备 KV cache、调度器等以支持高吞吐生成
+这里指定 Hugging Face 模型名：`facebook/opt-125m`。
+
+vLLM 会：
+-   从 HF 下载/读取模型权重（本地缓存则直接用缓存）
+-   初始化推理引擎（CUDA / CPU 取决于你的环境）
+-   准备 KV cache、调度器等以支持高吞吐生成
+
+
+
+### 1) LLM(model="facebook/opt-125m")
+
+Create an LLM.
+
+
+
+### 2) Create EngineArgs
+
+https://lxy-alexander.github.io/blog/posts/vllm/params-on-vllm/
+
+```python
+engine_args = EngineArgs(
+    model=model,
+    task=task,
+    tokenizer=tokenizer,
+    tokenizer_mode=tokenizer_mode,
+    skip_tokenizer_init=skip_tokenizer_init,
+    trust_remote_code=trust_remote_code,
+    allowed_local_media_path=allowed_local_media_path,
+    tensor_parallel_size=tensor_parallel_size,
+    dtype=dtype,
+    quantization=quantization,
+    revision=revision,
+    tokenizer_revision=tokenizer_revision,
+    seed=seed,
+    gpu_memory_utilization=gpu_memory_utilization,
+    swap_space=swap_space,
+    cpu_offload_gb=cpu_offload_gb,
+    enforce_eager=enforce_eager,
+    max_seq_len_to_capture=max_seq_len_to_capture,
+    disable_custom_all_reduce=disable_custom_all_reduce,
+    disable_async_output_proc=disable_async_output_proc,
+    hf_overrides=hf_overrides,
+    mm_processor_kwargs=mm_processor_kwargs,
+    override_pooler_config=override_pooler_config,
+    compilation_config=compilation_config_instance,
+    **kwargs,
+        )
+```
+
+
+
+### 3) Create the Engine (autoselects V0 vs V1)
+
+```python
+self.llm_engine = LLMEngine.from_engine_args(
+            engine_args=engine_args, usage_context=UsageContext.LLM_CLASS)
+```
+
+定义了一个 **类方法工厂（factory method）**, `@classmethod` 的第一个参数固定是 **cls**，代表“当前调用这个方法的类”。
+
+-   `self` = 当前对象实例
+-   `cls` = 当前类（比如 LLMEngine 或其子类）
+
+==默认用你调用的类（`cls`）如果开启 `VLLM_USE_V1`，就强行切换到 `V1LLMEngine`==
+
+```python
+ @classmethod
+    def from_engine_args(
+        cls,
+        engine_args: EngineArgs,
+        usage_context: UsageContext = UsageContext.ENGINE_CONTEXT,
+        stat_loggers: Optional[Dict[str, StatLoggerBase]] = None,
+    ) -> "LLMEngine":
+        """Creates an LLM engine from the engine arguments."""
+        # Create the engine configs.
+        vllm_config = engine_args.create_engine_config(usage_context)
+
+        engine_cls = cls
+        # 如果开启 VLLM_USE_V1，就强行切换到 V1LLMEngine
+        if envs.VLLM_USE_V1:
+            from vllm.v1.engine.llm_engine import LLMEngine as V1LLMEngine
+            engine_cls = V1LLMEngine
+
+        return engine_cls.from_vllm_config(
+            vllm_config=vllm_config,
+            usage_context=usage_context,
+            stat_loggers=stat_loggers,
+            disable_log_stats=engine_args.disable_log_stats,
+        )
+```
+
+
+
+####  UsageContext 含义
+
+`UsageContext` 是一个“运行场景标识”，用来区分引擎是通过哪种入口启动的（LLM 类、API 服务、OpenAI 兼容服务、Batch 等），从而在创建配置、默认策略、日志/监控、参数兼容行为上做差异化处理。
+
+`vllm/usage/usage_lib.py`
+
+```python
+class UsageContext(str, Enum):
+    # 未知/兜底上下文（调用来源不明确时用）
+    UNKNOWN_CONTEXT = "UNKNOWN_CONTEXT"
+
+    # 通过 vLLM 的 Python 高层封装 LLM(...) 方式使用
+    LLM_CLASS = "LLM_CLASS"
+
+    # 通过 vLLM 自带的 API Server 启动并提供服务（通用 API 服务入口）
+    API_SERVER = "API_SERVER"
+
+    # 通过 OpenAI 兼容接口的 Server 启动（/v1/chat/completions 等）
+    OPENAI_API_SERVER = "OPENAI_API_SERVER"
+
+    # 通过 OpenAI Batch 批处理运行器执行（偏离线批量任务）
+    OPENAI_BATCH_RUNNER = "OPENAI_BATCH_RUNNER"
+
+    # 引擎内部/核心引擎层的上下文（不绑定某个上层入口）
+    ENGINE_CONTEXT = "ENGINE_CONTEXT"
+
+```
+
+
+
+#### 为什么有EngineArgs还要创建vllm_config?
+
+因为 **EngineArgs 只是“用户输入参数/命令行参数层”**，还不能直接拿来驱动引擎跑；引擎真正需要的是一个 **“整理好、校验过、结构化的运行配置”** ——也就是 `VllmConfig`。
+
+主要做了以下校验：
+
+-   **引擎模式校验**（V0/V1 是否兼容）
+
+-   **feature 组合校验**（multi-step 与 speculative/chunked-prefill/PP 的组合限制）
+
+-   **参数合法性校验**（必填项、白名单）
+
+    
+
+:::note
+
+其实后面也拆成了 ModelConfig / CacheConfig / SchedulerConfig 这种结构
+
+因为引擎内部模块是分层的，每个模块只关心自己的配置：
+
+-   **ModelConfig**：模型结构、max_len、多模态、runner 类型
+-   **CacheConfig**：KV cache 大小、显存使用、swap/offload
+-   **ParallelConfig**：TP/PP/Ray placement group↳
+-   **SchedulerConfig**：batching、prefill、抢占策略↳
+-   **LoRAConfig**：LoRA/QLoRA↳
+-   **ObservabilityConfig**：metrics/tracing↳
+
+如果直接把 EngineArgs 传进去：
+
+-   引擎内部到处都要 `engine_args.xxx`
+-   各模块耦合严重
+-   很难测试、很难扩展
+
+:::
+
+
+
+#### vllm_config = engine_args.create_engine_config(usage_context)做了什么？为什么
+
+`vllm/engine/arg_utils.py`
+
+```python
+def create_engine_config(
+    self,
+    usage_context: Optional[UsageContext] = None,
+) -> VllmConfig:
+    """
+    创建并返回 VllmConfig（引擎运行所需的总配置对象）
+
+    注意：
+    - 为了自动选择 V0 还是 V1 引擎，需要先构建 ModelConfig
+      因为 ModelConfig 里包含模型架构等信息（例如 model arch）
+    - 如果用户没有设置环境变量 VLLM_USE_V1，本函数会自动决定并设置 VLLM_USE_V1
+    - 如果用户显式设置了 VLLM_USE_V1，但生成的配置不兼容，则报错
+    """
+
+    # 获取当前运行平台（CPU / CUDA / ROCm 等），并注册、更新平台能力信息
+    # vllm/platforms/interface.py
+    from vllm.platforms import current_platform
+    current_platform.pre_register_and_update()
+
+    # 构造设备配置（例如 device="cuda" / "cpu"）
+    device_config = DeviceConfig(device=self.device)
+
+    # 构造模型配置（包含模型架构、最大长度、多模态等信息）
+    model_config = self.create_model_config()
+
+    # ============================
+    # 自动选择是否使用 V1 引擎
+    # ============================
+    # 规则说明：
+    # 1) 如果 VLLM_USE_V1 未设置：
+    #    - 对“支持的特性”启用 V1
+    #    - 对实验/不支持特性回退到 V0
+    # 2) 如果 VLLM_USE_V1=1：
+    #    - 支持 + 实验特性都启用 V1
+    #    - 不支持的特性直接报错
+    # 3) 如果 VLLM_USE_V1=0：
+    #    - 禁用 V1，只使用 V0
+
+    use_v1 = False  # 最终是否启用 V1
+    # try_v1 表示是否尝试使用 V1：
+    # - 如果 envs.VLLM_USE_V1 为真（用户显式开启），就尝试
+    # - 或者用户根本没设置 VLLM_USE_V1，也会尝试自动选择
+    try_v1 = envs.VLLM_USE_V1 or not envs.is_set("VLLM_USE_V1")
+
+    # 若允许尝试 V1，并且根据模型配置判断 V1 可支持，则启用 V1
+    if try_v1 and self._is_v1_supported_oracle(model_config):
+        use_v1 = True
+
+    # 如果用户明确设置了 VLLM_USE_V1，则必须严格遵从用户选择
+    if envs.is_set("VLLM_USE_V1"):
+        assert use_v1 == envs.VLLM_USE_V1
+    else:
+        # 如果用户没设置，则将自动选择结果写入全局环境变量，供后续统一使用
+        envs.set_vllm_use_v1(use_v1)
+
+    # ============================
+    # 根据 V0 / V1 设置默认参数
+    # ============================
+    if use_v1:
+        # V1 默认参数可能与 usage_context（使用场景）有关
+        self._set_default_args_v1(usage_context)
+    else:
+        # V0 默认参数可能依赖模型配置（比如 max_model_len 等）
+        self._set_default_args_v0(model_config)
+
+    # 确保 chunked prefill 开关已被设置（必须有默认值）
+    assert self.enable_chunked_prefill is not None
+
+    # ============================
+    # 构建 KV Cache 配置
+    # ============================
+    cache_config = CacheConfig(
+        block_size=self.block_size,                         # KV cache block 大小
+        gpu_memory_utilization=self.gpu_memory_utilization, # GPU 显存使用比例上限
+        swap_space=self.swap_space,                         # 允许 swap 的空间大小
+        cache_dtype=self.kv_cache_dtype,                    # KV cache 的 dtype
+        is_attention_free=model_config.is_attention_free,   # 是否为 attention-free 模型
+        num_gpu_blocks_override=self.num_gpu_blocks_override,# 覆盖 KV block 数
+        sliding_window=model_config.get_sliding_window(),   # sliding-window attention 配置
+        enable_prefix_caching=self.enable_prefix_caching,   # 是否启用 prefix caching
+        cpu_offload_gb=self.cpu_offload_gb,                 # KV offload 到 CPU 的大小
+        calculate_kv_scales=self.calculate_kv_scales,       # 是否计算 KV scales
+    )
+
+    # ============================
+    # Ray placement group 获取
+    # ============================
+    # 如果在 Ray actor 环境下运行，则取当前 placement group
+    placement_group = None
+    if is_in_ray_actor():
+        import ray
+
+        # 注意：这个调用会在 Ray 未初始化时自动初始化
+        # 但这里不希望触发自动初始化（注释里提醒）
+        placement_group = ray.util.get_current_placement_group()
+
+    # ============================
+    # 构建并行配置（TP / PP / EP 等）
+    # ============================
+    parallel_config = ParallelConfig(
+        pipeline_parallel_size=self.pipeline_parallel_size,      # pipeline parallel 大小
+        tensor_parallel_size=self.tensor_parallel_size,          # tensor parallel 大小
+        enable_expert_parallel=self.enable_expert_parallel,      # expert parallel（MoE）
+        max_parallel_loading_workers=self.max_parallel_loading_workers, # 加载 worker 数
+        disable_custom_all_reduce=self.disable_custom_all_reduce,# 是否禁用自定义 all-reduce
+        tokenizer_pool_config=TokenizerPoolConfig.create_config(
+            self.tokenizer_pool_size,         # tokenizer pool 的 size
+            self.tokenizer_pool_type,         # tokenizer pool 类型
+            self.tokenizer_pool_extra_config, # tokenizer pool 额外配置
+        ),
+        ray_workers_use_nsight=self.ray_workers_use_nsight,      # Ray worker 是否使用 nsight
+        placement_group=placement_group,                         # Ray placement group
+        distributed_executor_backend=self.distributed_executor_backend, # 分布式执行后端
+        worker_cls=self.worker_cls,                               # worker 类
+        worker_extension_cls=self.worker_extension_cls,           # worker 扩展类
+    )
+
+    # ============================
+    # 构建 speculative decoding 配置（投机解码）
+    # ============================
+    speculative_config = self.create_speculative_config(
+        target_model_config=model_config,              # 目标模型配置
+        target_parallel_config=parallel_config,        # 并行配置
+        enable_chunked_prefill=self.enable_chunked_prefill,
+        disable_log_stats=self.disable_log_stats,
+    )
+
+    # ============================
+    # 兼容性检查：multi-step scheduler
+    # ============================
+    # 若启用 num_scheduler_steps > 1，会限制某些 feature 组合
+    if self.num_scheduler_steps > 1:
+        # multi-step 不支持 speculative decoding
+        if speculative_config is not None:
+            raise ValueError("Speculative decoding is not supported with "
+                             "multi-step (--num-scheduler-steps > 1)")
+        # multi-step chunked prefill 不支持 pipeline_parallel_size > 1
+        if self.enable_chunked_prefill and self.pipeline_parallel_size > 1:
+            raise ValueError("Multi-Step Chunked-Prefill is not supported "
+                             "for pipeline-parallel-size > 1")
+
+        # CPU 平台目前不支持 multi-step -> 警告并关闭
+        from vllm.platforms import current_platform
+        if current_platform.is_cpu():
+            logger.warning("Multi-Step (--num-scheduler-steps > 1) is "
+                           "currently not supported for CPUs and has been "
+                           "disabled.")
+            self.num_scheduler_steps = 1
+
+    # ============================
+    # 计算 num_lookahead_slots
+    # ============================
+    # lookahead slots 需要兼容 multi-step 和 speculative decoding 两种情况
+    num_lookahead_slots = max(self.num_lookahead_slots,
+                              self.num_scheduler_steps - 1)
+
+    # 如果启用了 speculative decoding，则使用 speculative_config 的 lookahead slots
+    num_lookahead_slots = num_lookahead_slots \
+        if speculative_config is None \
+        else speculative_config.num_lookahead_slots
+
+    # ============================
+    # 构建调度器配置（batch 组织、抢占策略等）
+    # ============================
+    scheduler_config = SchedulerConfig(
+        runner_type=model_config.runner_type,          # runner 类型（取决于模型/后端）
+        max_num_batched_tokens=self.max_num_batched_tokens, # batch token 上限
+        max_num_seqs=self.max_num_seqs,                # batch 序列数上限
+        max_model_len=model_config.max_model_len,      # 最大模型长度
+        num_lookahead_slots=num_lookahead_slots,
+        delay_factor=self.scheduler_delay_factor,      # scheduler delay 参数
+        enable_chunked_prefill=self.enable_chunked_prefill,
+        is_multimodal_model=model_config.is_multimodal_model, # 是否多模态
+        preemption_mode=self.preemption_mode,          # 抢占模式
+        num_scheduler_steps=self.num_scheduler_steps,  # multi-step 步数
+        multi_step_stream_outputs=self.multi_step_stream_outputs, # multi-step 输出流
+        send_delta_data=(envs.VLLM_USE_RAY_SPMD_WORKER
+                         and parallel_config.use_ray), # Ray SPMD worker 相关
+        policy=self.scheduling_policy,                 # 调度策略
+        scheduler_cls=self.scheduler_cls,              # scheduler 类（可替换）
+        max_num_partial_prefills=self.max_num_partial_prefills,
+        max_long_partial_prefills=self.max_long_partial_prefills,
+        long_prefill_token_threshold=self.long_prefill_token_threshold,
+    )
+
+    # ============================
+    # 构建 LoRA 配置（如启用）
+    # ============================
+    lora_config = LoRAConfig(
+        bias_enabled=self.enable_lora_bias,            # 是否启用 LoRA bias
+        max_lora_rank=self.max_lora_rank,              # 最大 rank
+        max_loras=self.max_loras,                      # 最多加载多少个 LoRA
+        fully_sharded_loras=self.fully_sharded_loras,  # 是否 fully-sharded
+        lora_extra_vocab_size=self.lora_extra_vocab_size, # LoRA 额外词表大小
+        long_lora_scaling_factors=self.long_lora_scaling_factors, # 长上下文 scaling
+        lora_dtype=self.lora_dtype,                    # LoRA dtype
+        max_cpu_loras=self.max_cpu_loras if self.max_cpu_loras
+        and self.max_cpu_loras > 0 else None           # CPU LoRA 数量限制
+    ) if self.enable_lora else None
+
+    # ============================
+    # QLoRA adapter 传给 loader 的额外配置
+    # ============================
+    if self.qlora_adapter_name_or_path is not None and \
+        self.qlora_adapter_name_or_path != "":
+        if self.model_loader_extra_config is None:
+            self.model_loader_extra_config = {}
+        self.model_loader_extra_config[
+            "qlora_adapter_name_or_path"] = self.qlora_adapter_name_or_path
+
+    # 构建加载配置（模型加载方式、权重格式等）
+    load_config = self.create_load_config()
+
+    # ============================
+    # Prompt Adapter 配置（如启用）
+    # ============================
+    prompt_adapter_config = PromptAdapterConfig(
+        max_prompt_adapters=self.max_prompt_adapters,
+        max_prompt_adapter_token=self.max_prompt_adapter_token
+    ) if self.enable_prompt_adapter else None
+
+    # ============================
+    # 解码配置（guided decoding / reasoning）
+    # ============================
+    decoding_config = DecodingConfig(
+        guided_decoding_backend=self.guided_decoding_backend, # guided decoding 后端
+        reasoning_backend=self.reasoning_parser
+        if self.enable_reasoning else None,                   # reasoning parser
+    )
+
+    # ============================
+    # 是否展示隐藏 metrics（按版本控制）
+    # ============================
+    show_hidden_metrics = False
+    if self.show_hidden_metrics_for_version is not None:
+        show_hidden_metrics = version._prev_minor_version_was(
+            self.show_hidden_metrics_for_version)
+
+    # ============================
+    # 详细 trace 配置（模块白名单校验）
+    # ============================
+    detailed_trace_modules = []
+    if self.collect_detailed_traces is not None:
+        detailed_trace_modules = self.collect_detailed_traces.split(",")
+
+    for m in detailed_trace_modules:
+        if m not in ALLOWED_DETAILED_TRACE_MODULES:
+            raise ValueError(
+                f"Invalid module {m} in collect_detailed_traces. "
+                f"Valid modules are {ALLOWED_DETAILED_TRACE_MODULES}"
+            )
+
+    # 可观测性配置（metrics、tracing、OTLP endpoint等）
+    observability_config = ObservabilityConfig(
+        show_hidden_metrics=show_hidden_metrics,
+        otlp_traces_endpoint=self.otlp_traces_endpoint,  # trace 上报 endpoint
+        collect_model_forward_time="model" in detailed_trace_modules
+        or "all" in detailed_trace_modules,
+        collect_model_execute_time="worker" in detailed_trace_modules
+        or "all" in detailed_trace_modules,
+    )
+
+    # ============================
+    # 汇总所有子配置，构造最终 VllmConfig
+    # ============================
+    config = VllmConfig(
+        model_config=model_config,
+        cache_config=cache_config,
+        parallel_config=parallel_config,
+        scheduler_config=scheduler_config,
+        device_config=device_config,
+        lora_config=lora_config,
+        speculative_config=speculative_config,
+        load_config=load_config,
+        decoding_config=decoding_config,
+        observability_config=observability_config,
+        prompt_adapter_config=prompt_adapter_config,
+        compilation_config=self.compilation_config,     # 编译相关配置
+        kv_transfer_config=self.kv_transfer_config,     # KV transfer 配置
+        additional_config=self.additional_config,       # 额外配置
+    )
+
+    # 返回最终引擎配置
+    return config
+
+```
+
+
 
 
 
