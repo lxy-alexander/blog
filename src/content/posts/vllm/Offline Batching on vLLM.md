@@ -43,9 +43,7 @@ prompts = [
 
 `vllm/sampling_params.py`
 
-
-
-
+https://lxy-alexander.github.io/blog/posts/vllm/params-on-vllm/
 
 ```
 sampling_params = SamplingParams(temperature=0.8, top_p=0.95)

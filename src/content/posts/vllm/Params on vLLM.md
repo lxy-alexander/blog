@@ -9,6 +9,74 @@ draft: false
 lang: ""
 ---
 
+# `EngineArgs` 和 `SamplingParams` 的区别
+
+EngineArgs configures the runtime engine, including model loading, GPU parallelism, and memory management.
+SamplingParams configures decoding behavior, including randomness, length control, stopping criteria, and constraints.↳
+
+ vLLM 当成一个“写作工厂”：
+
+-   **EngineArgs**：选厂房、选机器、接多少电、配多少工人
+     → 决定产能和能不能生产
+-   **SamplingParams**：决定写作风格、写几篇、写多长、什么时候停
+     → 决定具体产出的内容
+
+EngineArgs：初始化用一次
+
+```
+llm = LLM(
+    model="facebook/opt-125m",
+    tensor_parallel_size=1,
+    dtype="float16",
+    gpu_memory_utilization=0.9
+)
+```
+
+SamplingParams：每次生成可变
+
+```
+params = SamplingParams(temperature=0.7, top_p=0.9, max_tokens=128)
+out = llm.generate(["Hello my name is"], params)
+```
+
+## **EngineArgs = Engine / Runtime Configuration**
+
+它主要管这些事情：
+
+-   **加载什么模型**：`model`, `tokenizer`, `revision`
+-   **怎么用 GPU 跑**：`tensor_parallel_size`, `dtype`, `quantization`
+-   **显存怎么分配**：`gpu_memory_utilization`, `swap_space`, `cpu_offload_gb`
+-   **性能/兼容开关**：`enforce_eager`, `compilation_config`
+
+📌 特点：
+
+-   一般在 **初始化 LLM/Engine 的时候设置一次**
+-   影响 **性能、并行、显存、能不能加载成功**
+
+
+
+## **SamplingParams = Decoding / Generation Configuration**
+
+它管的是“输出文本怎么生成”：
+
+-   **随机程度**：`temperature`, `top_p`, `top_k`
+-   **输出长度**：`max_tokens`, `min_tokens`
+-   **停止规则**：`stop`, `stop_token_ids`, `ignore_eos`
+-   **生成几条**：`n`, `best_of`
+-   **防重复**：`repetition_penalty`, `presence_penalty`↳
+-   **高级约束**：`logit_bias`, `guided_decoding`, `allowed_token_ids`
+
+📌 特点：
+
+-   通常在 **每次 generate() 的时候传入**
+-   影响 **内容风格、长度、稳定性、格式约束**
+
+
+
+
+
+
+
 # SamplingParams
 
 ## ① n
@@ -264,7 +332,7 @@ params = SamplingParams(n=3, best_of=10)
 
 ------
 
-# Internal Fields (not required as user inputs)
+## Internal Fields (not required as user inputs)
 
 ## ㉖ output_text_buffer_length (internal)
 
@@ -326,9 +394,9 @@ params = SamplingParams(n=3, best_of=10)
 -   **Default**: `None`
 -   **Filled by**: `update_from_tokenizer()` automatically.
 
-------
 
-# If You Only Want to Remember “Typical Configs”
+
+---
 
 ✅ **Chat / General**
 
@@ -350,4 +418,378 @@ SamplingParams(temperature=0.7, top_p=0.9, repetition_penalty=1.1, max_tokens=25
 
 ------
 
-If you want, I can also turn this into a **quick cheat sheet (param → meaning → recommended values)**, which is easier to memorize and tune.
+
+
+# EngineArgs
+
+
+
+## ① `model`
+
+-   **What it does**: Specifies which model checkpoint to load (HF name or local path).
+
+```python
+EngineArgs(model="facebook/opt-125m")
+```
+
+-   Local path:
+
+```python
+EngineArgs(model="/data/models/llama-7b")
+```
+
+------
+
+## ② `task`
+
+-   **What it does**: Specifies the task type (`auto` is common).
+
+```python
+EngineArgs(model="facebook/opt-125m", task="auto")
+```
+
+------
+
+## ③ `tokenizer`
+
+-   **What it does**: Specifies which tokenizer to use.
+
+```python
+EngineArgs(
+    model="facebook/opt-125m",
+    tokenizer="facebook/opt-125m"
+)
+```
+
+------
+
+## ④ `tokenizer_mode`
+
+-   **What it does**: Controls whether vLLM uses fast or slow tokenizer.
+
+```python
+EngineArgs(model="facebook/opt-125m", tokenizer_mode="auto")
+```
+
+-   Force slow tokenizer:
+
+```python
+EngineArgs(model="facebook/opt-125m", tokenizer_mode="slow")
+```
+
+------
+
+## ⑤ `skip_tokenizer_init`
+
+-   **What it does**: Skips tokenizer initialization (useful when providing token IDs directly).
+
+```python
+EngineArgs(model="facebook/opt-125m", skip_tokenizer_init=True)
+```
+
+------
+
+## ⑥ `trust_remote_code`
+
+-   **What it does**: Allows loading models that require custom HF code.
+
+```python
+EngineArgs(model="some-org/custom-model", trust_remote_code=True)
+```
+
+------
+
+## ⑦ `allowed_local_media_path`
+
+-   **What it does**: Allows the engine to read local images/videos (multimodal use).
+
+```python
+EngineArgs(
+    model="some-mm-model",
+    allowed_local_media_path="/data/media"
+)
+```
+
+------
+
+## ⑧ `tensor_parallel_size`
+
+-   **What it does**: Number of GPUs used for tensor parallelism.
+    Single GPU:
+
+```python
+EngineArgs(model="facebook/opt-125m", tensor_parallel_size=1)
+```
+
+-   4 GPUs:
+
+```python
+EngineArgs(model="meta-llama/Llama-2-13b-hf", tensor_parallel_size=4)
+```
+
+------
+
+## ⑨ `dtype`
+
+-   **What it does**: Precision of model weights/activations.
+    Auto dtype:
+
+```python
+EngineArgs(model="facebook/opt-125m", dtype="auto")
+```
+
+-   Force FP16:
+
+```python
+EngineArgs(model="facebook/opt-125m", dtype="float16")
+```
+
+-   Force BF16:
+
+```python
+EngineArgs(model="facebook/opt-125m", dtype="bfloat16")
+```
+
+------
+
+## ⑩ `quantization`
+
+-   **What it does**: Enables quantized inference (AWQ/GPTQ/FP8).
+    AWQ:
+
+```python
+EngineArgs(model="some-awq-model", quantization="awq")
+```
+
+-   GPTQ:
+
+```python
+EngineArgs(model="some-gptq-model", quantization="gptq")
+```
+
+-   FP8 (experimental):
+
+```python
+EngineArgs(model="some-fp8-model", quantization="fp8")
+```
+
+------
+
+## ⑪ `revision`
+
+-   **What it does**: Pins a specific model version (branch/tag/commit).
+
+```python
+EngineArgs(
+    model="facebook/opt-125m",
+    revision="main"
+)
+```
+
+-   Commit hash:
+
+```python
+EngineArgs(
+    model="facebook/opt-125m",
+    revision="a1b2c3d4e5f6"
+)
+```
+
+------
+
+## ⑫ `tokenizer_revision`
+
+-   **What it does**: Pins a specific tokenizer version.
+
+```python
+EngineArgs(
+    model="facebook/opt-125m",
+    tokenizer_revision="main"
+)
+```
+
+------
+
+## ⑬ `seed`
+
+-   **What it does**: Sets a random seed for reproducible sampling.
+
+```python
+EngineArgs(model="facebook/opt-125m", seed=42)
+```
+
+------
+
+## ⑭ `gpu_memory_utilization`
+
+-   **What it does**: Fraction of GPU memory reserved for weights + KV cache.
+    Conservative:
+
+```python
+EngineArgs(model="facebook/opt-125m", gpu_memory_utilization=0.6)
+```
+
+-   Aggressive (higher throughput, higher OOM risk):
+
+```python
+EngineArgs(model="facebook/opt-125m", gpu_memory_utilization=0.95)
+```
+
+------
+
+## ⑮ `swap_space`
+
+-   **What it does**: CPU swap memory per GPU (GiB), useful when `best_of > 1`.
+    Disable swap (only if you always use best_of=1):
+
+```python
+EngineArgs(model="facebook/opt-125m", swap_space=0)
+```
+
+-   Enable swap:
+
+```python
+EngineArgs(model="facebook/opt-125m", swap_space=8)
+```
+
+------
+
+## ⑯ `cpu_offload_gb`
+
+-   **What it does**: Offloads part of model weights to CPU RAM (GiB).
+
+```python
+EngineArgs(model="meta-llama/Llama-2-13b-hf", cpu_offload_gb=10)
+```
+
+------
+
+## ⑰ `enforce_eager`
+
+-   **What it does**: Forces eager execution (disables CUDA graph optimizations).
+
+```python
+EngineArgs(model="facebook/opt-125m", enforce_eager=True)
+```
+
+------
+
+## ⑱ `max_seq_len_to_capture`
+
+-   **What it does**: Max sequence length covered by CUDA graphs.
+    Smaller (less graph coverage):
+
+```python
+EngineArgs(model="facebook/opt-125m", max_seq_len_to_capture=2048)
+```
+
+-   Larger (covers longer contexts):
+
+```python
+EngineArgs(model="facebook/opt-125m", max_seq_len_to_capture=8192)
+```
+
+------
+
+## ⑲ `disable_custom_all_reduce`
+
+-   **What it does**: Disables vLLM’s custom all-reduce implementation.
+
+```python
+EngineArgs(
+    model="meta-llama/Llama-2-13b-hf",
+    tensor_parallel_size=2,
+    disable_custom_all_reduce=True
+)
+```
+
+------
+
+## ⑳ `disable_async_output_proc`
+
+-   **What it does**: Disables async output processing (may reduce performance).
+
+```python
+EngineArgs(model="facebook/opt-125m", disable_async_output_proc=True)
+```
+
+------
+
+## ㉑ `hf_overrides`
+
+-   **What it does**: Overrides Hugging Face config values.
+    Dict override:
+
+```python
+EngineArgs(
+    model="facebook/opt-125m",
+    hf_overrides={"max_position_embeddings": 4096}
+)
+```
+
+------
+
+## ㉒ `mm_processor_kwargs`
+
+-   **What it does**: Extra kwargs for multimodal processing.
+
+```python
+EngineArgs(
+    model="some-mm-model",
+    mm_processor_kwargs={"do_resize": True, "size": 512}
+)
+```
+
+------
+
+## ㉓ `override_pooler_config`
+
+-   **What it does**: Overrides pooler config (mostly for embedding tasks).
+
+```python
+EngineArgs(
+    model="sentence-transformers/all-MiniLM-L6-v2",
+    override_pooler_config={"pooling_type": "mean"}
+)
+```
+
+------
+
+## ㉔ `compilation_config`
+
+-   **What it does**: Controls compilation optimization level or detailed config.
+    Simple level:
+
+```python
+EngineArgs(model="facebook/opt-125m", compilation_config=2)
+```
+
+-   Full dict config:
+
+```python
+EngineArgs(
+    model="facebook/opt-125m",
+    compilation_config={"level": 2, "enable_cuda_graph": True}
+)
+```
+
+------
+
+## ㉕ `**kwargs`
+
+-   **What it does**: Extra engine-level settings passed through to vLLM.
+    Example (passing a custom worker class):
+
+```python
+EngineArgs(
+    model="facebook/opt-125m",
+    worker_cls="vllm.worker.worker.Worker"
+)
+```
+
+------
+
+
+
+
+
