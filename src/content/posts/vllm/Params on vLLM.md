@@ -34,6 +34,16 @@ lang: ""
 -   **Default**: `None`
 -   **Note**: You typically don’t need to set this manually.
 
+```python
+# 用户创建 SamplingParams
+params = SamplingParams(n=3, best_of=10)
+
+# 初始化后的状态：
+# params.n = 10          # 被改为 best_of 的值（用于生成 10 个候选）
+# params._real_n = 3      # 保存原始的 n 值（用于返回最好的 3 个）
+# params.best_of = 10
+```
+
 ------
 
 ## ④ presence_penalty
@@ -65,13 +75,26 @@ lang: ""
 
 ## ⑦ temperature
 
--   **Meaning**: Sampling temperature that controls randomness.
+**temperature：决定“随机程度”**
+
+**top_k：决定“最多允许多少个候选词”**
+
+**top_p：决定“只允许最靠谱的一批候选词”**
+
+**min_p：决定“太小概率的一律不准选”**
+
+**seed：决定“随机结果能不能复现”**
+
+==**As `temperature` increases, the output becomes more random.**==
+
+-   **Meaning**: Sampling temperature that ==controls randomness.==
 -   **Default**: `1.0`
 -   **Range**: `>= 0`
 -   **Effect**:
-    -   `0` → greedy decoding (always choose the highest-probability token)
+    -   `0` → greedy smapling (always choose the highest-probability token)
     -   `0.2` → very stable
     -   `0.8` → commonly used
+    -   `1.0` → original distribution → logits unchanged
     -   `1.2+` → more random / creative but less reliable
 
 ------
