@@ -1,6 +1,6 @@
 ---
 title: Build Guides
-published: 2025-10-01
+published: 2026-01-01
 description: "How to buid the blog website"
 image: "./cover.jpeg"
 tags: ["Build Guides"]

@@ -8,22 +8,72 @@ category: python
 draft: false
 ---
 
-### `__pycache__`
+
+
+
+
+
+
+
+
+## **列表推导式（List Comprehension）**
+
+-   过滤型（filter）
+
+```python
+[表达式 for 变量 in 可迭代对象 if 条件]
+```
+
+-   替换/映射型（map）
+
+```python
+[表达式1 if 条件 else 表达式2 for 变量 in 可迭代对象]
+```
+
+1）`... for ... if ...`（过滤）
+
+只保留满足条件的元素：
+
+```python
+nums = [1, 2, 3, 4, 5]
+res = [x for x in nums if x % 2 == 0]
+print(res)  # [2, 4]
+```
+
+2）`... if ... else ... for ...`（替换/映射）
+
+每个元素都保留，但满足条件用一个值，否则用另一个值：
+
+```python
+nums = [1, 2, 3, 4, 5]
+res = [x if x % 2 == 0 else 0 for x in nums]
+print(res)  # [0, 2, 0, 4, 0]
+```
+
+3）`... for ... if ... else ...`（语法错误）
+
+==这种写法 Python 不允许==：
+
+```python
+nums = [1, 2, 3]
+res = [x for x in nums if x % 2 == 0 else 0]
+# SyntaxError
+```
+
+
+
+
+
+## `__pycache__`
 
 it stores compiled bytecode (`.pyc`) to speed up future imports and program startup.
 
 
 
-### Global
+## Global
 
 `global` 用来声明函数里使用/赋值的是模块级全局变量，而不是创建新的局部变量。
 `global` declares that a variable inside a function refers to the module-level global variable, so assignments update the global one instead of creating a local variable.
-
-
-
-
-
-
 
 
 

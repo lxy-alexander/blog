@@ -1,6 +1,6 @@
 ---
 title: "Typora"
-published: 2026-01-27
+published: 2026-01-01
 description: "Typora"
 image: ""
 tags: ["guide","Typora"]
