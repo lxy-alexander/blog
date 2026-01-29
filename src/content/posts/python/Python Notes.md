@@ -8,6 +8,23 @@ category: python
 draft: false
 ---
 
+### `__pycache__`
+
+it stores compiled bytecode (`.pyc`) to speed up future imports and program startup.
+
+
+
+### Global
+
+`global` 用来声明函数里使用/赋值的是模块级全局变量，而不是创建新的局部变量。
+`global` declares that a variable inside a function refers to the module-level global variable, so assignments update the global one instead of creating a local variable.
+
+
+
+
+
+
+
 
 
 ## Union & Sequence
