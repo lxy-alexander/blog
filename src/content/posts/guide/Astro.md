@@ -11,6 +11,59 @@ lang: ""
 
 
 
+## 指令改造
+
+做一个全局命令，比如叫 `np`，让它支持：
+
+```
+np "Double&Triple Pointers"
+```
+
+
+
+① 创建脚本
+
+新建文件：
+
+```
+mkdir -p ~/.local/bin
+~/.local/bin/np
+```
+
+内容：
+
+```
+#!/usr/bin/env bash
+npm run -- new "$@"
+```
+
+
+
+② 加执行权限
+
+```
+chmod +x ~/.local/bin/np
+```
+
+
+
+③ 确保 PATH 包含它
+
+把下面加入 `~/.bashrc` 或 `~/.zshrc`：
+
+```
+export PATH="$HOME/.local/bin:$PATH"
+source ~/.zshrc
+```
+
+✅ 以后就能用：
+
+```
+np "Double&Triple Pointers"
+```
+
+
+
 
 
 ## mark/highlight

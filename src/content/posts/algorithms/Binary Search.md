@@ -22,6 +22,54 @@ draft: false
     -   要么 `False False ... True True`
     -   要么 `True True ... False False`
 
+## 怎么设置左闭右闭 `[l, r]`：
+
+>   **r 设成 x 的最大可能取值，而不是 n-1**
+
+-   如果 **x 是数组下标** → `r = n-1`
+-   如果 **x 是答案且能到 n** → `r = n`
+-   如果 **x 是答案且能到 maxVal** → `r = maxVal`
+
+
+
+
+
+## 求最少和最多核心区别：你在找哪个边界？
+
+二分答案的 `check(x)` 必须单调：
+
+### 求最少（最小可行值）
+
+目标：找 **最小的 x** 使得 `check(x)=True`
+
+单调形状一般是：
+
+```
+F F F F T T T T
+        ↑
+     第一个 True
+```
+
+你要找的是 **第一个 True**
+
+------
+
+### 求最多（最大可行值）
+
+目标：找 **最大的 x** 使得 `check(x)=True`
+
+单调形状一般是：
+
+```
+T T T T F F F F
+        ↑
+     最后一个 True
+```
+
+你要找的是 **最后一个 True**
+
+
+
 
 
 
@@ -675,6 +723,55 @@ class Solution:
 
 
 
+## Find the most
+
+### [275. H-Index II](https://leetcode.com/problems/h-index-ii/)
+
+Given an array of integers `citations` where `citations[i]` is the number of citations a researcher received for their `ith` paper and `citations` is sorted in **non-descending order**, return *the researcher's h-index*.
+
+According to the [definition of h-index on Wikipedia](https://en.wikipedia.org/wiki/H-index): The h-index is defined as the maximum value of `h` such that the given researcher has published at least `h` papers that have each been cited at least `h` times.
+
+You must write an algorithm that runs in logarithmic time.
+
+**Example 1:**
+
+```
+Input: citations = [0,1,3,5,6]
+Output: 3
+Explanation: [0,1,3,5,6] means the researcher has 5 papers in total and each of them had received 0, 1, 3, 5, 6 citations respectively.
+Since the researcher has 3 papers with at least 3 citations each and the remaining two with no more than 3 citations each, their h-index is 3.
+```
+
+**Example 2:**
+
+```
+Input: citations = [1,2,100]
+Output: 2
+```
+
+**Constraints:**
+
+-   `n == citations.length`
+-   `1 <= n <= 105`
+-   `0 <= citations[i] <= 1000`
+-   `citations` is sorted in **ascending order**.
+
+```python
+class Solution:
+    def hIndex(self, citations: List[int]) -> int:
+        n = len(citations)
+        l, r = 0, n
+
+        # T T T...F F F
+        while l <= r:
+            h = (l + r) // 2
+            if h == 0 or citations[n - h] >= h:
+                l = h + 1      # True，尝试更大
+            else:
+                r = h - 1      # False，变小
+
+        return r
+```
 
 
 
@@ -682,4 +779,123 @@ class Solution:
 
 
 
+
+
+### [[LeetCode\] 644. Maximum Average Subarray II 子数组的最大平均值之二](https://www.cnblogs.com/grandyang/p/8021421.html)
+
+Given an array consisting of `n` integers, find the contiguous subarray whose length is greater than or equal to `k` that has the maximum average value. And you need to output the maximum average value.
+
+Example 1:
+
+```
+Input: [1,12,-5,-6,50,3], k = 4
+Output: 12.75
+Explanation:
+when length is 5, maximum average value is 10.8,
+when length is 6, maximum average value is 9.16667.
+Thus return 12.75.
+```
+
+Note:
+
+1.  1 <= `k` <= `n` <= 10,000.
+2.  Elements of the given array will be in range [-10,000, 10,000].
+3.  The answer with the calculation error less than 10-5 will be accepted.
+
+
+
+#### 为什么这个条件能二分？
+
+因为它对 `mid` 有单调性：
+
+-   `mid` 越小 → 越容易满足 → `check(mid)` 更可能 True
+-   `mid` 越大 → 越难满足 → `check(mid)` 更可能 False
+
+所以形状是：
+
+```
+True True True ... False False
+```
+
+我们要找的是：
+
+✅ **最大的 mid 让 check(mid)=True**
+ 也就是最大平均值。
+
+```python
+from typing import List
+
+class Solution:
+    def findMaxAverage(self, nums: List[int], k: int) -> float:
+        n = len(nums)
+
+        # check(mid) 用来判断：
+        # 是否存在一个长度 >= k 的子数组，使得子数组平均值 >= mid
+        def check(mid: float) -> bool:
+            # 思路：把每个数都减去 mid，得到新数组 b
+            # b[i] = nums[i] - mid
+            # 若某个子数组平均值 >= mid
+            # <=> 子数组的 sum(nums) / len >= mid
+            # <=> sum(nums) - mid * len >= 0
+            # <=> sum(nums[i] - mid) >= 0
+            #
+            # 所以 check(mid) 就变成：
+            # 是否存在长度 >= k 的子数组，使得 sum(b) >= 0
+
+            pre = 0.0      # pre 表示当前的前缀和：sum(b[0..i])
+            pre_k = 0.0    # pre_k 表示前缀和走到 i-k 的位置：sum(b[0..i-k])
+            min_pre = 0.0  # min_pre 表示所有合法起点的最小前缀和，用来最大化 pre - pre[j]
+
+            # 先算长度“刚好为 k”的第一个子数组 b[0..k-1] 的和
+            for i in range(k):
+                pre += nums[i] - mid
+
+            # 如果前 k 个的和已经 >= 0，说明存在长度 >= k 的子数组平均值 >= mid
+            if pre >= 0:
+                return True
+
+            # 从下标 k 开始继续往右扩展右端点
+            for i in range(k, n):
+                # 更新当前前缀和：把 b[i] 加进去
+                pre += nums[i] - mid
+
+                # 更新 pre_k：
+                # 让“合法起点范围”向右扩一格（保证子数组长度 >= k）
+                # pre_k 变成 sum(b[0..i-k])
+                pre_k += nums[i - k] - mid
+
+                # min_pre 记录截至目前，所有 pre_k 的最小值
+                # 代表我们能选择的起点 j（j <= i-k）里最小的 pre[j]
+                min_pre = min(min_pre, pre_k)
+
+                # 如果 pre - min_pre >= 0
+                # 说明存在某个起点 j，使得 sum(b[j..i]) = pre - pre[j] >= 0
+                # => 存在长度 >= k 的子数组平均值 >= mid
+                if pre - min_pre >= 0:
+                    return True
+
+            # 扫完整个数组都没找到，则不存在平均值 >= mid 的子数组
+            return False
+
+        # 最大平均值一定在 [min(nums), max(nums)] 内
+        l, r = min(nums), max(nums)
+
+        # eps 是二分的精度，区间小于这个值就可以停
+        eps = 1e-5
+
+        # 二分“最大可行的平均值”
+        while r - l > eps:
+            mid = (l + r) / 2
+
+            # 如果存在长度>=k子数组平均值 >= mid，说明 mid 可行 -> 往大找
+            if check(mid):
+                l = mid
+            # 否则 mid 不可行 -> 往小找
+            else:
+                r = mid
+
+        # l 就是逼近的最大平均值
+        return l
+
+```
 

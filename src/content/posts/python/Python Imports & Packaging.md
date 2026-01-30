@@ -413,9 +413,22 @@ Python 会合并它们。
 
 # **`__init__.py` meaning**
 
-`__init__.py` means **“initialize”**.
+`__init__.py` means **“initialize”**. `__init__.py` 用来初始化一个包，让目录成为可导入的包，并在导入时执行其中的初始化代码。 `__init__.py` initializes a package, making a directory importable and running setup code when the package is imported.
 
-In Python, `__init__.py` is the file that **initializes a package**—it marks a directory as a package and runs when the package is imported.
+In Python, `__init__.py` typically has four common roles:
+
+1.  ==**Turn a directory into a package**==
+     With `__init__.py`, you can `import` the package name (in modern Python, it can sometimes be omitted, but it is still widely used).
+2.  **Act as the package entry point**
+     When you run `import xxx`, Python will execute `xxx/__init__.py` first.
+3.  **Expose a clean public API (hide internal structure)**
+     Users can write `from package import something` without needing to know how files are organized inside the package.
+4.  **Run initialization logic (lazy init / plugin registration / config loading)**
+     For example, vLLM’s `current_platform` is initialized only when it is accessed for the first time.
+
+
+
+
 
 
 
