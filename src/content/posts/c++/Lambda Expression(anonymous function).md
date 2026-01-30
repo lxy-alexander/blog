@@ -3,7 +3,7 @@ title: "Lambda Expression(anonymous function)"
 published: 2026-01-29
 description: "Lambda Expression(anonymous function)"
 image: ""
-tags: ["c++","Lambda Expression(anonymous function)"]
+tags: ["c++","C++ Lambda"]
 category: c++
 draft: false
 lang: ""
