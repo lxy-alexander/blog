@@ -10,6 +10,58 @@ draft: false
 
 
 
+## nth_element
+
+```
+nth_element(nums.begin(), nums.begin() + (k - 1), nums.end(), greater<int>());
+```
+
+nums[k-1] 就是第 k 大元素 ✅
+
+对所有 i < k-1：nums[i] >= nums[k-1]
+
+对所有 i > k-1：nums[i] <= nums[k-1]
+
+⚠️ 但是：[0 ... k-2] 这部分 不保证有序，[k ... n-1] 这部分 也不保证有序。只是“分区”好了，不是排序好了。
+
+### 1）最常用的两个
+
+```
+less<int>()
+```
+
+表示 **升序（小在前）**：`a < b`。等价于 `sort(nums.begin(), nums.end())`
+
+```
+greater<int>()
+```
+
+表示 **降序（大在前）**：`a > b`
+
+------
+
+### 2）自定义比较器（lambda）
+
+你也可以自己写规则，比如降序：
+
+```
+auto cmp = [](int a, int b) {
+    return a > b;
+};
+```
+
+然后：
+
+```
+sort(nums.begin(), nums.end(), cmp);
+```
+
+
+
+
+
+
+
 ## minmax_element
 
 Return pair of iterators, `mn` is an iterator pointing to the smallest element, and `mx` is an iterator pointing to the largest element.
@@ -108,13 +160,13 @@ if (vis[3]) {
 
 
 
-好的✅ 下面给你 **二维版**，同样把 **vector / vector / vector<uint8_t>** 三种写法都列出来（初始化 + 标记 + 判断）。
+## 二维数组初始化false/0
 
 假设我们要一个 `n 行 m 列` 的二维标记数组 `vis`：
 
 ------
 
-# ✅ 1）二维 `vector<vector<bool>>`（省内存，但行为特殊）
+### 1）二维 `vector<vector<bool>>`（省内存，但行为特殊）
 
 ```cpp
 int n = 3, m = 4;
@@ -135,7 +187,7 @@ if (vis[1][2]) {
 
 ------
 
-# ✅ 2）二维 `vector<vector<char>>`（推荐✅）
+### 2）二维 `vector<vector<char>>`
 
 ```cpp
 int n = 3, m = 4;
@@ -156,7 +208,7 @@ if (vis[1][2]) {
 
 ------
 
-# ✅ 3）二维 `vector<vector<uint8_t>>`（byte 二维数组）
+### 3）二维 `vector<vector<uint8_t>>`（byte 二维数组）
 
 ```cpp
 #include <cstdint>
