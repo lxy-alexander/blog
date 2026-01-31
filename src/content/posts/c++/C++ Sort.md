@@ -174,7 +174,9 @@ int main() {
     vector<int> nums = {1,1,1,2,2,3,3,4};
 
     unordered_map<int,int> cnt;
-    for (int x : nums) cnt[x]++;
+    for (int x : nums) {
+        cnt[x]++;
+    }
 
     vector<pair<int,int>> items(cnt.begin(), cnt.end());
 
