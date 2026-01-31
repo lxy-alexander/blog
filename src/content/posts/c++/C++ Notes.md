@@ -10,6 +10,25 @@ draft: false
 
 
 
+## minmax_element
+
+Return pair of iterators, `mn` is an iterator pointing to the smallest element, and `mx` is an iterator pointing to the largest element.
+
+如果 nums 是 const 呢？mn` / `mx` 是 `std::vector<int>::const_iterator
+
+```c++
+std::pair<
+	std::vector<int>::iterator,
+	std::vector<int>::iterator
+>
+```
+
+```c++
+auto [mn, mx] = minmax_element(nums.begin(), nums.end()); 
+```
+
+
+
 ## `#include <bits/stdc++.h>` 
 
 **It is **the global header file provided by GCC/Clang compiler, it includes common standard header files.

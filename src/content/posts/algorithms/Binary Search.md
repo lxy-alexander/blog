@@ -960,3 +960,92 @@ class Solution:
 
 
 
+
+
+## Binary Search on an Indirect Value
+
+### [215. Kth Largest Element in an Array](https://leetcode.com/problems/kth-largest-element-in-an-array/)
+
+Given an integer array `nums` and an integer `k`, return *the* `kth` *largest element in the array*.
+
+Note that it is the `kth` largest element in the sorted order, not the `kth` distinct element.
+
+Can you solve it without sorting?
+
+**Example 1:**
+
+```
+Input: nums = [3,2,1,5,6,4], k = 2
+Output: 5
+```
+
+**Example 2:**
+
+```
+Input: nums = [3,2,3,1,2,4,5,5,6], k = 4
+Output: 4
+```
+
+**Constraints:**
+
+-   `1 <= k <= nums.length <= 105`
+-   `-104 <= nums[i] <= 104`
+
+
+
+a1 >= a2 >= a3 >= ... >= an
+
+TTTTFFFF转换为At Most问题，我们要找在符合条件下最大值，那么这个值就是divide line。
+
+第 k 大就是 ak，如果 m <= ak。那么至少有前 k 个数都 ≥ m，所以 cnt(m) >= k ✅（可行）。如果 m > ak，那么 ≥ m 的数最多只有 k-1 个所以 cnt(m) < k ❌（不可行）
+
+```python
+class Solution:
+    def findKthLargest(self, nums: List[int], k: int) -> int:
+        l = min(nums)
+        r = max(nums)
+        while l <= r:
+            m = (l + r) // 2
+            cnt = sum(x >= m for x in nums)
+            if cnt >= k:
+                l = m + 1
+            else:
+                r = m - 1
+        return r
+```
+
+```python
+// std::numeric_limits<int>::min()
+// std::numeric_limits<int>::max()
+class Solution {
+public:
+    int findKthLargest(vector<int>& nums, int k) {
+        auto [mn, mx] = minmax_element(nums.begin(), nums.end());
+        int l = *mn;
+        int r = *mx;
+        auto checkKLargest = [&](int m) {
+            int cnt = 0;
+            for (int x : nums) {
+                if (x >= m) cnt++;
+            }
+            return cnt >= k; 
+        };
+        while (l <= r) {
+            int m = l + (r - l) / 2;
+            if (checkKLargest(m)) {
+                l = m + 1;
+            } else {
+                r = m - 1;
+            }
+        }
+        return r;
+    }
+};
+```
+
+
+
+
+
+
+

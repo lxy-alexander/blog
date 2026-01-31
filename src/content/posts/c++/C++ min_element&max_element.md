@@ -9,12 +9,11 @@ draft: false
 lang: ""
 ---
 
-### 
-
 ## **Integer types**
 
 ```cpp
 std::numeric_limits<int>::min()
+std::numeric_limits<int>::max()
 ```
 
 returns the <u>**most negative value**</u> (same as `INT_MIN`).
@@ -113,6 +112,11 @@ void findMinMaxbyNormalWayInIntArray() {
 }
 
 int main() {
+    auto [mn, mx] = minmax_element(nums.begin(), nums.end()); // return pair of iterators, `mn` is an iterator pointing to the smallest element, and `mx` is an iterator pointing to the largest element.
+    // std::pair<
+    //    std::vector<int>::iterator,
+    //    std::vector<int>::iterator
+	// >
     findMinMaxbyNormalWayInIntArray();
     findMinMaxInArray();
     findMinMaxInContainer();
