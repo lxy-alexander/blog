@@ -9,7 +9,7 @@ draft: false
 lang: ""
 ---
 
-## 看看g++和clang+是否支持-std=c++17
+## g++和clang+是否支持-std=c++17
 
 ```shell
 g++ -std=c++17 -x c++ -dM -E - < /dev/null | grep __cplusplus
