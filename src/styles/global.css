@@ -10,3 +10,53 @@ mark {
   box-decoration-break: clone;
   -webkit-box-decoration-break: clone;
 }
+
+
+.mermaid-interactive-wrapper {
+  width: 100%;
+  overflow-x: scroll !important; /* ✅ 强制显示横向滚动条 */
+  overflow-y: hidden !important;
+  background: transparent;       /* ✅ 不超出时看不到灰底 */
+}
+
+
+/* ✅ 滚动条高度 30px（轨道高度） */
+.mermaid-interactive-wrapper::-webkit-scrollbar {
+  height: 30px;
+}
+
+/* ✅ 轨道 */
+.mermaid-interactive-wrapper::-webkit-scrollbar-track {
+  background: #f1f5f9;
+  border-radius: 999px;
+}
+
+/* ✅ thumb：视觉更细（不要再用 8px 那么大的 border） */
+.mermaid-interactive-wrapper::-webkit-scrollbar-thumb {
+  background: #94a3b8;
+  border-radius: 999px;
+
+  /* ✅ 让 thumb 变细，居中在 30px 轨道里 */
+  border: 10px solid #f1f5f9;  /* 越大 thumb 越细，这里用 10 */
+  background-clip: padding-box;
+}
+
+/* hover */
+.mermaid-interactive-wrapper::-webkit-scrollbar-thumb:hover {
+  background: #64748b;
+}
+
+:global(.dark) .mermaid-interactive-wrapper::-webkit-scrollbar-track {
+  background: #1f2937;
+}
+
+:global(.dark) .mermaid-interactive-wrapper::-webkit-scrollbar-thumb {
+  background: #475569;
+  border: 10px solid #1f2937;
+  background-clip: padding-box;
+}
+
+:global(.dark) .mermaid-interactive-wrapper::-webkit-scrollbar-thumb:hover {
+  background: #64748b;
+}
+

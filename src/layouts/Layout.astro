@@ -71,6 +71,8 @@ const bannerOffsetByPosition = {
 };
 const bannerOffset =
 	bannerOffsetByPosition[siteConfig.banner.position || "center"];
+
+import Mermaid from "../components/Mermaid.astro";
 ---
 
 <!DOCTYPE html>
@@ -153,6 +155,7 @@ const bannerOffset =
 		  data-overlayscrollbars-initialize
 	>
 		<ConfigCarrier></ConfigCarrier>
+        <Mermaid client:load />
 		<slot />
 
 		<!-- increase the page height during page transition to prevent the scrolling animation from jumping -->

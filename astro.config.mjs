@@ -25,7 +25,6 @@ import { remarkReadingTime } from "./src/plugins/remark-reading-time.mjs";
 import { pluginCustomCopyButton } from "./src/plugins/expressive-code/custom-copy-button.js";
 import remarkMark from "./src/plugins/remark-mark.mjs";
 
-
 // https://astro.build/config
 export default defineConfig({
 	site: "https://lxy-alexander.github.io", // TODO: 请替换为您的实际域名
