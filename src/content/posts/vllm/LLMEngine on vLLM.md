@@ -12,35 +12,27 @@ lang: ""
 >根据 `EngineArgs`（启动参数）创建并返回一个 `LLMEngine` 实例。EngineArgs -> create_engine_config -> 选择 engine 版本 -> from_vllm_config 初始化并返回引擎实例
 
 ```mermaid
-flowchart TD
-    A[EngineArgs] --> B[create_engine_config]
-    B --> P[current_platform.pre_register_and_update]
-
-    B --> C[create_model_config -> model_config]
-    C --> D{是否支持V1?}
-    D -->|是| E[use_v1 = True]
-    D -->|否| F[use_v1 = False]
-
-    B --> G[CacheConfig]
-    B --> H[ParallelConfig]
-    B --> I[SpeculativeConfig 可选]
-    B --> J[SchedulerConfig]
-    B --> K[LoRAConfig 可选]
-    B --> L[LoadConfig]
-    B --> M[DecodingConfig]
-    B --> N[ObservabilityConfig]
-
-    B --> O[VllmConfig]
-    O --> Q["LLMEngine(...)"]
-    Q --> R[LLMEngine.__init__ 执行]
+flowchart LR
+  A[Start]
+  --> B[Login]
+  --> C[Fetch User Data]
+  --> D[Load Dashboard Widgets]
+  --> E[Render Analytics Chart]
+  --> F[Render Notifications Panel]
+  --> G[Render Settings Module]
+  --> H[Lazy Load More Data]
+  --> I[Finalize UI]
+  --> J[Done]
+  --> K[Login]
+  --> M[Fetch User Data]
+  --> N[Load Dashboard Widgets]
+  --> D[Render Analytics Chart]
+  --> F[Render Notifications Panel]
+  --> X[Load Dashboard Widgets]
+  --> Y[Render Analytics Chart]
+  --> Z[Render Notifications Panel]
 
 ```
-
-
-
-
-
-
 
 
 

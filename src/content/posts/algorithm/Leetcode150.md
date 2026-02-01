@@ -3,8 +3,8 @@ title: Leetcode150
 published: 2026-01-18
 description: "Leetcode150"
 image: ""
-tags: ["Leetcode150"]
-category: leetcode
+tags: ["algotrithm", Leetcode150"]
+category: algotrithm
 draft: false
 ---
 

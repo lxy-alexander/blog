@@ -3,8 +3,8 @@ title: "Double&Triple Pointers"
 published: 2026-01-29
 description: "Double&Triple Pointers"
 image: ""
-tags: ["algorithms","Double&Triple Pointers"]
-category: algorithms
+tags: ["algorithm","Double&Triple Pointers"]
+category: algorithm
 draft: false
 lang: ""
 ---

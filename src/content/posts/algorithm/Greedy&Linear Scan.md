@@ -3,8 +3,8 @@ title: "Greedy&Linear Scan"
 published: 2026-01-27
 description: "Greedy&Linear Scan"
 image: ""
-tags: ["algorithms","Greedy&Linear Scan"]
-category: algorithms
+tags: ["algorithm","Greedy&Linear Scan"]
+category: algorithm
 draft: false
 lang: ""
 ---
