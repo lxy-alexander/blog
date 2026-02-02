@@ -269,9 +269,8 @@ parsed = parse_singleton_prompt(prompt)
 vllm/inputs/data.py
 
 ```
-'''
-vllm/inputs/data.py
-'''
+<!--vllm/inputs/data.py-->
+
 
 ```
 
