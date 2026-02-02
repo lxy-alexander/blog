@@ -4,7 +4,7 @@ published: 2026-01-18
 description: "Leetcode150"
 image: ""
 tags: ["algotrithm", Leetcode150"]
-category: algotrithm
+category: algorithm
 draft: false
 ---
 
