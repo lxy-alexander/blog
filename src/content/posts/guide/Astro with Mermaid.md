@@ -36,7 +36,776 @@ yarn add mermaid
 ## 2）添加`src/components/Mermaid.astro`
 
 ```js
+---
+// src/components/Mermaid.astro
+// 完整交互版：主界面滚动条 + Ctrl缩放(zoom) + 双击全屏
+// 全屏：拖拽平移 + Ctrl缩放(transform)
+---
 
+<script>
+  import mermaid from "mermaid";
+
+  const isDark = document.documentElement.classList.contains("dark");
+  console.log("isDark =", isDark);
+
+  const BASE_FONT = 11;
+
+  mermaid.initialize({
+    startOnLoad: false,
+    theme: isDark ? "dark" : "default",
+    securityLevel: "loose",
+
+    // ✅ Mermaid v10+ 类型不允许直接写 flowchart.fontSize / sequence.fontSize 等
+    // ✅ 统一通过 themeVariables + CSS 强制字体大小更稳定
+    themeVariables: {
+      fontSize: `${BASE_FONT}px`,
+      fontFamily: "Arial, sans-serif",
+    },
+  });
+
+  function logMermaidAllLabels(): void {
+    document.querySelectorAll<SVGSVGElement>(".mermaid svg").forEach((svg, svgIndex) => {
+      console.log(`====== [SVG ${svgIndex}] ======`);
+
+      // 1) 普通 svg text
+      svg.querySelectorAll<SVGTextElement>("text").forEach((node, i) => {
+        const style = getComputedStyle(node);
+        console.log(
+          `[text ${i}]`,
+          node.textContent?.trim(),
+          "font-size:",
+          style.fontSize,
+          "font-family:",
+          style.fontFamily
+        );
+      });
+
+      // 2) foreignObject (HTML label)
+      svg.querySelectorAll<SVGForeignObjectElement>("foreignObject").forEach((fo, i) => {
+        const div = fo.querySelector<HTMLElement>("div, span, p") || (fo as unknown as HTMLElement);
+        const style = getComputedStyle(div);
+        console.log(
+          `[foreignObject ${i}]`,
+          div.textContent?.trim(),
+          "font-size:",
+          style.fontSize,
+          "font-family:",
+          style.fontFamily
+        );
+      });
+    });
+  }
+
+  function forceSvgOverflow(div: HTMLElement): void {
+    const wrapper = div.querySelector<HTMLElement>(".mermaid-interactive-wrapper");
+    const svg = div.querySelector<SVGSVGElement>(".mermaid-interactive-wrapper svg");
+    if (!wrapper || !svg) return;
+
+    // ✅ 永远不要让 svg 自动 fit 容器
+    svg.style.width = "auto";
+    svg.style.maxWidth = "none";
+    svg.style.height = "auto";
+    svg.style.display = "block";
+
+    requestAnimationFrame(() => {
+      const wrapperWidth = wrapper.clientWidth;
+
+      // ✅ 优先使用 viewBox，更稳定（特别是 gantt）
+      const vb = svg.viewBox?.baseVal;
+      const viewBoxWidth = vb?.width || 0;
+
+      // fallback：bbox
+      const bboxWidth = svg.getBBox().width || 0;
+
+      const realWidth = Math.ceil((viewBoxWidth || bboxWidth) + 40);
+
+      // ✅ 用真实宽度撑开 svg
+      svg.style.width = `${realWidth}px`;
+
+      // ✅ 超出才滚动
+      if (realWidth > wrapperWidth) {
+        wrapper.classList.add("has-scroll");
+      } else {
+        wrapper.classList.remove("has-scroll");
+      }
+
+      console.log(
+        "[forceSvgOverflow]",
+        "wrapperWidth=",
+        wrapperWidth,
+        "realWidth=",
+        realWidth,
+        "viewBoxWidth=",
+        viewBoxWidth,
+        "bboxWidth=",
+        bboxWidth
+      );
+    });
+  }
+
+  function extractMermaidText(container: Element): string {
+    const code = container.querySelector<HTMLElement>("code");
+    if (code) {
+      const text = (code.innerText || code.textContent || "").trim();
+      return cleanMermaidText(text);
+    }
+
+    const linesNodeList = container.querySelectorAll<HTMLElement>('[class*="line"]:not([class*="number"])');
+    if (linesNodeList.length > 0) {
+      const lines = Array.from(linesNodeList) as HTMLElement[];
+      const text = lines
+        .map((lineEl) => {
+          const clone = lineEl.cloneNode(true) as HTMLElement;
+          clone
+            .querySelectorAll<HTMLElement>('[class*="number"], .line-number, .ln')
+            .forEach((el) => el.remove());
+          return (clone.innerText || clone.textContent || "").trim();
+        })
+        .filter((line) => line.length > 0)
+        .join("\n");
+
+      return cleanMermaidText(text);
+    }
+
+    const text = ((container as HTMLElement).innerText || container.textContent || "").trim();
+    return cleanMermaidText(text);
+  }
+
+  function cleanMermaidText(text: string): string {
+    const lines = text.split("\n");
+    const cleanedLines: string[] = [];
+
+    for (let line of lines) {
+      line = line.trim();
+      if (/^\d+$/.test(line)) continue;
+      line = line.replace(/^\d+\s+/, "");
+      if (line.length > 0) cleanedLines.push(line);
+    }
+
+    const result = cleanedLines.join("\n").trim();
+    console.log("[Mermaid] After cleaning:", result);
+    return result;
+  }
+
+  function findMermaidBlocks(): Element[] {
+    const results: Element[] = [];
+
+    document.querySelectorAll("pre").forEach((pre) => {
+      const code = pre.querySelector("code");
+      const cls = (code?.className || pre.className || "").toLowerCase();
+      if (cls.includes("mermaid")) {
+        results.push(pre);
+      }
+    });
+
+    document.querySelectorAll("figure, div.expressive-code, [class*='astro-code']").forEach((box) => {
+      const hasMermaidLabel = Array.from(box.querySelectorAll("*")).some((n) => {
+        const text = (n.textContent || "").trim().toUpperCase();
+        return text === "MERMAID";
+      });
+
+      if (hasMermaidLabel) {
+        results.push(box);
+      }
+    });
+
+    document.querySelectorAll<HTMLElement>('[data-language="mermaid"]').forEach((el) => {
+      const container = el.closest("figure, div, pre") || el;
+      results.push(container);
+    });
+
+    return Array.from(new Set(results));
+  }
+
+  // 创建模态框
+  function createModal(): void {
+    if (document.getElementById("mermaid-modal")) return;
+
+    const modal = document.createElement("div");
+    modal.id = "mermaid-modal";
+    modal.className = "mermaid-modal";
+    modal.innerHTML = `
+      <div class="mermaid-modal-overlay"></div>
+      <div class="mermaid-modal-content">
+        <button class="mermaid-modal-close" aria-label="关闭">×</button>
+        <div class="mermaid-modal-controls">
+          <button class="mermaid-zoom-btn" data-action="zoom-in" title="放大">🔍+</button>
+          <button class="mermaid-zoom-btn" data-action="zoom-out" title="缩小">🔍-</button>
+          <button class="mermaid-zoom-btn" data-action="reset" title="重置">↺</button>
+          <span class="mermaid-zoom-level">100%</span>
+        </div>
+        <div class="mermaid-modal-body"></div>
+      </div>
+    `;
+    document.body.appendChild(modal);
+
+    const closeBtn = modal.querySelector<HTMLButtonElement>(".mermaid-modal-close");
+    const overlay = modal.querySelector<HTMLElement>(".mermaid-modal-overlay");
+
+    const closeModal = () => {
+      modal.classList.remove("active");
+      document.body.style.overflow = "";
+    };
+
+    closeBtn?.addEventListener("click", closeModal);
+    overlay?.addEventListener("click", closeModal);
+
+    document.addEventListener("keydown", (e: KeyboardEvent) => {
+      if (e.key === "Escape" && modal.classList.contains("active")) {
+        closeModal();
+      }
+    });
+  }
+
+  // 更新缩放比例显示
+  function updateZoomDisplay(container: HTMLElement, scale: number): void {
+    const zoomLevel = container.closest(".mermaid-modal")?.querySelector<HTMLElement>(".mermaid-zoom-level");
+    if (zoomLevel) {
+      zoomLevel.textContent = `${Math.round(scale * 100)}%`;
+    }
+  }
+
+  // ✅ 主界面滚动条缩放（使用 zoom，保证 overflow-x 生效）
+  function makeScrollableZoom(wrapper: HTMLElement, content: HTMLElement): void {
+    let scale = 1;
+
+    const applyZoom = () => {
+      scale = Math.min(Math.max(scale, 0.5), 3); // ✅ 主界面缩放范围
+      (content.style as any).zoom = String(scale); // zoom 不是标准属性，TS 可能不认识
+      console.log("zoom =", (content.style as any).zoom);
+    };
+
+    wrapper.addEventListener(
+      "wheel",
+      (e: WheelEvent) => {
+        if (!e.ctrlKey && !e.metaKey) return;
+        e.preventDefault();
+
+        const delta = e.deltaY > 0 ? -0.1 : 0.1;
+        scale += delta;
+        applyZoom();
+      },
+      { passive: false }
+    );
+
+    applyZoom();
+  }
+
+  type TransformController = {
+    get scale(): number;
+    set scale(v: number);
+
+    get translateX(): number;
+    set translateX(v: number);
+
+    get translateY(): number;
+    set translateY(v: number);
+
+    applyTransform: () => void;
+  };
+
+  // ✅ 全屏交互：拖拽 + transform 缩放（保证永远返回 TransformController）
+  function makeInteractive(wrapper: HTMLElement, options = { enableDrag: true }): TransformController {
+    let scale = 1;
+    let translateX = 0;
+    let translateY = 0;
+    let isDragging = false;
+    let startX = 0;
+    let startY = 0;
+    let lastTranslateX = 0;
+    let lastTranslateY = 0;
+
+    const svg = wrapper.querySelector<SVGSVGElement>("svg");
+
+    const applyTransform = () => {
+      if (!svg) return;
+      svg.style.transform = `translate(${translateX}px, ${translateY}px) scale(${scale})`;
+      svg.style.transformOrigin = "0 0";
+      svg.style.transition = isDragging ? "none" : "transform 0.15s ease";
+    };
+
+    // ✅ 如果没 SVG，也返回一个空 controller，避免 transform 变 undefined
+    if (!svg) {
+      return {
+        get scale() {
+          return scale;
+        },
+        set scale(v: number) {
+          scale = v;
+        },
+        get translateX() {
+          return translateX;
+        },
+        set translateX(v: number) {
+          translateX = v;
+        },
+        get translateY() {
+          return translateY;
+        },
+        set translateY(v: number) {
+          translateY = v;
+        },
+        applyTransform,
+      };
+    }
+
+    // ✅ 拖拽（可选）
+    if (options.enableDrag) {
+      wrapper.addEventListener("mousedown", (e: MouseEvent) => {
+        if (e.button !== 0) return;
+
+        isDragging = true;
+        startX = e.clientX;
+        startY = e.clientY;
+        lastTranslateX = translateX;
+        lastTranslateY = translateY;
+        wrapper.style.cursor = "grabbing";
+        e.preventDefault();
+      });
+
+      document.addEventListener("mousemove", (e: MouseEvent) => {
+        if (!isDragging) return;
+
+        const deltaX = e.clientX - startX;
+        const deltaY = e.clientY - startY;
+
+        translateX = lastTranslateX + deltaX;
+        translateY = lastTranslateY + deltaY;
+
+        applyTransform();
+      });
+
+      document.addEventListener("mouseup", () => {
+        if (isDragging) {
+          isDragging = false;
+          wrapper.style.cursor = "grab";
+        }
+      });
+    }
+
+    // Ctrl + 滚轮缩放（全屏）
+    wrapper.addEventListener(
+      "wheel",
+      (e: WheelEvent) => {
+        if (!e.ctrlKey && !e.metaKey) return;
+
+        e.preventDefault();
+
+        const delta = e.deltaY > 0 ? -0.1 : 0.1;
+        const newScale = Math.min(Math.max(0.3, scale + delta), 5);
+
+        // 以鼠标位置为中心缩放
+        const rect = wrapper.getBoundingClientRect();
+        const mouseX = e.clientX - rect.left;
+        const mouseY = e.clientY - rect.top;
+
+        const scaleChange = newScale / scale;
+        translateX = mouseX - (mouseX - translateX) * scaleChange;
+        translateY = mouseY - (mouseY - translateY) * scaleChange;
+
+        scale = newScale;
+        applyTransform();
+
+        updateZoomDisplay(wrapper, scale);
+      },
+      { passive: false }
+    );
+
+    wrapper.style.cursor = options.enableDrag ? "grab" : "default";
+    wrapper.style.overflow = "hidden";
+    applyTransform();
+
+    return {
+      get scale() {
+        return scale;
+      },
+      set scale(v: number) {
+        scale = v;
+      },
+      get translateX() {
+        return translateX;
+      },
+      set translateX(v: number) {
+        translateX = v;
+      },
+      get translateY() {
+        return translateY;
+      },
+      set translateY(v: number) {
+        translateY = v;
+      },
+      applyTransform,
+    };
+  }
+
+  // 为普通视图添加交互
+  function addInteractiveFeature(mermaidDiv: HTMLElement): void {
+    const wrapper = document.createElement("div");
+    wrapper.className = "mermaid-interactive-wrapper";
+
+    const content = document.createElement("div");
+    content.className = "mermaid-interactive-content";
+
+    content.innerHTML = mermaidDiv.innerHTML;
+    mermaidDiv.innerHTML = "";
+
+    wrapper.appendChild(content);
+    mermaidDiv.appendChild(wrapper);
+
+    const hint = document.createElement("div");
+    hint.className = "mermaid-hint";
+    // hint.innerHTML = `<strong>提示：</strong> 主界面 Ctrl/⌘ + 滚轮缩放；双击进入全屏；全屏可拖拽平移 + Ctrl/⌘ 缩放`;
+    mermaidDiv.appendChild(hint);
+
+    // ✅ 主界面：滚动条缩放（zoom）
+    makeScrollableZoom(wrapper, content);
+
+    // 双击全屏
+    content.addEventListener("dblclick", () => {
+      openFullscreen(mermaidDiv);
+    });
+  }
+
+  // 打开全屏模态框
+  function openFullscreen(mermaidDiv: HTMLElement): void {
+    const modal = document.getElementById("mermaid-modal");
+    const modalBody = modal?.querySelector<HTMLElement>(".mermaid-modal-body");
+
+    if (!modal || !modalBody) return;
+
+    const svg = mermaidDiv.querySelector<SVGSVGElement>("svg");
+    if (!svg) return;
+
+    // 克隆 SVG 到模态框
+    const clonedSvg = svg.cloneNode(true) as SVGSVGElement;
+    modalBody.innerHTML = "";
+    modalBody.appendChild(clonedSvg);
+
+    const transform = makeInteractive(modalBody, { enableDrag: true });
+
+    const zoomIn = modal.querySelector<HTMLButtonElement>('[data-action="zoom-in"]');
+    const zoomOut = modal.querySelector<HTMLButtonElement>('[data-action="zoom-out"]');
+    const reset = modal.querySelector<HTMLButtonElement>('[data-action="reset"]');
+
+    zoomIn?.addEventListener("click", () => {
+      const newScale = Math.min(transform.scale + 0.2, 5);
+      transform.scale = newScale;
+      transform.applyTransform();
+      updateZoomDisplay(modalBody, newScale);
+    });
+
+    zoomOut?.addEventListener("click", () => {
+      const newScale = Math.max(transform.scale - 0.2, 0.3);
+      transform.scale = newScale;
+      transform.applyTransform();
+      updateZoomDisplay(modalBody, newScale);
+    });
+
+    reset?.addEventListener("click", () => {
+      transform.scale = 1;
+      transform.translateX = 0;
+      transform.translateY = 0;
+      transform.applyTransform();
+      updateZoomDisplay(modalBody, 1);
+    });
+
+    modal.classList.add("active");
+    document.body.style.overflow = "hidden";
+    updateZoomDisplay(modalBody, 1);
+  }
+
+  async function renderMermaid(): Promise<void> {
+    const blocks = findMermaidBlocks();
+    console.log("[Mermaid] Found blocks:", blocks.length);
+
+    let converted = 0;
+
+    for (const container of blocks) {
+      try {
+        const text = extractMermaidText(container);
+
+        const isMermaid =
+          text.includes("graph") ||
+          text.includes("sequenceDiagram") ||
+          text.includes("classDiagram") ||
+          text.includes("stateDiagram") ||
+          text.includes("erDiagram") ||
+          text.includes("journey") ||
+          text.includes("gantt") ||
+          text.includes("pie") ||
+          text.includes("flowchart");
+
+        if (!isMermaid) continue;
+
+        const div = document.createElement("div");
+        div.className = "mermaid mermaid-container";
+        div.textContent = text;
+
+        container.replaceWith(div);
+        converted++;
+      } catch (e) {
+        console.error("[Mermaid] Error processing block:", e);
+      }
+    }
+
+    console.log("[Mermaid] Converted:", converted);
+
+    if (converted > 0) {
+      try {
+        await mermaid.run({ querySelector: ".mermaid" });
+        logMermaidAllLabels();
+        console.log("[Mermaid] Rendered ✅");
+
+        createModal();
+
+        document.querySelectorAll<HTMLElement>(".mermaid-container").forEach((div) => {
+          if (!div.querySelector(".mermaid-interactive-wrapper")) {
+            addInteractiveFeature(div);
+          }
+
+          // ✅ 强制让 SVG 产生溢出 -> 横向滚动条必出现
+          forceSvgOverflow(div);
+        });
+      } catch (e) {
+        console.error("[Mermaid] Render failed ❌", e);
+      }
+    }
+  }
+
+  // 初始渲染
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", () => {
+      renderMermaid();
+    });
+  } else {
+    renderMermaid();
+  }
+
+  // Swup 支持（window.swup 不是标准类型）
+  const w = window as any;
+  if (w.swup) {
+    w.swup.hooks.on("page:view", renderMermaid);
+  }
+  document.addEventListener("swup:page:view", renderMermaid);
+</script>
+
+<style is:global>
+  /* 基础容器 */
+  .mermaid-container {
+    width: 100%;
+    margin: 2rem 0;
+    position: relative;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 1rem;
+    background: #f8fafc;
+  }
+
+  :global(.dark) .mermaid-container {
+    border-color: #374151;
+    background: #1f2937;
+  }
+
+  /* ✅ 主界面滚动容器：横向滚动条 */
+  .mermaid-interactive-wrapper {
+    width: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+    position: relative;
+    border-radius: 4px;
+    background: white;
+    scrollbar-width: thin;
+  }
+
+  :global(.dark) .mermaid-interactive-wrapper {
+    background: #111827;
+  }
+
+  /* ✅ 内容容器必须由内容撑开，否则不会溢出 -> 没滚动条 */
+  .mermaid-interactive-content {
+    display: inline-block;
+    width: max-content;
+    height: auto;
+  }
+
+  .mermaid-interactive-content svg {
+    display: block;
+    max-width: none !important;
+    height: auto;
+  }
+
+  /* ✅ 主界面字体强制（Mermaid 不同图类型都能覆盖到） */
+  .mermaid-interactive-content svg text,
+  .mermaid-interactive-content svg .nodeLabel,
+  .mermaid-interactive-content svg .edgeLabel,
+  .mermaid-interactive-content svg .label,
+  .mermaid-interactive-content svg tspan {
+    font-size: clamp(10px, 1em, 14px) !important;
+    font-family: Arial, sans-serif !important;
+  }
+
+  /* 提示文字 */
+  .mermaid-hint {
+    text-align: center;
+    font-size: 0.875rem;
+    color: #64748b;
+    margin-top: 1rem;
+    padding: 0.5rem;
+    background: #f1f5f9;
+    border-radius: 4px;
+  }
+
+  .mermaid-hint strong {
+    color: #475569;
+    font-weight: 600;
+  }
+
+  :global(.dark) .mermaid-hint {
+    color: #94a3b8;
+    background: #334155;
+  }
+
+  :global(.dark) .mermaid-hint strong {
+    color: #cbd5e1;
+  }
+
+  /* 模态框 */
+  .mermaid-modal {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .mermaid-modal.active {
+    display: flex;
+  }
+
+  .mermaid-modal-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.9);
+    backdrop-filter: blur(4px);
+  }
+
+  .mermaid-modal-content {
+    position: relative;
+    width: 95vw;
+    height: 95vh;
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    z-index: 1;
+  }
+
+  :global(.dark) .mermaid-modal-content {
+    background: #1f2937;
+  }
+
+  /* 关闭按钮 */
+  .mermaid-modal-close {
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    border: none;
+    background: rgba(0, 0, 0, 0.7);
+    color: white;
+    font-size: 2rem;
+    line-height: 1;
+    cursor: pointer;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* 控制面板 */
+  .mermaid-modal-controls {
+    position: absolute;
+    bottom: 2rem;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+    background: rgba(0, 0, 0, 0.8);
+    padding: 0.75rem 1.5rem;
+    border-radius: 100px;
+    z-index: 10;
+    backdrop-filter: blur(8px);
+  }
+
+  .mermaid-zoom-btn {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    background: rgba(255, 255, 255, 0.1);
+    color: white;
+    font-size: 1rem;
+    cursor: pointer;
+  }
+
+  .mermaid-zoom-level {
+    color: white;
+    font-size: 0.875rem;
+    font-weight: 600;
+    min-width: 50px;
+    text-align: center;
+    margin: 0 0.5rem;
+  }
+
+  .mermaid-modal-body {
+    flex: 1;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+  }
+
+  /* ✅ 模态框字体也 clamp(10~14) */
+  .mermaid-modal-body svg text,
+  .mermaid-modal-body svg .nodeLabel,
+  .mermaid-modal-body svg .edgeLabel,
+  .mermaid-modal-body svg .label,
+  .mermaid-modal-body svg tspan {
+    font-size: clamp(10px, 1em, 14px) !important;
+    font-family: Arial, sans-serif !important;
+  }
+
+  /* 响应式 */
+  @media (max-width: 768px) {
+    .mermaid-modal-content {
+      width: 100vw;
+      height: 100vh;
+      border-radius: 0;
+    }
+
+    .mermaid-modal-controls {
+      bottom: 1rem;
+      padding: 0.5rem 1rem;
+    }
+
+    .mermaid-zoom-btn {
+      width: 32px;
+      height: 32px;
+      font-size: 0.875rem;
+    }
+
+    .mermaid-hint {
+      font-size: 0.75rem;
+    }
+  }
+</style>
 ```
 
 
@@ -68,18 +837,16 @@ yarn add mermaid
 ## 4） 修改样式`src/styles/global.css`
 
 ```css
-
 .mermaid-interactive-wrapper {
   width: 100%;
-  overflow-x: scroll !important; /* ✅ 强制显示横向滚动条 */
+  overflow-x: auto !important; /* ✅ 溢出才显示滚动条 */
   overflow-y: hidden !important;
-  background: transparent;       /* ✅ 不超出时看不到灰底 */
+  background: transparent;
 }
 
-
-/* ✅ 滚动条高度 30px（轨道高度） */
+/* ✅ 滚动条高度（不要太大，否则会挤压图） */
 .mermaid-interactive-wrapper::-webkit-scrollbar {
-  height: 30px;
+  height: 14px;
 }
 
 /* ✅ 轨道 */
@@ -88,13 +855,13 @@ yarn add mermaid
   border-radius: 999px;
 }
 
-/* ✅ thumb：视觉更细（不要再用 8px 那么大的 border） */
+/* ✅ thumb */
 .mermaid-interactive-wrapper::-webkit-scrollbar-thumb {
   background: #94a3b8;
   border-radius: 999px;
 
-  /* ✅ 让 thumb 变细，居中在 30px 轨道里 */
-  border: 10px solid #f1f5f9;  /* 越大 thumb 越细，这里用 10 */
+  /* ✅ 让 thumb 变细并居中 */
+  border: 4px solid #f1f5f9;
   background-clip: padding-box;
 }
 
@@ -109,13 +876,14 @@ yarn add mermaid
 
 :global(.dark) .mermaid-interactive-wrapper::-webkit-scrollbar-thumb {
   background: #475569;
-  border: 10px solid #1f2937;
+  border: 4px solid #1f2937;
   background-clip: padding-box;
 }
 
 :global(.dark) .mermaid-interactive-wrapper::-webkit-scrollbar-thumb:hover {
   background: #64748b;
 }
+
 ```
 
 
