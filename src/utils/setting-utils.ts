@@ -49,7 +49,7 @@ export function applyThemeToDocument(theme: LIGHT_DARK_MODE) {
 		theme === LIGHT_MODE ||
 		(theme === AUTO_MODE &&
 			!window.matchMedia("(prefers-color-scheme: dark)").matches)
-			? expressiveCodeConfig.themeLight ?? expressiveCodeConfig.theme
+			? (expressiveCodeConfig.themeLight ?? expressiveCodeConfig.theme)
 			: expressiveCodeConfig.theme;
 	document.documentElement.setAttribute("data-theme", codeTheme);
 }
