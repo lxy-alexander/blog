@@ -4,7 +4,7 @@ import "@fontsource/roboto/500.css";
 import "@fontsource/roboto/700.css";
 
 import ConfigCarrier from "@components/ConfigCarrier.astro";
-import { profileConfig, siteConfig } from "@/config";
+import { expressiveCodeConfig, profileConfig, siteConfig } from "@/config";
 import {
 	AUTO_MODE,
 	BANNER_HEIGHT,
@@ -113,23 +113,27 @@ import Mermaid from "../components/Mermaid.astro";
 		))}
 
 		<!-- Set the theme before the page is rendered to avoid a flash -->
-		<script is:inline define:vars={{DEFAULT_THEME, LIGHT_MODE, DARK_MODE, AUTO_MODE, BANNER_HEIGHT_EXTEND, PAGE_WIDTH, configHue}}>
+		<script is:inline define:vars={{DEFAULT_THEME, LIGHT_MODE, DARK_MODE, AUTO_MODE, BANNER_HEIGHT_EXTEND, PAGE_WIDTH, configHue, CODE_THEME_DARK: expressiveCodeConfig.theme, CODE_THEME_LIGHT: expressiveCodeConfig.themeLight ?? expressiveCodeConfig.theme}}>
 			// Load the theme from local storage
 			const theme = localStorage.getItem('theme') || DEFAULT_THEME;
+			let isDark = false;
 			switch (theme) {
 				case LIGHT_MODE:
 					document.documentElement.classList.remove('dark');
 					break
 				case DARK_MODE:
 					document.documentElement.classList.add('dark');
+					isDark = true;
 					break
 				case AUTO_MODE:
 					if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
 						document.documentElement.classList.add('dark');
+						isDark = true;
 					} else {
 						document.documentElement.classList.remove('dark');
 					}
 			}
+			document.documentElement.setAttribute('data-theme', isDark ? CODE_THEME_DARK : CODE_THEME_LIGHT);
 
 			// Load the hue from local storage
 			const hue = localStorage.getItem('hue') || configHue;

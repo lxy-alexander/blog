@@ -98,5 +98,8 @@ export type BlogPostData = {
 };
 
 export type ExpressiveCodeConfig = {
+	/** Dark mode code block theme (e.g. "github-dark") */
 	theme: string;
+	/** Light mode code block theme (e.g. "github-light-custom") */
+	themeLight?: string;
 };
