@@ -35,7 +35,7 @@ yarn add mermaid
 
 ## 2）添加`src/components/Mermaid.astro`
 
-```js
+```
 ---
 // src/components/Mermaid.astro
 // 完整交互版：主界面滚动条 + Ctrl缩放(zoom) + 双击全屏
