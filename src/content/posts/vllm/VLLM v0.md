@@ -11,13 +11,11 @@ lang: ""
 
 
 
-
-
-下面给你把 **v0 的完整流程画成时序图**（包含：LLM.generate → add_request → scheduler/execute → process_outputs → 返回 RequestOutput，以及多进程/异步外层封装）。
+>   下面给你把 **v0 的完整流程画成时序图**（包含：LLM.generate → add_request → scheduler/execute → process_outputs → 返回 RequestOutput，以及多进程/异步外层封装）。
 
 ------
 
-## 1) 单进程 v0 主链路时序图（LLM → LLMEngine）
+# 单进程 v0 主链路
 
 ```mermaid
 sequenceDiagram
@@ -25,51 +23,34 @@ sequenceDiagram
 
     participant App as 用户代码(App)
     participant LLM as LLM(vllm.entrypoints.llm.LLM)
-    participant Engine as LLMEngine(vllm.engine.llm_engine.LLMEngine)
-    participant Pre as InputPreprocessor
-    participant InProc as InputProcessor
+    participant Engine as LLMEngine
     participant Sch as Scheduler
     participant Exec as ModelExecutor
-    participant Ctx as EngineContext
-    participant Out as OutputProcessor
-    participant Factory as RequestOutputFactory
-    participant SeqGroup as SequenceGroup/Sequence
+    participant Post as OutputProcessor/Factory
 
     App->>LLM: generate(prompts, sampling_params)
-    LLM->>LLM: _add_request(prompt, params)<br/>生成 request_id
-    LLM->>Engine: add_request(request_id, prompt, params...)
 
-    Engine->>Pre: preprocess(prompt)(tokenize/多模态预处理)
-    Pre-->>Engine: preprocessed_inputs
-    Engine->>InProc: __call__(preprocessed_inputs)<br/>(encoder-decoder 拆分等)
-    InProc-->>Engine: processed_inputs
+    LLM->>Engine: add_request(request_id, prompt, params)
+    Engine->>Sch: enqueue(seq_group)
 
-    Engine->>Engine: _add_processed_request(processed_inputs, params)
-    Engine->>SeqGroup: new Sequence()/SequenceGroup<br/>构造序列与采样配置
-    Engine->>Sch: add_seq_group(seq_group)<br/>进入 waiting 队列
+    loop _run_engine(): while not finished
+        Engine->>Sch: schedule()
+        Sch-->>Engine: batch_metadata
 
-    loop 每次 step()
-        Engine->>Sch: schedule()<br/>选择本轮 seq_groups + KV swap/copy
-        Sch-->>Engine: seq_group_metadata_list<br/>+ scheduler_outputs
+        Engine->>Exec: execute_model(batch_metadata)
+        Exec-->>Engine: model_outputs(tokens/logits)
 
-        Engine->>Exec: execute_model(ExecuteModelRequest)
-        Exec-->>Engine: outputs(logits/sampler)
+        Engine->>Post: process(model_outputs)
+        Post-->>Engine: RequestOutput / updates
 
-        Engine->>Ctx: append_output(outputs,...)<br/>写入 output_queue
-        Engine->>Engine: _process_model_outputs()<br/>消费 output_queue
-
-        Engine->>Out: process_prompt_logprob()<br/>(可选)
-        Engine->>Out: process_outputs()<br/>(detokenize/stop/logprobs)<br/>更新 Sequence 状态
-        Out-->>Engine: finished seq_groups / updates
-
-        alt seq_group finished
-            Engine->>Factory: create(seq_group)
-            Factory-->>Engine: RequestOutput
-            Engine-->>App: step() 返回 RequestOutput(已完成请求)
-        else 未结束
-            Engine-->>App: step() 返回空/部分结果
+        alt request finished
+            Engine-->>LLM: finished RequestOutput
+        else not finished
+            Engine-->>LLM: partial/empty
         end
     end
+
+    LLM-->>App: return outputs(List[RequestOutput])
 
 ```
 
@@ -246,10 +227,9 @@ Caller->>IP: _prompt_to_llm_inputs(prompt, lora_request, return_mm_hashes)
 
 代码意义：
 
-上层把一个 `prompt: SingletonPrompt` 交给 `InputPreprocessor`，要求它转成内部统一的 `SingletonInputs`。
+上层把一个 `prompt: SingletonPrompt` 交给 `InputPreprocessor`，要求它转成内部统一的 `SingletonInputs`。这里 `lora_request` 影响 tokenizer（比如 LoRA 专用 tokenizer / special tokens）。`return_mm_hashes` 决定多模态处理器是否返回 multimodal hashes。
 
-这里 `lora_request` 影响 tokenizer（比如 LoRA 专用 tokenizer / special tokens）。
-`return_mm_hashes` 决定多模态处理器是否返回 multimodal hashes。
+
 
 ------
 
@@ -265,22 +245,21 @@ IP->>ParserMod: parse_singleton_prompt(prompt)`
 对应代码：
 
 ```python
+<!--vllm/inputs/parse.py-->
 parsed = parse_singleton_prompt(prompt)
 ```
 
 
 
-vllm/inputs/data.py
-
 ```
 <!--vllm/inputs/data.py-->
 
-
 ```
 
 
 
 ```
+<!--vllm/inputs/parse.py-->
 class ParsedStrPrompt(TypedDict):
     type: Literal["str"]
     content: str

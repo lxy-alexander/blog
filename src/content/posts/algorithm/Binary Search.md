@@ -1047,5 +1047,45 @@ public:
 
 
 
+## Doubling Expansion(Exponential)
+
+**Exponential expansion** is a technique used to find a valid search boundary when the size of a sorted array is unknown or unbounded.
+
+```python
+
+def doubling_search(nums, target):
+    l = 0
+    r = 1
+    while True:
+        try:
+            if nums[r] < target:
+                l = r
+                r *= 2
+            else:
+                break
+        except IndexError:
+            break
+
+    while l <= r:
+        m = (l + r) // 2
+        try:
+            val = nums[m]
+        except IndexError:
+            r = m - 1
+            continue
+
+        if val > target:
+            r = m - 1
+        elif val == target:
+            return m
+        else:
+            l = m + 1
+    return -1
+
+
+```
+
+
+
 
 
