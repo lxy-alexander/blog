@@ -10,7 +10,7 @@ draft: false
 
 # Plan
 
-![image-20260203095853468](https://raw.githubusercontent.com/lxy-alexander/pico/main/typora/image-20260203095853468.png?token=BV4DZ7VXWMPVUINQIDRLPBLJQIGWW)
+![image-20260206003044638](https://pub-c69d652d2a0747fab9aad1fab48ff742.r2.dev/images/image-20260206003044638)
 
 按照专题刷题，而不是随机刷题。同一个专题，一个套路可以解决多个题目，刷题效率高。此外，这能让你从不同的角度去观察、思考同一个算法，从而深刻地理解算法的本质。
 螺旋上升式学习：先完成难度分 ≤1700 的题目。把各个题单、各个知识点的基础题刷一遍，再刷更难的题目。难度分低的题目一般只会考察一个知识点，而难度分高的题目会同时考察多个知识点。

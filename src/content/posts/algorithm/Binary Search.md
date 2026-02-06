@@ -11,7 +11,7 @@ draft: false
 
 >   Binary search maintains a answer window: Each step removes the half that doesn't contain the answer. When the window shrinks to empty, the left boundary is the answer
 
-# Note
+
 
 ## 二分的前提：单调性
 

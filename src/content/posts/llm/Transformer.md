@@ -11,7 +11,7 @@ lang: ""
 
 # Transformer架构
 
-<img src="https://raw.githubusercontent.com/lxy-alexander/pico/main/typora/image-20260204230856076.png?token=BV4DZ7Q66EO4JONJ5MSVTSTJQQMBM" alt="image-20260204230856076" style="zoom:50%;" />
+![image-20260206003119904](https://pub-c69d652d2a0747fab9aad1fab48ff742.r2.dev/images/image-20260206003119904)
 
 
 
@@ -78,7 +78,7 @@ lang: ""
 
 **点积运算（Match）：**
 
-<img src="https://raw.githubusercontent.com/lxy-alexander/pico/main/typora/image-20260205120452089.png?token=BV4DZ7S5P3AYDO7RVAMFUX3JQTG7C" alt="image-20260205120452089" style="zoom:33%;" />
+![image-20260206003135785](https://pub-c69d652d2a0747fab9aad1fab48ff742.r2.dev/images/image-20260206003135785)
 
 ------
 
@@ -370,7 +370,7 @@ class EmbeddingLayer(nn.Module):
 
 Scaled Dot-Product Attention
 
-<img src="https://raw.githubusercontent.com/lxy-alexander/pico/main/typora/image-20260205163858306.png?token=BV4DZ7TFTYXLPAZOWQLCNR3JQUHC6" alt="image-20260205163858306" style="zoom:50%;" />
+![image-20260206003157672](https://pub-c69d652d2a0747fab9aad1fab48ff742.r2.dev/images/image-20260206003157672)
 
 如果维度增大而不缩放，点积会变得很大，导致 softmax 输出非常极端，让模型只关注少数位置，忽略其他信息。这样会使模型难以平衡地捕捉全局，因此我们缩放点积，让注意力分布更均匀，从而更有效学习上下文关系。
 
@@ -430,9 +430,7 @@ logit = Softmax / Sigmoid 之前的原始分数（未归一化的输出）
 
 **Softmax logits are unnormalized log-probabilities,** differing from true log-probabilities by **a constant shared across all classes**(the **log-partition function**). **Softmax 的 logits 是未归一化的对数概率（log-probabilities），** **与真实的 log 概率只相差一个对所有类别相同的常数（log-partition constant）。**
 
-<img src="https://raw.githubusercontent.com/lxy-alexander/pico/main/typora/image-20260205175652973.png?token=BV4DZ7UGFB24X4G45EICBXLJQUQHC" alt="image-20260205175652973" style="zoom:50%;" /> 
-
-
+<img src="https://pub-c69d652d2a0747fab9aad1fab48ff742.r2.dev/images/image-20260206003216337" alt="image-20260206003216337" style="zoom:50%;" />
 
 
 
