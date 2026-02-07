@@ -38,6 +38,14 @@ uv venv --python 3.12 --seed
 source .venv/bin/activate
 ```
 
+如果没有uv，清先安装
+
+```
+curl -LsSf https://astral.sh/uv/install.sh | sh
+```
+
+
+
 为什么推荐 Python 3.12？
 因为 vLLM 的 CI（官方自动测试）主要用 3.12，避免你本地跑得过，CI 挂掉。
 
