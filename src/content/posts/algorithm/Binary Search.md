@@ -1089,3 +1089,99 @@ def doubling_search(nums, target):
 
 
 
+
+
+## The Kth Smallest/Biggest
+
+Nearly everyone has used the [Multiplication Table](https://en.wikipedia.org/wiki/Multiplication_table). The multiplication table of size `m x n` is an integer matrix `mat` where `mat[i][j] == i * j` (**1-indexed**).
+
+Given three integers `m`, `n`, and `k`, return *the* `kth` *smallest element in the* `m x n` *multiplication table*.
+
+ 
+
+**Example 1:**
+
+![img](https://pub-c69d652d2a0747fab9aad1fab48ff742.r2.dev/images/multtable1-grid)
+
+```
+Input: m = 3, n = 3, k = 5
+Output: 3
+Explanation: The 5th smallest number is 3.
+```
+
+**Example 2:**
+
+![img](https://pub-c69d652d2a0747fab9aad1fab48ff742.r2.dev/images/multtable2-grid)
+
+```
+Input: m = 2, n = 3, k = 6
+Output: 6
+Explanation: The 6th smallest number is 6.
+```
+
+ 
+
+**Constraints:**
+
+-   `1 <= m, n <= 3 * 104`
+-   `1 <= k <= m * n`
+
+
+
+
+
+````
+class Solution:
+    def findKthNumber(self, m: int, n: int, k: int) -> int:
+        def count(x):
+            cnt = 0
+            for i in range(1, m + 1):
+                cnt += min(x // i, n)
+            return cnt
+
+        l = 0
+        r = m * n
+        while l <= r:
+            mid = (l + r) // 2
+            if count(mid) >= k:
+                r = mid - 1
+            else:
+                l = mid + 1
+        return l
+````
+
+
+
+==count函数的;不要忘记了；==
+
+==使用外部的变量请使用& capture by reference==
+
+```
+class Solution {
+public:
+    int findKthNumber(int m, int n, int k) {
+        int l = 0;
+        int r = m * n;
+        
+        // 使用外部的变量请使用& capture by reference
+        auto count = [&](int x) {
+            int cnt = 0;
+            for (int i = 1; i <= m; i++) {
+                cnt += min(x / i, n);
+            }
+            return cnt;
+        }; // ==count函数的;不要忘记了；==
+
+        while (l <= r) {
+            int mid = l + (r - l) / 2;
+            if (count(mid) >= k) {
+                r = mid - 1;
+            } else {
+                l = mid + 1;
+            }
+        }
+        return l;
+    }
+};
+```
+
