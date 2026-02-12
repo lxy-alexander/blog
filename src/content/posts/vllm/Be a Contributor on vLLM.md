@@ -76,14 +76,16 @@ VLLM_USE_PRECOMPILED=1 uv pip install -e .
 
 ------
 
+
+
+
+
 ### B：改 CUDA/C++（需要本地编译）
 
-先装 PyTorch CUDA 版：
-
-从A切换到B可以：
+如果执行了A步骤，需要：**force-removes the installed `vllm` Python package **
 
 ```shell
-uv pip uninstall -y vllm
+uv pip uninstall vllm
 ```
 
 ```bash
@@ -91,7 +93,56 @@ uv pip install torch torchvision torchaudio \
   --extra-index-url https://download.pytorch.org/whl/cu129
 ```
 
-再装 vLLM：
+当前目录这个项目”用 editable 模式安装
+
+```
+CCACHE_NOHASHDIR="true" uv pip install --no-build-isolation -e . -v
+CCACHE_NOHASHDIR="true" uv pip install  -e . -v
+```
+
+:::error
+
+```
+(vllm) [xli49@ghpc008 vllm]$ python examples/offline_inference/basic/basic.py 
+Traceback (most recent call last):
+  File "/data/home/xli49/vllm/examples/offline_inference/basic/basic.py", line 4, in <module>
+    from vllm import LLM, SamplingParams
+  File "/data/home/xli49/vllm/vllm/__init__.py", line 74, in __getattr__
+    module = import_module(module_name, __package__)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/data/home/xli49/.local/share/uv/python/cpython-3.12.12-linux-x86_64-gnu/lib/python3.12/importlib/__init__.py", line 90, in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/data/home/xli49/vllm/vllm/entrypoints/llm.py", line 21, in <module>
+    from vllm.config import (
+  File "/data/home/xli49/vllm/vllm/config/__init__.py", line 5, in <module>
+    from vllm.config.cache import CacheConfig
+  File "/data/home/xli49/vllm/vllm/config/cache.py", line 13, in <module>
+    from vllm.utils.mem_utils import format_gib, get_cpu_memory
+  File "/data/home/xli49/vllm/vllm/utils/mem_utils.py", line 14, in <module>
+    from vllm.platforms import current_platform
+  File "/data/home/xli49/vllm/vllm/platforms/__init__.py", line 252, in __getattr__
+    _current_platform = resolve_obj_by_qualname(platform_cls_qualname)()
+                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/data/home/xli49/vllm/vllm/utils/import_utils.py", line 111, in resolve_obj_by_qualname
+    module = importlib.import_module(module_name)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/data/home/xli49/.local/share/uv/python/cpython-3.12.12-linux-x86_64-gnu/lib/python3.12/importlib/__init__.py", line 90, in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/data/home/xli49/vllm/vllm/platforms/cuda.py", line 16, in <module>
+    import vllm._C  # noqa
+    ^^^^^^^^^^^^^^
+ImportError: /data/home/xli49/vllm/vllm/_C.abi3.so: undefined symbol: _ZN3c104cuda9SetDeviceEa
+```
+
+
+
+:::
+
+
+
+
 
 `uv pip install -e .` 把“当前目录这个项目”用 editable 模式安装。`.` = 当前目录（你在 vllm 仓库根目录时，就是 vllm 项目）它会去读取你这个目录里的构建配置，例如：`pyproject.toml`（主要）或 `setup.py`（老项目）。然后把这个项目安装进你的虚拟环境里。
 
@@ -99,7 +150,7 @@ uv pip install torch torchvision torchaudio \
 uv pip install -e . --no-build-isolation
 ```
 
-👉 这个会触发编译，慢很多，需要编译环境。
+
 
 ### 为什么 vLLM 要求加--no-build-isolation？
 
@@ -114,6 +165,12 @@ uv pip install -e . --no-build-isolation
 -   临时环境装了不匹配的 torch
 -   找不到你当前 torch 的 CUDA 配置
 -   编译失败 or 生成不兼容的二进制
+
+
+
+
+
+
 
 ------
 
@@ -322,4 +379,45 @@ pytest tests/
 
 
 
+
+
+
+
+
+```mermaid
+flowchart TB
+
+    GPU[GPU Hardware]
+
+    Driver[NVIDIA Driver]
+    Toolkit[CUDA Toolkit]
+    
+    subgraph Env["Python Virtual Env (uv / venv / conda)"]
+        TorchWheel[PyTorch Wheel torch+cuXXX]
+        Extension[C++ CUDA Extensions vLLM xformers]
+        PythonPkg[Other Python Packages]
+    end
+
+    GPU --> Driver
+
+    Driver --> TorchWheel
+    Driver --> Toolkit
+
+    Toolkit -->|build time| Extension
+    TorchWheel -->|runtime ABI| Extension
+    TorchWheel --> PythonPkg
+
+    subgraph Runtime["Runtime Path"]
+        Driver
+        TorchWheel
+        Extension
+    end
+
+    subgraph Build["Build Time"]
+        Toolkit
+        TorchWheel
+        Extension
+    end
+
+```
 
