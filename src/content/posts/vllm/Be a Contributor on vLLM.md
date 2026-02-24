@@ -9,6 +9,113 @@ draft: false
 lang: ""
 ---
 
+
+
+
+
+## Questions
+
+
+
+1.   
+
+```
+uv pip install -r requirements/test.txt --torch-backend=cu128
+```
+
+本质不是“安装 cu128 的 torch”这么简单，而是：
+
+>   **让 uv 在解析依赖时，把所有 PyTorch 相关包强制约束到 cu128 这个 backend 生态。**
+
+
+
+
+
+2.   --torch-backend=cu128和UV_TORCH_BACKEND=cu128是一致的
+
+| 方式     | 作用域          |
+| -------- | --------------- |
+| CLI 参数 | 单次命令        |
+| 环境变量 | 当前 shell 会话 |
+
+不设置 `UV_TORCH_BACKEND` 时，默认行为等同于 `auto`。uv 会根据当前机器环境自动选择合适的 PyTorch backend
+
+
+
+3.   
+
+     | 项目                    | 默认                                                         |
+     | :---------------------- | :----------------------------------------------------------- |
+     | vLLM 官方默认 CUDA 版本 | 12.9（cu129）（VLLM_MAIN_CUDA_VERSION=12.9，nightly 默认 variant 也是 cu129） |
+     | 你装出 cu128 的原因     | 是 uv 的 --torch-backend=auto / 安装时的索引或顺序 选到了 cu128，不是 vLLM 默认成 cu128 |
+
+     要跟官方默认一致，可以显式用 cu129 安装，例如：
+
+     UV_TORCH_BACKEND=cu129 uv pip install -e . --no-build-isolation
+
+     或先装 PyTorch cu129 再装 vLLM。
+
+
+
+4.通过调用 `nvcc -V` 获取本机 CUDA 版本号，并解析成 `Version` 对象返回。
+
+Version的版本号不是lexicological order
+
+
+
+5.   vllm/engine/llm_engine.py          →  只是别名，指向 v1
+     vllm/engine/async_llm_engine.py    →  只是别名，指向 v1
+
+     vllm/v1/engine/llm_engine.py       →  同步引擎的实际实现
+     vllm/v1/engine/async_llm.py        →  异步引擎的实际实现
+
+
+
+
+
+```python
+def get_nvcc_cuda_version() -> Version:
+    """
+    从 nvcc 获取 CUDA 版本号。
+
+    代码改编自：
+    https://github.com/NVIDIA/apex/blob/8b7a1ff183741dd8f9b87e7bafd04cfde99cea28/setup.py
+    """
+
+    # 确保 CUDA_HOME 已设置，否则程序直接报错
+    assert CUDA_HOME is not None, "CUDA_HOME is not set"
+
+    # 调用 nvcc -V 命令获取 CUDA 编译器版本信息
+    # universal_newlines=True 表示以字符串形式返回输出，而不是字节
+    nvcc_output = subprocess.check_output(
+        [CUDA_HOME + "/bin/nvcc", "-V"], universal_newlines=True
+    )
+
+    # 将输出按空格拆分为列表
+    output = nvcc_output.split()
+
+    # 在输出中找到 "release" 这个词的位置，
+    # CUDA 版本号通常在 "release" 后面的下一个元素
+    release_idx = output.index("release") + 1
+
+    # 取出版本字符串（去掉逗号），并用 parse 转成 Version 对象
+    nvcc_cuda_version = parse(output[release_idx].split(",")[0])
+
+    # 返回解析后的 CUDA 版本号
+    return nvcc_cuda_version
+
+```
+
+
+
+
+
+
+
+
+
+
+
 ## 1）Contributing to vLLM
 
 贡献方式包括：
