@@ -9,181 +9,153 @@ draft: false
 
 ---
 
->   Binary search maintains a answer window: Each step removes the half that doesn't contain the answer. When the window shrinks to empty, the left boundary is the answer
+# **I.** Binary Search Master Guide: From Logic to Universal Templates
 
+## 1. The Core Essence(底层/核心本质): Monotonicity
 
+The core of Binary Search isn't "sorting," but **"Binary Properties" (Two-Segment Property(二段性))**. As long as a function `check(x)` exists such that the search range presents one of the following two patterns, Binary Search is applicable(合适的，恰当的):
 
-## 二分的前提：单调性
-
-二分能用的核心条件：
-
--   存在一个函数/条件 `check(x)`
--   具有单调性：
-    -   要么 `False False ... True True`
-    -   要么 `True True ... False False`
-
-## 怎么设置左闭右闭 `[l, r]`：
-
->   **r 设成 x 的最大可能取值，而不是 n-1**
-
--   如果 **x 是数组下标** → `r = n-1`
--   如果 **x 是答案且能到 n** → `r = n`
--   如果 **x 是答案且能到 maxVal** → `r = maxVal`
-
-
-
-
-
-## 求最少和最多核心区别：你在找哪个边界？
-
-二分答案的 `check(x)` 必须单调：
-
-### 求最少（最小可行值）
-
-目标：找 **最小的 x** 使得 `check(x)=True`
-
-单调形状一般是：
-
-```
-F F F F T T T T
-        ↑
-     第一个 True
-```
-
-你要找的是 **第一个 True**
+-   **Find Minimum (First True):** `[False, False, ..., True, True]`
+-   **Find Maximum (Last True):** `[True, True, ..., False, False]`
 
 ------
 
-### 求最多（最大可行值）
+## 2. Determining the Search Range `[left, right]`
 
-目标：找 **最大的 x** 使得 `check(x)=True`
+Set the boundaries based on the **physical meaning of x**:
 
-单调形状一般是：
+| **Type**     | **left (Min Valid Value)** | **right (Definitely Feasible)** | **Classic Problem**                                          |
+| ------------ | -------------------------- | ------------------------------- | ------------------------------------------------------------ |
+| **Index**    | `0`                        | `n - 1`                         | Basic Search                                                 |
+| **Time**     | `1`                        | `min(time) * totalTrips`        | [2187. Min Time](https://leetcode.com/problems/minimum-time-to-complete-trips/) |
+| **Speed**    | `1`                        | `max(piles)`                    | [875. Koko Eating Bananas](https://leetcode.com/problems/koko-eating-bananas/) |
+| **Capacity** | `max(weights)`             | `sum(weights)`                  | [1011. Ship Packages](https://leetcode.com/problems/capacity-to-ship-packages-within-d-days/) |
+| **Divisor**  | `1`                        | `max(nums)`                     | [1283. Smallest Divisor](https://leetcode.com/problems/find-the-smallest-divisor-given-a-threshold/) |
+| **Distance** | `0` or `1`                 | `max(pos) - min(pos)`           | [1552. Magnetic Force](https://leetcode.com/problems/magnetic-force-between-two-balls/) |
 
-```
-T T T T F F F F
-        ↑
-     最后一个 True
-```
+------
 
-你要找的是 **最后一个 True**
+### 1) Time-based: [2187. Minimum Time to Complete Trips](https://leetcode.com/problems/minimum-time-to-complete-trips/)
 
+-   **Summary**: Given the time each car takes to complete one trip, find the **minimum total time** required for all cars to complete at least `totalTrips`.
+-   **Why these boundaries**:
+    -   **`left = 1`**: Time cannot be zero.
+    -   **`right = min(time) * totalTrips`**: This is a conservative upper bound. Even if only the **fastest car** were running, the time it takes to finish all trips alone would certainly be enough.
 
+### 2) Speed-based: [875. Koko Eating Bananas](https://leetcode.com/problems/koko-eating-bananas/)
 
+-   **Summary**: There are $n$ piles of bananas. You must finish all of them within $h$ hours. Find the **minimum eating speed** $K$ (bananas per hour). Note: Koko can only eat from one pile per hour.
+-   **Why these boundaries**:
+    -   **`left = 1`**: Speed must be at least 1, or she will never finish.
+    -   **`right = max(piles)`**: If your speed equals the **largest pile**, you are guaranteed to finish one pile per hour. Since you can't eat more than one pile an hour anyway, any speed higher than this is redundant.
 
+### 3) Capacity-based: [1011. Capacity To Ship Packages Within D Days](https://leetcode.com/problems/capacity-to-ship-packages-within-d-days/)
 
+-   **Summary**: Packages must be shipped in the order given within $D$ days. Find the **minimum weight capacity** of the conveyor belt.
+-   **Why these boundaries**:
+    -   **`left = max(weights)`**: The belt must be able to carry the **heaviest** single package; otherwise, that package can never be shipped.
+    -   **`right = sum(weights)`**: The extreme case—shipping every single package on the very first day. The total sum of weights is the absolute maximum capacity needed.
 
+### 4) Divisor-based: [1283. Find the Smallest Divisor Given a Threshold](https://leetcode.com/problems/find-the-smallest-divisor-given-a-threshold/)
 
+-   **Summary**: Each number in an array is divided by $d$ (rounded up) and summed. The sum must be $\le$ a given threshold. Find the **minimum** $d$.
+-   **Why these boundaries**:
+    -   **`left = 1`**: The divisor cannot be zero.
+    -   **`right = max(nums)`**: When the divisor equals the maximum value in the array, every result becomes $1$ (except the max itself which also becomes 1). This is the effective boundary that reduces the "sum" to its minimum possible value (the length of the array $n$).
 
+### 5) Distance-based: [1552. Magnetic Force Between Two Balls](https://leetcode.com/problems/magnetic-force-between-two-balls/)
 
-## Why does `end = lowerBound(nums, target + 1) - 1` work?
+-   **Summary**: Place $M$ balls in baskets such that the **minimum distance** between any two balls is as large as possible. Find this **maximum minimum distance**.
+-   **Why these boundaries**:
+    -   **`left = 1`**: The balls must be separated by at least 1 unit of distance (assuming distinct basket positions).
+    -   **`right = max(pos) - min(pos)`**: The theoretical maximum distance occurs when you place only two balls: one at the very first basket and one at the very last.
 
-`lowerBound(nums, target)` returns the index of the first element that is `>= target`.
+------
 
-`lowerBound(nums, target + 1)` finds the **first element that is `>= target + 1`**, Since all numbers are integers, **`>= target + 1` is the same as `> target`**
-
-```
-nums   = [1, 2, 2, 2, 4, 6]
-target = 2
-```
-
-`lowerBound(nums, 3)` → points to `4` (index `4`) ,  `end = 4 - 1 = 3` => Index `3` is the last `2`, which is exactly the last position of `target`.
-
-
-
-## What if `>= target + 1` doesn’t exist?
-
-```
-nums = [1, 2, 2, 2]
-target = 2
-```
-
-When if `>= target + 1` doesn't exist,  it will return `n`
-
-
-
-## Why do we write `left + (right - left) / 2`?
-
-you may not know how large the input array can be. If the array length reaches the maximum value of an `int`, then `left + right` may overflow.
-
-In Python, since integers do not overflow, you can just add them directly.
-
-
+**Would you like me to combine all these English sections into one single, clean Markdown file for you to save?**
 
 
 
-##  How can I tell which type of binary search I wrote?
+------
 
-Look at the condition in the `while` loop:
+## 3. Core Templates: Closed Interval `while l <= r`
 
--   If it is `left <= right`, then it’s a **closed interval** (`[left, right]`)↳
--   If it is `left < right`, then it’s a **left-closed right-open interval** (`[left, right)`)↳
--   If it is `left + 1 < right`, then it’s an **open interval** (`(left, right)`)
+This is the most robust implementation. It is recommended to use this consistently.
 
+### 1) Find Minimum (First True)
 
+**Goal:** Find the smallest $x$ such that `check(x)` is True.
 
-## left <= right
-
-✅ high 指向：最后一个 `< target` 的位置
-
-因为 high 一直在往左收缩，直到它停在“不够 target”的最后一格
-
-✅ low 指向：第一个 `>= target` 的位置
-
-因为 low 一直在往右跳过所有 `< target` 的位置
-
-
-
-## ⌈b/a⌉ = ⌊(b+a-1)/a⌋
-
-**C++**
+Python
 
 ```
-ceil_div = (b + a - 1) / a = (b - 1) / a + 1;
-```
-
-**Python**
-
-```
-ceil_div = (b + a - 1) // a = (b - 1) / a + 1
-```
-
-
-
-## 左右边界怎么设置（通用口诀）
-
-✅ left：最小“合法可能值”
-
--   时间类：`1`
--   速度类：`1`
--   容量类：`max(...)`
--   divisor：`1`
--   最小距离：`1` 或 `0`
-
-✅ right：一个“肯定可行”的上界
-
--   1011：`sum(weights)`（一天运完）
--   2187：`min(time) * totalTrips`（最快车跑完全部）
--   875：`max(piles)`（速度=最大堆，1小时1堆）
--   1283：`max(nums)`（d=max(nums) 时每项最多1）
-
-```python
-l = 最小合法值
-r = 最大可行值
+l, r = min_valid, max_feasible
 while l <= r:
-    mid = (l+r)//2
-    if check(mid):
+    mid = l + (r - l) // 2
+    if check(mid): # Feasible, but look for smaller ones to the left
         r = mid - 1
-    else:
+    else:          # Not feasible, must increase x
         l = mid + 1
-return l
+return l  # When loop ends, l points to the first True
 ```
 
+### 2) Find Maximum (Last True)
+
+**Goal:** Find the largest $x$ such that `check(x)` is True.
+
+Python
+
+```
+while l <= r:
+    mid = l + (r - l) // 2
+    if check(mid): # Feasible, try to find a larger one to the right
+        l = mid + 1
+    else:          # Not feasible, must decrease x
+        r = mid - 1
+return r  # When loop ends, r points to the last True
+```
+
+------
+
+## 4. Advanced Tips & Mathematical Details
+
+### 1) Finding Left/Right Boundaries of Elements
+
+-   **Left Boundary (Lower Bound):** First index where `element >= target`.
+-   **Right Boundary (Upper Bound):** Last index where `element == target`.
+    -   **Trick:** `lowerBound(target + 1) - 1`.
+    -   **Principle:** Find the start of the first number `> target`, then move back one spot. If `target + 1` doesn't exist, the search returns `n`, and `n - 1` correctly identifies the last element.
+
+### 2) Avoiding Overflow
+
+In C++/Java, `left + right` can exceed $2^{31} - 1$.
+
+-   **Standard approach:** `mid = left + (right - left) / 2`
+-   **Python Note:** Though Python handles arbitrarily large integers, keeping this habit helps in understanding low-level memory constraints.
+
+### 3) Ceiling Division Conversion
+
+When calculating "required days/trips," you often need $\lceil \frac{b}{a} \rceil$:
+
+-   **Universal Formula:** `(b + a - 1) // a`
+-   **Logic:** As long as $b$ is not perfectly divisible by $a$, adding $a-1$ will always force the integer division to round up by one.
+
+------
+
+## 5. Post-Loop State Cheat Sheet
+
+When the `while l <= r` loop terminates:
+
+| **Pointer**    | **Physical Meaning**                                         |
+| -------------- | ------------------------------------------------------------ |
+| **`l (low)`**  | Points to the **first** element that **satisfies condition** (or `>= target`) |
+| **`r (high)`** | Points to the **last** element that **fails condition** (or `< target`) |
 
 
 
 
-# Binary Search on Sorted Array
+
+# **II**.Binary Search Questions
 
 ## Find the boundary of element in sorted array
 
@@ -313,34 +285,8 @@ Output: 44
 
 
 
-#### 什么时候缩l & r
-
-✅ `S(m) <= threshold`：mid **可行**，答案可能更小 → **往左找** → `r = m - 1`
-
-✅ `S(m) > threshold`：mid **太小**，必须增大 → **往右找** → `l = m + 1` 
-
-
-
-#### 为什么退出循环后答案是 `l`？
-
-退出条件是：
-
-```
-l=r+1
-```
-
-`r` 停在 **最后一个不满足条件的位置**（最后一个 False）
-
-`l` 就是 **它右边第一个位置**（第一个 True）
-
-Because we always move `l` right when `m` is invalid, and move `r` left when `m` is valid, the search ends with `r` at the last invalid value and `l` at the first valid value — therefore `l` is the smallest feasible answer.
-
-因为当 m 无效时我们总是将 l 右移，而当 m 有效时我们将 r 左移，所以搜索结束时 r 在最后一个无效值，l 在第一个有效值——因此 l 是最小的可行答案。
-
 ```python
-# 这道题你并需要排序，因为题目没有要求是数组中元素，只需要最小值和数组的最大值进行二分法
-# (x + m - 1) // m 这个是ceil的实现， import math  math.ceil(x / m) 也可以
-# 
+# Note: You don't need to sort the input array here because the answer is not required to be an element of the array; we are searching within the range from 1 to max(nums).
 class Solution:
     def smallestDivisor(self, nums: List[int], threshold: int) -> int:
         l, r = 1, max(nums)
@@ -353,6 +299,28 @@ class Solution:
                 l = m + 1
         return l 
 ```
+
+
+
+#### 1) When to Shrink `l` & `r`?
+
+The direction of your search depends on the condition:
+
+-   **`sum(mid) <= threshold`**: `mid` is **feasible**, but a smaller answer might exist → **Search Left** → `r = mid - 1`
+-   **`sum(mid) > threshold`**: `mid` is **too small**, you must increase it to satisfy the condition → **Search Right** → `l = mid + 1`
+
+
+
+#### 2) Why is `l` the answer after the loop?
+
+The loop terminates when `l > r` (specifically, `l = r + 1`).
+
+-   **`r`** stops at the **last position that fails the condition** (the last `False`).
+-   **`l`** stops exactly one position to the right of `r` (the first `True`).
+
+**Logic:** Because we only move `l` right when `mid` is invalid, and move `r` left when `mid` is valid, the search concludes with(结束于) `r` at the last invalid value and `l` at the first valid value. Therefore, `l` is the **smallest feasible answer**.
+
+
 
 
 
@@ -398,45 +366,8 @@ So the minimum time needed to complete 1 trip is 2.
 
 
 
-
-
-#### 左边界left 怎么设
-
--   `left`：不需要 `l` 一开始一定 False, 可以是最小可能答案，可以是是最小可能答案-1，也可以设置为1（多二分几次），但是一般`l` 直接设成“合法的最小值”。
--   `right`：一定够（True）
-
-```
-left = min(time) 
-```
-
-
-
-#### 什么时候可以 `left = lowerBound - 1`？
-
-check 在该范围内是“合法的”，比如 2187 中 `T=min(time)-1` 是合法时间，算 trips 不会出错。
-
-
-
-
-
-#### 右边界 right 怎么设？
-
-一般保证在 `right` 时间内一定能跑够 `totalTrips`。
-
-最稳的上界：**最快的车一个人跑完所有 trips**：
-
--   最快车用时 `min(time)`
--   跑 `totalTrips` 趟需要 `min(time) * totalTrips`
-
-```
-right = min(time) * totalTrips
-```
-
-
-
 ```python
-# 必须保证在 right 时间内一定能跑够 totalTrips， 跑 totalTrips 趟需要 min(time) * totalTrips
-
+# Ensure that the right boundary is large enough to cover totalTrips. The most reliable way is min(time) * totalTrips.
 class Solution:
     def minimumTime(self, time: List[int], totalTrips: int) -> int:
         min_t = min(time)
@@ -448,8 +379,8 @@ class Solution:
                 r = m - 1
             else:
                 l = m + 1
-        return l #返回l就好了，这个l就是我们所要的time t
-
+        # After the loop, 'l' is the smallest time that satisfies the condition
+        return l
 ```
 
 
@@ -460,11 +391,7 @@ class Solution:
 
 
 
-A conveyor belt has packages that must be shipped from one port to another within `days` days.
-
-传送带上的包裹必须在几天内从一个港口运送到另一个港口。
-
-传送带上的第 i 个包裹的重量为weights[i]。 每天，我们都会在传送带上将包裹装载到船上（按照重量顺序）。 我们装载的重量不得超过船舶的最大承重能力。
+A conveyor(传送带，传送装置；传播者，传达者) belt(腰带，皮带；传送带；地带) has packages that must be shipped from one port to another within `days` days.
 
 The `ith` package on the conveyor belt has a weight of `weights[i]`. Each day, we load the ship with packages on the conveyor belt (in the order given by `weights`). We may not load more weight than the maximum weight capacity of the ship.
 
@@ -517,58 +444,38 @@ Explanation:
 -   `1 <= days <= weights.length <= 5 * 104`
 -   `1 <= weights[i] <= 500`
 
-
-
-
-
-#### `if cur + w <= cap`  
-
-每天你面对一个包裹 `w` 时只有两种选择：
-
-1.  **装进今天**（如果没超载）
-    1.  **装不下 → 明天再装**（开新的一天），但是当前已经在这个包裹了，你需要`cur = w` 去重设`cur`，这样`cur`才不会丢失今天的包裹，错误想法是：`cur = 0`
-
-体现的是 **贪心：能装就装满，装不下就开新的一天**。因为把包裹留到明天只会让天数更多，不会更少。
-
-
-
-#### 什么时候不能减1？
-
-`l = max(weights) - 1`
-此时可能出现 cap < 某个包裹重量，会导致：包裹永远装不上船（实际上必 False）但你的 check 可能“装不下也硬装”（最好一个包裹没有上船，就直接返回need的天数）→ 算出来天数是不正确的
-
-
-
-#### 为什么<= days, 要收缩右边界
-
-因为我们要找的是the least capability, 所以当当前的capability所对应的天数满足题目要求的days要求，说明capability是合法的，但可能大了，所以收缩右边界（简少capability）让其继续二分，当当前的capability所对应的天数大于days，说明capability小了，所以收缩左边界，让capability变大一点。
-
-
-
 ```python
 class Solution:
     def shipWithinDays(self, weights: List[int], days: int) -> int:
-        def check(cap):
+        # l: must be at least the heaviest package
+        # r: the sum of all packages (shipping everything in 1 day)
+        l, r = max(weights), sum(weights)
+        
+        while l <= r:
+            mid = (l + r) // 2
+            
+            # Greedy check: how many days are needed with capacity 'mid'?
             need = 1
             cur = 0
             for w in weights:
-                if cur + w <= cap:
+                if cur + w <= mid:
                     cur += w
                 else:
                     need += 1
-                    cur = w # 要注意重设cur
-            return need
-             
-
-        l, r = max(weights), sum(weights)
-        while l <= r:
-            m = (l + r) // 2
-            if check(m) <= days: # 想一想为什么<= days, 要收缩右边界
-                r = m - 1
+                    cur = w # Start new day with the current package
+            
+            if need <= days:
+                # Valid capacity, try to find a smaller one
+                r = mid - 1
             else:
-                l = m + 1
+                # Capacity too small, need more power
+                l = mid + 1
         return l
 ```
+
+
+
+
 
 
 
@@ -620,40 +527,33 @@ Output: 3
 
 
 
-If you compute the distance from **each heater to every house**, the time complexity is **O(m·n)**. But if you use **house** as a query point and “insert” it into the sorted `heaters` array using binary search, the time complexity becomes **O(m log n)**.
-
-#### Nearest Neighbor Search 
-
-In a **1D array / number line**:
-
--   You want to find the point **closest to `x`**
--   After sorting, you don’t need to check all elements
--   You only need to check the **two neighbors around the insertion position** given by `lower_bound`
-
-| Category                                       | Problem / Pattern                    | Key Idea                                                     | Common Technique                        | Typical Time Complexity |
-| ---------------------------------------------- | ------------------------------------ | ------------------------------------------------------------ | --------------------------------------- | ----------------------- |
-| ⭐ A Nearest / Min Difference                   | **Minimum Absolute Difference**      | After sorting, the closest pair must be adjacent             | `sort + compare neighbors`              | `O(n log n)`            |
-| ⭐ A Nearest / Min Difference                   | **Find K Closest Elements**          | Find insertion point, then expand outward                    | `sort + bisect + two pointers`          | `O(log n + k)` (often)  |
-| ⭐ B Min Distance Between Two Sets              | **Heaters (this problem)**           | For each house, nearest heater is either left neighbor or right neighbor | `sort + bisect (lower_bound)`           | `O(m log n)`            |
-| ⭐ B Min Distance Between Two Sets              | **Shortest Distance to a Character** | For each index, nearest target position matters              | `two passes` or `bisect over positions` | `O(n)` or `O(n log n)`  |
-| ⭐ C Coverage / Radius / “Answer Binary Search” | **Magnetic Force Between Two Balls** | Maximize the minimum distance → binary search the answer     | `binary search answer + greedy check`   | `O(n log range)`        |
-| ⭐ C Coverage / Radius / “Answer Binary Search” | **Koko Eating Bananas**              | Minimize the maximum speed → binary search the answer        | `binary search answer + check function` | `O(n log range)`        |
-
 ```python
-# find the closest position on the left and on the right
+# Strategy: For each house, find the nearest heaters on both the left and right sides.
+# The minimum radius required for a house is the distance to its closest heater.
+# The global answer is the maximum of these minimum distances.
 class Solution:
     def findRadius(self, houses: List[int], heaters: List[int]) -> int:
         ans = 0
         houses.sort()
         heaters.sort()
         n = len(heaters)
+        
         for x in houses:
+            # Binary Search for the first heater >= house (Lower Bound)
             i = bisect.bisect_left(heaters, x)
-            # edge case
-            # if i == 0, it means x is before the first heater, so there is no heater on the left.
+            
+            # Distance to the nearest heater on the left (largest heater <= x)
+            # If i == 0, no heater exists on the left
             ld = x - heaters[i - 1] if i > 0 else float('inf')
+            
+            # Distance to the nearest heater on the right (smallest heater >= x)
+            # If i == n, no heater exists on the right
             rd = heaters[i] - x if i < n else float('inf')
+            
+            # The house only needs to be covered by the CLOSER of the two
+            # Update global max radius to ensure this house (and all others) are covered
             ans = max(ans, min(ld, rd))
+            
         return ans
 ```
 
@@ -665,7 +565,7 @@ class Solution:
 
 ### [875. Koko Eating Bananas](https://leetcode.com/problems/koko-eating-bananas/)
 
-Koko loves to eat bananas. There are `n` piles of bananas, the `ith` pile has `piles[i]` bananas. The guards have gone and will come back in `h` hours.
+Koko loves to eat bananas. There are `n` piles(痔疮，堆) of bananas, the `ith` pile has `piles[i]` bananas. The guards have gone and will come back in `h` hours.
 
 Koko can decide her bananas-per-hour eating speed of `k`. Each hour, she chooses some pile of bananas and eats `k` bananas from that pile. If the pile has less than `k` bananas, she eats all of them instead and will not eat any more bananas during this hour.
 
@@ -700,21 +600,32 @@ Output: 23
 -   `piles.length <= h <= 109`
 -   `1 <= piles[i] <= 109`
 
-一定要记住m符合<=h, 我们一直缩小右边界，让其不符合，m>h，我们缩小左边界让其符合，最终的while loop是在l > r结束，最终l是落在符合条件的区间，而r是在不符合条件的区间。
+
 
 ```python
-# Because we always move l right when m is invalid, and move r left when m is valid, the search ends with r at the last invalid value and l at the first valid value — therefore l is the smallest feasible answer.
 class Solution:
     def minEatingSpeed(self, piles: List[int], h: int) -> int:
+        # l: Smallest possible speed (1 banana/hr)
+        # r: A "guaranteed feasible" upper bound (sum of all bananas)
         l = 1
-        r = sum(piles)
+        r = sum(piles) # Note: max(piles) is a tighter, more efficient bound
+        
         while l <= r:
             m = (l + r) // 2
-            if sum((x + m - 1) // m for x in piles) <= h:
+            
+            # check(m): Calculate total hours needed at speed 'm'
+            # (x + m - 1) // m is the integer version of math.ceil(x / m)
+            hours_needed = sum((x + m - 1) // m for x in piles)
+            
+            if hours_needed <= h:
+                # current speed 'm' is feasible (True), try a smaller speed
                 r = m - 1
             else:
+                # current speed 'm' is too slow (False), must increase speed
                 l = m + 1
-        return l       
+                
+        # After the loop, l is the first speed that makes check(m) True
+        return l
 ```
 
 
@@ -760,28 +671,41 @@ Output: 2
 class Solution:
     def hIndex(self, citations: List[int]) -> int:
         n = len(citations)
+        # Search Range: 0 to n (Max possible H-index is the number of papers)
         l, r = 0, n
 
-        # T T T...F F F
+        # Pattern: T T T...F F F (Looking for the LAST True)
         while l <= r:
             h = (l + r) // 2
+            
+            # check(h): Are there at least 'h' papers with >= 'h' citations?
+            # Since sorted, citations[n-h] is the h-th largest value.
             if h == 0 or citations[n - h] >= h:
-                l = h + 1      # True，尝试更大
+                # This 'h' works! Try a larger value to the right.
+                l = h + 1      
             else:
-                r = h - 1      # False，变小
+                # Too many papers requested or citations too low. Search left.
+                r = h - 1      
 
+        # Per the "Last True" template, 'r' is the answer after l > r
         return r
 ```
 
 
 
+#### 1) The Strategy: "Find the Largest Valid H"
+
+The H-Index definition states: "A scientist has index $h$ if $h$ of their $n$ papers have **at least** $h$ citations." Since the `citations` array is sorted, the papers with the most citations are at the end of the array.
+
+-   **The Condition**: If we pick a value `h`, the paper at index `n - h` is the "weakest" paper in our set of $h$ papers. If `citations[n - h] >= h`, then all $h$ papers have at least $h$ citations.
+-   **Monotonicity**: If a researcher satisfies the condition for $h=5$, they might satisfy it for $h=6$. If they fail for $h=5$, they will definitely fail for $h=6$.
+-   **Pattern**: `[T, T, T, T, F, F]` — We want the **Last True**.
 
 
 
 
 
-
-### [[LeetCode\] 644. Maximum Average Subarray II 子数组的最大平均值之二](https://www.cnblogs.com/grandyang/p/8021421.html)
+### [[LeetCode\] 644. Maximum Average Subarray II ](https://www.cnblogs.com/grandyang/p/8021421.html)
 
 Given an array consisting of `n` integers, find the contiguous subarray whose length is greater than or equal to `k` that has the maximum average value. And you need to output the maximum average value.
 
@@ -804,100 +728,63 @@ Note:
 
 
 
-#### 为什么这个条件能二分？
-
-因为它对 `mid` 有单调性：
-
--   `mid` 越小 → 越容易满足 → `check(mid)` 更可能 True
--   `mid` 越大 → 越难满足 → `check(mid)` 更可能 False
-
-所以形状是：
-
-```
-True True True ... False False
-```
-
-我们要找的是：
-
-✅ **最大的 mid 让 check(mid)=True**
- 也就是最大平均值。
-
 ```python
-from typing import List
-
 class Solution:
     def findMaxAverage(self, nums: List[int], k: int) -> float:
         n = len(nums)
 
-        # check(mid) 用来判断：
-        # 是否存在一个长度 >= k 的子数组，使得子数组平均值 >= mid
         def check(mid: float) -> bool:
-            # 思路：把每个数都减去 mid，得到新数组 b
-            # b[i] = nums[i] - mid
-            # 若某个子数组平均值 >= mid
-            # <=> 子数组的 sum(nums) / len >= mid
-            # <=> sum(nums) - mid * len >= 0
-            # <=> sum(nums[i] - mid) >= 0
-            #
-            # 所以 check(mid) 就变成：
-            # 是否存在长度 >= k 的子数组，使得 sum(b) >= 0
+            # Transform: sum(nums[i] - mid) >= 0
+            pre = 0.0      # sum(b[0..i])
+            pre_k = 0.0    # sum(b[0..i-k])
+            min_pre = 0.0  # min(pre[0...i-k])
 
-            pre = 0.0      # pre 表示当前的前缀和：sum(b[0..i])
-            pre_k = 0.0    # pre_k 表示前缀和走到 i-k 的位置：sum(b[0..i-k])
-            min_pre = 0.0  # min_pre 表示所有合法起点的最小前缀和，用来最大化 pre - pre[j]
-
-            # 先算长度“刚好为 k”的第一个子数组 b[0..k-1] 的和
+            # Initial window of size k
             for i in range(k):
                 pre += nums[i] - mid
+            if pre >= 0: return True
 
-            # 如果前 k 个的和已经 >= 0，说明存在长度 >= k 的子数组平均值 >= mid
-            if pre >= 0:
-                return True
-
-            # 从下标 k 开始继续往右扩展右端点
+            # Sliding window with variable start
             for i in range(k, n):
-                # 更新当前前缀和：把 b[i] 加进去
                 pre += nums[i] - mid
-
-                # 更新 pre_k：
-                # 让“合法起点范围”向右扩一格（保证子数组长度 >= k）
-                # pre_k 变成 sum(b[0..i-k])
                 pre_k += nums[i - k] - mid
-
-                # min_pre 记录截至目前，所有 pre_k 的最小值
-                # 代表我们能选择的起点 j（j <= i-k）里最小的 pre[j]
+                # Greedy: keep track of the smallest prefix sum seen so far
+                # that allows for a subarray length >= k
                 min_pre = min(min_pre, pre_k)
-
-                # 如果 pre - min_pre >= 0
-                # 说明存在某个起点 j，使得 sum(b[j..i]) = pre - pre[j] >= 0
-                # => 存在长度 >= k 的子数组平均值 >= mid
+                
                 if pre - min_pre >= 0:
                     return True
-
-            # 扫完整个数组都没找到，则不存在平均值 >= mid 的子数组
             return False
 
-        # 最大平均值一定在 [min(nums), max(nums)] 内
+        # Range: Between the smallest and largest possible numbers
         l, r = min(nums), max(nums)
+        eps = 1e-5 # Precision threshold
 
-        # eps 是二分的精度，区间小于这个值就可以停
-        eps = 1e-5
-
-        # 二分“最大可行的平均值”
+        # Binary search for the maximum feasible average
         while r - l > eps:
             mid = (l + r) / 2
-
-            # 如果存在长度>=k子数组平均值 >= mid，说明 mid 可行 -> 往大找
             if check(mid):
-                l = mid
-            # 否则 mid 不可行 -> 往小找
+                l = mid  # mid is feasible, try to increase it
             else:
-                r = mid
-
-        # l 就是逼近的最大平均值
+                r = mid  # mid is too high, decrease it
+        
         return l
-
 ```
+
+
+
+#### 1) How the `check` Function Works: Prefix Sums & Greedy Strategy
+
+The `check` function validates the condition in **$O(n)$** time using a combination of prefix sums and a greedy sliding window:
+
+-   **Pre-processing**: Subtract `mid` from every element in the array ($nums[i] - mid$). This transforms the problem from finding an average to finding a **subarray sum $\ge 0$**.
+-   **Sliding Window**:
+    -   Maintain the current prefix sum **`pre`** (representing the sum from $0$ to $i$).
+    -   Maintain **`min_pre`** (representing the minimum prefix sum encountered between index $0$ and $i-k$).
+-   **Greedy Validation**:
+    -   We are looking for a pair $(i, j)$ such that  pre[i] - pre[j] $\ge 0$(where $i - j \ge k$)  .
+    -   To maximize this difference, we simply subtract the **smallest prefix sum (`min_pre`)** that occurred at least $k$ positions ago.
+    -   If **pre - min_pre $\ge 0$**, we have successfully found a subarray of length $\ge k$ that satisfies the condition.
 
 
 
@@ -936,7 +823,7 @@ Explanation: There are 11 children but only 7 candies in total, so it is impossi
 -   `1 <= k <= 1012`
 
 ```python
-# 求最大二分的条件是TTTTFFF, 每个人最少是1个，最多可能是最大值，所以二分时的m符合条件，需要l = m + 1，缩小左边界，不符合缩小右边界
+# In binary search for the **maximum** value (`TTTTFFFF`), we move the left boundary (`l = m + 1`) when the condition is met to seek a larger valid answer, ultimately returning **`r`** as the last "True" position.
 class Solution:
     def maximumCandies(self, candies: List[int], k: int) -> int:
         def ok(m):
@@ -993,12 +880,6 @@ Output: 4
 
 
 
-a1 >= a2 >= a3 >= ... >= an
-
-TTTTFFFF转换为At Most问题，我们要找在符合条件下最大值，那么这个值就是divide line。
-
-第 k 大就是 ak，如果 m <= ak。那么至少有前 k 个数都 ≥ m，所以 cnt(m) >= k ✅（可行）。如果 m > ak，那么 ≥ m 的数最多只有 k-1 个所以 cnt(m) < k ❌（不可行）
-
 ```python
 class Solution:
     def findKthLargest(self, nums: List[int], k: int) -> int:
@@ -1047,12 +928,43 @@ public:
 
 
 
-## Doubling Expansion(Exponential)
+### [[LeetCode\] Search in a Sorted Array of Unknown Size ](https://www.cnblogs.com/grandyang/p/9937770.html)
 
-**Exponential expansion** is a technique used to find a valid search boundary when the size of a sorted array is unknown or unbounded.
+ 
+
+Given an integer array sorted in ascending order, write a function to search `target` in `nums`. If `target` exists, then return its index, otherwise return `-1`. However, the array size is unknown to you. You may only access the array using an `ArrayReader` interface, where `ArrayReader.get(k)` returns the element of the array at index `k` (0-indexed).
+
+You may assume all integers in the array are less than `10000`, and if you access the array out of bounds, `ArrayReader.get` will return `2147483647`.
+
+ 
+
+Example 1:
+
+```php
+array
+target
+nums
+```
+
+Example 2:
+
+```php
+array
+target
+nums
+```
+
+ 
+
+Note:
+
+1.  You may assume that all elements in the array are unique.
+2.  The value of each element in the array will be in the range `[-9999, 9999]`.
+
+
 
 ```python
-
+# Exponential expansion is a method used to find a valid search boundary when the size of a sorted array is unknown or unbounded.
 def doubling_search(nums, target):
     l = 0
     r = 1
@@ -1128,9 +1040,7 @@ Explanation: The 6th smallest number is 6.
 
 
 
-
-
-````
+````python
 class Solution:
     def findKthNumber(self, m: int, n: int, k: int) -> int:
         def count(x):
@@ -1150,27 +1060,21 @@ class Solution:
         return l
 ````
 
-
-
-==count函数的;不要忘记了；==
-
-==使用外部的变量请使用& capture by reference==
-
-```
+```c++
 class Solution {
 public:
     int findKthNumber(int m, int n, int k) {
         int l = 0;
         int r = m * n;
         
-        // 使用外部的变量请使用& capture by reference
+        // Capture external variables by reference using &.
         auto count = [&](int x) {
             int cnt = 0;
             for (int i = 1; i <= m; i++) {
                 cnt += min(x / i, n);
             }
             return cnt;
-        }; // ==count函数的;不要忘记了；==
+        }; // <--- IMPORTANT: Do not forget the semicolon after the lambda definition!
 
         while (l <= r) {
             int mid = l + (r - l) / 2;

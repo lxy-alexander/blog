@@ -8,7 +8,43 @@ category: interview
 draft: false
 ---
 
-# Transformer
+
+
+
+
+
+
+
+
+## Are model parameters matrices? How are they organized?
+
+Parameters are scalar values stored as（以...形式存储） matrices or tensors. In Transformers, they mainly exist as（以...的形式存在；是....） weight matrices (e.g., Q, K, V, FFN) across layers（各层）, and stacking many layers（堆叠很多层） leads to billions of parameters.
+
+参数是数值，但在模型中以矩阵或张量形式存储。Transformer 里主要是各层的权重矩阵（如 Q、K、V、FFN），多层堆叠后形成数十亿参数。
+
+
+
+
+
+## How do different precisions (FP16, BF16, INT8, INT4) affect VRAM（GPU Memory） usage and deployment?
+
+==显存占用≈参数量×每参数字节数==
+
+==VRAM usage ≈ Number of parameters × Bytes per parameter==
+
+VRAM usage is approximately the number of parameters multiplied by the bytes per parameter. FP16/BF16 use 2 bytes per parameter (about 16GB for a 7B model with overhead), while INT8 and INT4 reduce memory by using 1 or 0.5 byte per parameter, lowering cost but potentially impacting accuracy.
+
+ 显存占用约等于参数量乘以每个参数的字节数。FP16/BF16 每个参数 2 字节（7B 模型约 16GB 含开销），INT8 和 INT4 分别降到 1 或 0.5 字节，显存更省但可能影响精度。
+
+
+
+## What is the impact of quantization on model performance?
+
+Quantization is the process of reducing the numerical precision of model weights to ==lower memory usage and speed up inference==, at the cost of some accuracy.
+
+量化是指降低模型权重的数值精度，以降低内存占用并加快推理速度，但代价是损失一定的精度
+
+
 
 ## Tansformer Arch
 

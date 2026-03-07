@@ -370,6 +370,8 @@ class EmbeddingLayer(nn.Module):
 
 Scaled Dot-Product Attention
 
+We divide by √d_model to keep the dot product from getting too big in high dimensions, so softmax doesn’t blow up and training stays stable.
+
 ![image-20260206003157672](https://pub-c69d652d2a0747fab9aad1fab48ff742.r2.dev/images/image-20260206003157672)
 
 如果维度增大而不缩放，点积会变得很大，导致 softmax 输出非常极端，让模型只关注少数位置，忽略其他信息。这样会使模型难以平衡地捕捉全局，因此我们缩放点积，让注意力分布更均匀，从而更有效学习上下文关系。
