@@ -9,11 +9,15 @@ draft: false
 lang: ""
 ---
 
-可以删除 conda 缓存（释放磁盘、减少环境残留）
+# **I. Conda Cache Cleanup — Free Up Disk Space**
 
-------
+<div style="background:#EBF0FF;border-left:4px solid #3B5BDB;border-radius:0 6px 6px 0;padding:14px 18px;margin:16px 0;line-height:1.9">
+<strong>Overview:</strong> Conda accumulates downloaded packages, extracted tarballs, and index caches over time. Cleaning these up frees disk space and reduces environment cruft — without touching any of your existing environments.
+</div>
 
-## 1）先看 conda 缓存占用（可选）
+---
+
+## 1. Check Conda Cache Usage (Optional)
 
 ```bash
 conda info
@@ -21,49 +25,46 @@ conda config --show pkgs_dirs
 du -sh ~/miniconda3/pkgs 2>/dev/null
 ```
 
-------
+---
 
-
-
-## 2）一键清理 conda 缓存（推荐）
+## 2. One-command Cache Cleanup (Recommended)
 
 ```bash
 conda clean -a -y
 ```
 
-`-a` = **all（清理所有类型的缓存/垃圾）**
+| Flag | Meaning |
+| --- | --- |
+| <code style="background:#FFF3E0;color:#7a2e00;border-radius:4px;padding:1px 6px">-a</code> | **all** — cleans every type of cache and leftover |
+| <code style="background:#FFF3E0;color:#7a2e00;border-radius:4px;padding:1px 6px">-y</code> | **yes** — auto-confirms without prompting |
 
-`-y` = **yes（自动确认）**
+This removes:
 
-它会清掉：
+- Downloaded `.tar.bz2` / `.conda` package archives
+- Extracted package caches
+- Index caches
+- Unused package caches
 
--   下载过的 tar.bz2 / .conda 包
--   解压缓存
--   index 缓存
--   未使用的包缓存
+---
 
-------
-
-
-
-## 3）如果你还用过 pip（在 conda env 里）
-
-pip 也会有缓存，可以清：
+## 3. Also Clean pip Cache (If Used Inside Conda Envs)
 
 ```bash
 pip cache purge
 ```
 
-------
+---
 
-
-
-## 4）验证释放空间（可选）
+## 4. Verify the Space Was Freed (Optional)
 
 ```bash
 du -sh ~/miniconda3/pkgs 2>/dev/null
 ```
 
-------
+---
 
-⚠️ 注意：`conda clean -a` 不会删你的环境，只是下次装包可能需要重新下载。
+<div style="background:#F5F5F5;border-left:4px solid #E8600A;border-radius:0 6px 6px 0;padding:12px 16px;margin:14px 0;font-size:14px;line-height:1.85"><span style="color:#E8600A;font-weight:700">Note: </span> <code style="background:#FFF3E0;color:#7a2e00;border-radius:4px;padding:1px 6px">conda clean -a</code> <strong>does not delete your environments</strong> — it only removes cached downloads. The trade-off is that the next time you install a package, conda may need to re-download it.</div>
+
+---
+
+<div style="background:linear-gradient(135deg,#EBF0FF 0%,#FFF3E0 100%);border:1.5px solid #c5d3ff;border-radius:8px;padding:14px 20px;margin-top:24px"><span style="color:#3B5BDB;font-weight:700">💡 One-line Takeaway</span><br> Run <code style="background:#FFF3E0;color:#7a2e00;border-radius:4px;padding:1px 6px">conda clean -a -y</code> to safely reclaim disk space from package caches — your environments stay completely intact.</div>

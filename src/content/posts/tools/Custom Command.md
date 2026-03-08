@@ -9,12 +9,23 @@ draft: false
 lang: ""
 ---
 
-# 1）先写好脚本 `sr`
+
+# **I. `sr` — Custom SLURM Interactive Job Launcher**
+
+<div style="background:#EBF0FF;border-left:4px solid #3B5BDB;border-radius:0 6px 6px 0;padding:14px 18px;margin:16px 0;line-height:1.9">
+<strong>Overview:</strong> <code style="background:#E8F4FD;color:#1a3a5c;border-radius:4px;padding:1px 6px">sr</code> is a small wrapper script around <code style="background:#E8F4FD;color:#1a3a5c;border-radius:4px;padding:1px 6px">srun</code> that lets you launch an interactive GPU session on an HPC cluster with a short, memorable command — optionally targeting a specific node.
+</div>
+
+---
+
+## 1. Write the Script
+
+Create a file named <code style="background:#FFF3E0;color:#7a2e00;border-radius:4px;padding:1px 6px">sr</code> with the following content:
 
 ```bash
 #!/bin/bash
 
-# ===== 参数检查 =====
+# ===== Argument check =====
 if [ -z "$1" ]; then
     echo "Usage:"
     echo "  sr <gpu_type> [node_id]"
@@ -30,12 +41,12 @@ GPU_TYPE="$1"
 PARTITION="gpucompute-$GPU_TYPE"
 NODE_ARG=""
 
-# ===== 可选节点 =====
+# ===== Optional node targeting =====
 if [ -n "$2" ]; then
     NODE_ARG="--nodelist=ghpc$2"
 fi
 
-# ===== 启动 =====
+# ===== Launch interactive session =====
 srun \
   --gpus-per-node=1 \
   --cpus-per-gpu=4 \
@@ -45,11 +56,11 @@ srun \
   --pty /bin/bash
 ```
 
-------
+---
 
-# 2）真正的 `sr` 命令
+## 2. Install the Script
 
-把脚本放到 `~/bin`
+Move the script to <code style="background:#FFF3E0;color:#7a2e00;border-radius:4px;padding:1px 6px">~/bin</code> and make it executable:
 
 ```bash
 mkdir -p ~/bin
@@ -57,18 +68,23 @@ mv sr ~/bin/
 chmod +x ~/bin/sr
 ```
 
-确保 `~/bin` 在 PATH 里：
+Ensure <code style="background:#FFF3E0;color:#7a2e00;border-radius:4px;padding:1px 6px">~/bin</code> is on your `PATH`:
 
 ```bash
 echo 'export PATH="$HOME/bin:$PATH"' >> ~/.bashrc
 source ~/.bashrc
 ```
 
-# 3）使用
+---
 
-```
-sr h100
-sr h100 007
-sr a100
+## 3. Usage
+
+```bash
+sr h100          # Request any H100 node
+sr h100 007      # Request H100 node ghpc007 specifically
+sr a100          # Request any A100 node
 ```
 
+---
+
+<div style="background:linear-gradient(135deg,#EBF0FF 0%,#FFF3E0 100%);border:1.5px solid #c5d3ff;border-radius:8px;padding:14px 20px;margin-top:24px"><span style="color:#3B5BDB;font-weight:700">💡 One-line Takeaway</span><br> Drop <code style="background:#FFF3E0;color:#7a2e00;border-radius:4px;padding:1px 6px">sr</code> into <code style="background:#FFF3E0;color:#7a2e00;border-radius:4px;padding:1px 6px">~/bin</code>, add <code style="background:#FFF3E0;color:#7a2e00;border-radius:4px;padding:1px 6px">~/bin</code> to your <code style="background:#FFF3E0;color:#7a2e00;border-radius:4px;padding:1px 6px">PATH</code>, and replace verbose <code style="background:#FFF3E0;color:#7a2e00;border-radius:4px;padding:1px 6px">srun</code> commands with <code style="background:#FFF3E0;color:#7a2e00;border-radius:4px;padding:1px 6px">sr h100</code> or <code style="background:#FFF3E0;color:#7a2e00;border-radius:4px;padding:1px 6px">sr h100 007</code> to spin up an interactive GPU session instantly.</div>

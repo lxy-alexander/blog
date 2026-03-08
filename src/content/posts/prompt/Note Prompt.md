@@ -20,9 +20,9 @@ Generate a Chinese learning note in Typora-compatible Markdown with the followin
 - Example: `The Time Complexity (时间复杂度) is O(n).`
 
 ## 2. Heading Structure
-- Level 1: Roman numerals → `# **I. Title**`
-- Level 2: Arabic numbers → `## 1. **Keyword**`
-- Level 3: Parentheses → `### 1) Sub-title`
+- Level 1: Roman numerals → `# **I.`
+- Level 2: Arabic numbers → `## 1.`
+- Level 3: Parentheses → `### 1) `
 
 ## 3. Color System (via inline HTML)
 - Key terms / important values: `<span style="color:#E8600A;font-weight:700">text</span>`

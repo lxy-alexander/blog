@@ -10,122 +10,189 @@ lang: ""
 ---
 
 
+# **I. Bash Shell Script Fundamentals**
 
-# 整体概念
+<div style="background:#EBF0FF;border-left:4px solid #3B5BDB;border-radius:0 6px 6px 0;padding:14px 18px;margin:16px 0;line-height:1.9">
 
-## 1）什么是 Bash 脚本
+<span style="color:#E8600A;font-weight:700">Bash Shell Script (Bash脚本)</span> is a scripting language executed by the <span style="color:#E8600A;font-weight:700">Unix Shell (Unix命令解释器)</span>. It is widely used for system automation, environment configuration, and workflow management on <span style="color:#E8600A;font-weight:700">Linux Systems (Linux系统)</span> and <span style="color:#E8600A;font-weight:700">High Performance Computing (高性能计算, HPC)</span> environments.
 
-Bash Shell Script 是基于 **Unix Shell（Bash）解释执行** 的脚本语言，用来：
+Unlike compiled languages, Bash follows an <span style="color:#E8600A;font-weight:700">Interpreter Model (解释执行模型)</span>, meaning commands are executed line by line by the shell.
 
--   自动化命令执行
--   管理环境变量
--   控制程序流程（判断、循环等）
--   作为 Linux / HPC 系统初始化与运维的核心工具
+</div>
 
-它**不是编译型语言**，而是：
+---
 
->   **逐行解释执行的命令脚本语言**
+## <span style="color:#E8600A">1.</span> **What is a Bash Script**
 
-------
+### 1) Core Definition
 
-## 2）Bash 脚本的执行方式
+A <span style="color:#E8600A;font-weight:700">Bash Script (Bash脚本)</span> is a text file containing a sequence of shell commands that are executed by the <span style="color:#E8600A;font-weight:700">Bash Interpreter (Bash解释器)</span>.
 
-常见三种：
+Its main purposes include:
 
--   **直接执行**
+1）Automating repetitive command execution
+2）Managing <span style="color:#E8600A;font-weight:700">Environment Variables (环境变量)</span>
+3）Controlling program flow using <span style="color:#E8600A;font-weight:700">Conditional Statements (条件语句)</span> and <span style="color:#E8600A;font-weight:700">Loops (循环)</span>
+4）Serving as initialization scripts in Linux and HPC environments
 
-    ```bash
-    bash script.sh
-    ```
+<span style="color:#2980B9">Therefore</span>, Bash acts as a bridge between system commands and automated workflows.
 
--   **赋予可执行权限后运行**
+<div style="background:#F5F5F5;border-left:4px solid #E8600A;border-radius:0 6px 6px 0;padding:12px 16px;margin:14px 0;font-size:14px;line-height:1.85">
+<span style="color:#E8600A;font-weight:700">Note: </span>
+Bash is a <span style="color:#E8600A;font-weight:700">Scripting Language (脚本语言)</span>, not a compiled language. Scripts are interpreted directly by the shell rather than compiled into machine code.
+</div>
 
-    ```bash
-    chmod +x script.sh
-    ./script.sh
-    ```
+---
 
--   **在当前 shell 中执行（source）**
+## <span style="color:#E8600A">2.</span> **Script Execution Methods**
 
-    ```bash
-    source script.sh
-    # 或
-    . script.sh
-    ```
+There are three common ways to run a Bash script.
 
-区别关键：
+### 1) Direct Execution with Bash
 
-| 方式               | 是否新开子 shell | 变量是否保留 |
-| ------------------ | ---------------- | ------------ |
-| `bash script.sh`   | 是               | ❌ 不保留     |
-| `source script.sh` | 否               | ✔ 保留       |
+```bash
+bash script.sh
+```
 
-------
+This launches a <span style="color:#E8600A;font-weight:700">Subshell (子Shell)</span> to execute the script.
 
+---
 
+### 2) Executable Script
 
-# 基础语法结构
+First give execution permission:
 
-## 1）变量与环境变量
+```bash
+chmod +x script.sh
+```
 
-### （1）普通变量
+Then run the script:
+
+```bash
+./script.sh
+```
+
+This uses the system's <span style="color:#E8600A;font-weight:700">Shebang (解释器声明)</span> if defined.
+
+Example:
+
+```bash
+#!/bin/bash
+```
+
+---
+
+### 3) Source Execution
+
+```bash
+source script.sh
+```
+
+or
+
+```bash
+. script.sh
+```
+
+This executes the script inside the <span style="color:#E8600A;font-weight:700">Current Shell (当前Shell)</span>.
+
+---
+
+### Execution Behavior Comparison
+
+| Method                                                                                                   | New Subshell (子Shell) | Variables Persist (变量保留) |
+| -------------------------------------------------------------------------------------------------------- | --------------------- | ------------------------ |
+| <code style="background:#E8F4FD;color:#1a3a5c;border-radius:4px;padding:1px 6px">bash script.sh</code>   | Yes                   | No                       |
+| <code style="background:#E8F4FD;color:#1a3a5c;border-radius:4px;padding:1px 6px">./script.sh</code>      | Yes                   | No                       |
+| <code style="background:#E8F4FD;color:#1a3a5c;border-radius:4px;padding:1px 6px">source script.sh</code> | No                    | Yes                      |
+
+<div style="background:#F5F5F5;border-left:4px solid #E8600A;border-radius:0 6px 6px 0;padding:12px 16px;margin:14px 0;font-size:14px;line-height:1.85">
+<span style="color:#E8600A;font-weight:700">Note: </span>
+The <span style="color:#E8600A;font-weight:700">source Command (source命令)</span> is commonly used when configuring shell environments such as <code style="background:#FFF3E0;color:#7a2e00;border-radius:4px;padding:1px 6px">.bashrc</code>, CUDA paths, or Conda environments.
+</div>
+
+---
+
+# **II. Basic Bash Syntax**
+
+## <span style="color:#E8600A">1.</span> **Variables and Environment Variables**
+
+### 1) Normal Variables
+
+Variables are assigned without spaces around the equals sign.
 
 ```bash
 name="Alice"
 echo $name
 ```
 
-### （2）环境变量
+Here:
+
+* <span style="color:#E8600A;font-weight:700">Variable Assignment (变量赋值)</span> defines the variable
+* <span style="color:#E8600A;font-weight:700">Variable Expansion (变量展开)</span> occurs using `$`
+
+---
+
+### 2) Environment Variables
+
+Environment variables are exported using the <code style="background:#FFF3E0;color:#7a2e00;border-radius:4px;padding:1px 6px">export</code> command.
 
 ```bash
 export PATH=/usr/bin:$PATH
 ```
 
-特点：
+Properties:
 
--   子进程可见
--   常用于 **PATH / CUDA / Conda / MPI**
+1）Visible to <span style="color:#E8600A;font-weight:700">Child Processes (子进程)</span>
+2）Frequently used for software configuration such as:
 
-------
+* <span style="color:#E8600A;font-weight:700">PATH</span>
+* <span style="color:#E8600A;font-weight:700">CUDA</span>
+* <span style="color:#E8600A;font-weight:700">Conda</span>
+* <span style="color:#E8600A;font-weight:700">MPI</span>
 
+---
 
+## <span style="color:#E8600A">2.</span> **Conditional Statements**
 
-
-
-## 2）条件判断（if）
-
-基本结构：
+### 1) Basic `if` Structure
 
 ```bash
-if 条件; then
-    语句
+if condition; then
+    statement
 fi
 ```
 
-示例：
+Example:
 
 ```bash
 if [ -f file.txt ]; then
-    echo "文件存在"
+    echo "file exists"
 fi
 ```
 
-常见测试符：
+Here the brackets use the <span style="color:#E8600A;font-weight:700">Test Command (测试命令)</span>.
 
-| 符号 | 含义     |
-| ---- | -------- |
-| `-f` | 普通文件 |
-| `-d` | 目录     |
-| `-e` | 存在     |
-| `-x` | 可执行   |
+---
 
-------
+### 2) Common File Test Operators
 
+| Operator                                                                                   | Meaning      |
+| ------------------------------------------------------------------------------------------ | ------------ |
+| <code style="background:#E8F4FD;color:#1a3a5c;border-radius:4px;padding:1px 6px">-f</code> | regular file |
+| <code style="background:#E8F4FD;color:#1a3a5c;border-radius:4px;padding:1px 6px">-d</code> | directory    |
+| <code style="background:#E8F4FD;color:#1a3a5c;border-radius:4px;padding:1px 6px">-e</code> | exists       |
+| <code style="background:#E8F4FD;color:#1a3a5c;border-radius:4px;padding:1px 6px">-x</code> | executable   |
 
+These belong to the <span style="color:#E8600A;font-weight:700">POSIX Test Syntax (POSIX测试语法)</span>.
 
-## 3）循环结构
+---
 
-### （1）for 循环（最常见）
+## <span style="color:#E8600A">3.</span> **Loop Structures**
+
+### 1) `for` Loop
+
+The most common loop used to iterate through lists or files.
 
 ```bash
 for f in *.txt; do
@@ -133,13 +200,17 @@ for f in *.txt; do
 done
 ```
 
-作用：
+Typical use cases:
 
->   遍历文件 / 列表 / 命令结果
+* File iteration
+* Command results
+* Parameter lists
 
-------
+---
 
-### （2）while 循环
+### 2) `while` Loop
+
+Often used for reading files line by line.
 
 ```bash
 while read line; do
@@ -147,88 +218,85 @@ while read line; do
 done < file.txt
 ```
 
-------
+This uses <span style="color:#E8600A;font-weight:700">Input Redirection (输入重定向)</span>.
 
+---
 
+# **III. Command Execution Model**
 
-# 命令执行机制
-
-## 1）子 shell 执行
+## <span style="color:#E8600A">1.</span> **Subshell Execution**
 
 ```bash
 bash script.sh
 ```
 
-特点：
+Characteristics:
 
--   新进程
--   变量不影响当前终端
+1）Creates a new <span style="color:#E8600A;font-weight:700">Process (进程)</span>
+2）Variables do not affect the current shell
 
-------
+---
 
-
-
-## 2）source（`.`）执行 ⭐
+## <span style="color:#E8600A">2.</span> **Source Execution**
 
 ```bash
 source script.sh
-# 或
+```
+
+or
+
+```bash
 . script.sh
 ```
 
-作用：
+Purpose:
 
->   **在当前 shell 中执行脚本内容**
+> Execute script content in the <span style="color:#E8600A;font-weight:700">Current Shell Environment (当前Shell环境)</span>.
 
-常用于：
+Typical usage scenarios:
 
--   `.bashrc`
--   环境变量初始化
--   HPC module / CUDA 加载
+* <code style="background:#FFF3E0;color:#7a2e00;border-radius:4px;padding:1px 6px">.bashrc</code>
+* environment setup
+* CUDA configuration
+* HPC module initialization
 
-------
+---
 
+# **IV. File and Path Operations**
 
-
-
-
-# 文件与路径操作
-
-## 1）文件测试
+## <span style="color:#E8600A">1.</span> **File Testing**
 
 ```bash
 [ -d dir ]
 [ -f file ]
 ```
 
-属于：
+These checks are part of the <span style="color:#E8600A;font-weight:700">POSIX Test System (POSIX测试系统)</span>.
 
->   **POSIX test 语法**
+---
 
-------
+## <span style="color:#E8600A">2.</span> **Path Expansion and Wildcards**
 
-
-
-## 2）路径与通配符
+Example:
 
 ```bash
 ~/.bashrc.d/*
 ```
 
-含义：
+Meaning:
 
--   `~` → 用户家目录
--   `*` → 匹配所有文件
+| Symbol | Meaning                     |
+| ------ | --------------------------- |
+| `~`    | user home directory         |
+| `*`    | wildcard matching all files |
 
-------
+This mechanism is called <span style="color:#E8600A;font-weight:700">Filename Expansion (文件名扩展)</span>.
 
+---
 
+# **V. Modular Configuration Example**
 
-
-
-# 控制流组合示例（典型 `.bashrc` 结构）
-
-`. "$rc"`在“当前 shell”中执行文件 `$rc` 的内容。等价于：`source "$rc"`
+A typical `.bashrc` uses modular configuration loading.
 
 ```bash
 if [ -d ~/.bashrc.d ]; then
@@ -240,20 +308,23 @@ if [ -d ~/.bashrc.d ]; then
 fi
 ```
 
-功能：
+Explanation:
 
->   **遍历目录并 source 所有脚本，实现模块化配置加载**
+1）Check whether the directory exists
+2）Iterate through each script file
+3）Execute each script using <code style="background:#FFF3E0;color:#7a2e00;border-radius:4px;padding:1px 6px">source</code>
 
-这是：
+This allows a <span style="color:#E8600A;font-weight:700">Modular Configuration System (模块化配置系统)</span>.
 
--   Linux 默认设计
--   HPC 常见初始化方式
+<div style="background:#F5F5F5;border-left:4px solid #E8600A;border-radius:0 6px 6px 0;padding:12px 16px;margin:14px 0;font-size:14px;line-height:1.85">
+<span style="color:#E8600A;font-weight:700">Note: </span>
+This design pattern is widely used in Linux distributions and <span style="color:#E8600A;font-weight:700">HPC Initialization Scripts (HPC初始化脚本)</span> to organize configuration files into reusable modules.
+</div>
 
-------
+---
 
+<div style="background:linear-gradient(135deg,#EBF0FF 0%,#FFF3E0 100%);border:1.5px solid #c5d3ff;border-radius:8px;padding:14px 20px;margin-top:24px"><span style="color:#3B5BDB;font-weight:700">💡 One-line Takeaway</span><br>
 
+<span style="color:#E8600A;font-weight:700">Bash Scripts (Bash脚本)</span> provide a powerful automation mechanism for Linux systems by combining command execution, environment configuration, and control flow using an interpreter-based shell environment.
 
-
-
-
-
+</div>

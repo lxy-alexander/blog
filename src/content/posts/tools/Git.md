@@ -9,173 +9,160 @@ draft: false
 lang: ""
 ---
 
+# **I. Git — Clean, Fork Sync & Rebase**
 
+<div style="background:#EBF0FF;border-left:4px solid #3B5BDB;border-radius:0 6px 6px 0;padding:14px 18px;margin:16px 0;line-height:1.9">
+<strong>Overview:</strong> This note covers three related Git workflows: removing tracked and untracked files from the working directory with <code style="background:#E8F4FD;color:#1a3a5c;border-radius:4px;padding:1px 6px">git clean</code> and <code style="background:#E8F4FD;color:#1a3a5c;border-radius:4px;padding:1px 6px">git restore</code>; keeping a fork up to date with its upstream repository via merge or rebase; and understanding why <strong>rebase is preferred over merge</strong> for fork synchronization.
+</div>
 
-# 删除工作区里 git 跟踪的文件
+---
 
+## 1. Removing Files from the Working Directory
+
+### 1) Remove Git-tracked Files
+
+```bash
 git restore .
+```
 
+Discards all unstaged changes to tracked files and restores them to the last committed state.
 
+### 2) Remove Untracked Files (`git clean`)
 
-# 删除工作区里 git 不跟踪的文件
+| Command | Danger | Description |
+| --- | --- | --- |
+| <code style="background:#FFF3E0;color:#7a2e00;border-radius:4px;padding:1px 6px">git clean -f</code> | ⭐ | Deletes a small number of untracked files |
+| <code style="background:#FFF3E0;color:#7a2e00;border-radius:4px;padding:1px 6px">git clean -fd</code> | ⭐⭐ | Also removes untracked directories (e.g., build dirs) |
+| <code style="background:#FFF3E0;color:#7a2e00;border-radius:4px;padding:1px 6px">git clean -fdx</code> | 🔥🔥🔥 | <span style="color:#C0392B;font-weight:600">Removes almost all locally generated content</span>, including files ignored by `.gitignore` |
+| <code style="background:#FFF3E0;color:#7a2e00;border-radius:4px;padding:1px 6px">git clean -fdxn</code> | — | `-n` = dry-run: preview what would be deleted without actually deleting |
 
-| 命令                  | 危险程度 | 说明                         |
-| --------------------- | -------- | ---------------------------- |
-| `git clean -f`        | ⭐        | 只删少量文件                 |
-| `git clean -fd`       | ⭐⭐       | 会删 build 目录              |
-| **`git clean -fdx`**  | 🔥🔥🔥      | **几乎清空所有本地生成内容** |
-| **`git clean -fdx`**n |          | `-n` = dry-run（只看不删）   |
+<div style="background:#F5F5F5;border-left:4px solid #E8600A;border-radius:0 6px 6px 0;padding:12px 16px;margin:14px 0;font-size:14px;line-height:1.85"><span style="color:#E8600A;font-weight:700">Note: </span> Always run <code style="background:#FFF3E0;color:#7a2e00;border-radius:4px;padding:1px 6px">git clean -fdxn</code> first to preview the files that would be removed before committing to <code style="background:#FFF3E0;color:#7a2e00;border-radius:4px;padding:1px 6px">-fdx</code>. This operation is <strong>irreversible</strong>.</div>
 
+---
 
+## 2. Updating a Forked Repository
 
+### 1) Method 1: Sync Upstream Locally (Recommended)
 
-
-# 更新一个 Fork 的仓库
-
-## 方法 1：将上游仓库同步到你的 Fork（推荐）
-
-### 1)：进入本地仓库
+#### Step 1: Navigate into Your Local Repository
 
 ```bash
 cd your-repo
 ```
 
-
-
-### 2)：查看已有的远程仓库
+#### Step 2: View Existing Remotes
 
 ```bash
 git remote -v
 ```
 
-
-
-### 3)：添加上游仓库（只需执行一次）
+#### Step 3: Add the Upstream Remote (One-time Setup)
 
 ```bash
 git remote add upstream https://github.com/ORIGINAL_OWNER/ORIGINAL_REPO.git
 ```
 
-
-
-### 4)：从上游仓库获取最新更改
+#### Step 4: Fetch the Latest Changes from Upstream
 
 ```bash
 git fetch upstream
 ```
 
+#### Step 5: Integrate Upstream Changes into Your Branch
 
-
-### 5) ：将上游更改合并到你的分支
-
-#### 1）merge
-
-如果上游分支是 `main`：
+**Option A — Merge:**
 
 ```bash
 git checkout main
 git merge upstream/main
 ```
 
-如果上游分支是 `master`：
+If the upstream default branch is `master`:
 
 ```bash
 git checkout master
 git merge upstream/master
 ```
 
+**Option B — Rebase (Recommended):**
 
-
-#### 2) rebase
-
-```
+```bash
 git checkout main
 git fetch upstream
 git rebase upstream/main
 ```
 
+#### Step 6: Push the Updated Branch to Your Fork
 
-
-### 6)：将更新后的分支推送到你的 Fork
-
-#### 1）merge
+**After merge:**
 
 ```bash
 git push origin main
 ```
 
-------
+**After rebase:**
 
-#### 2）rebase
-
-```
+```bash
 git push origin main --force-with-lease
 ```
 
+---
 
+### 2) Method 2: Sync Directly on GitHub (Web UI)
 
-## 方法 2：直接在 GitHub 网页端更新
-
-### 第 1 步：打开你的 Fork 仓库页面
-
-进入你在 GitHub 上的 Fork 仓库。
-
-### 第 2 步：点击同步按钮
-
-依次点击：
+Open your fork on GitHub, then click:
 
 ```
 Sync fork → Update branch
 ```
 
-## 
+No local commands required.
 
-# Git rebase 为什么更适合 fork 同步
+---
 
-在 **个人 fork 同步 upstream** 场景：**优先使用 rebase。**
+## 3. Why Rebase Is Preferred for Fork Sync
 
-## 常见场景
+When syncing a personal fork with its upstream, <span style="color:#E8600A;font-weight:700">rebase is the recommended approach</span>.
 
--   **upstream** 已经往前走了
--   你的 **fork 落后**
--   你本地还有自己的提交
+**Typical scenario:**
 
+- **upstream** has moved ahead with new commits
+- Your **fork is behind** upstream
+- You have your own local commits on top
 
+![Before rebase or merge](https://pub-c69d652d2a0747fab9aad1fab48ff742.r2.dev/images/image-20260206214648820)
 
-<img src="https://pub-c69d652d2a0747fab9aad1fab48ff742.r2.dev/images/image-20260206214648820" alt="image-20260206214648820" style="zoom: 50%;" /> 
+### 1) Using Merge
 
+- Produces an extra <span style="color:#C0392B;font-weight:600">Merge commit (M)</span>
+- History becomes tree-shaped and cluttered
+- PRs look noisy and harder to review
 
+![After merge](https://pub-c69d652d2a0747fab9aad1fab48ff742.r2.dev/images/image-20260206215456002)
 
-## 用merge
+### 2) Using Rebase
 
+After rebasing, your original commits are <span style="color:#E8600A;font-weight:700">replayed on top of the upstream</span>. The old commits are discarded from the branch history, and Git creates new commits with the same content but <span style="color:#E8600A;font-weight:700">brand-new commit IDs (D → D')</span>.
 
+<div style="background:#F5F5F5;border-left:4px solid #E8600A;border-radius:0 6px 6px 0;padding:12px 16px;margin:14px 0;font-size:14px;line-height:1.85"><span style="color:#E8600A;font-weight:700">Note: </span> This is why <code style="background:#FFF3E0;color:#7a2e00;border-radius:4px;padding:1px 6px">--force-with-lease</code> is required after a rebase push. The remote still has the old commit D, while your local branch now has D'. A regular <code style="background:#FFF3E0;color:#7a2e00;border-radius:4px;padding:1px 6px">git push</code> would be rejected; <code style="background:#FFF3E0;color:#7a2e00;border-radius:4px;padding:1px 6px">--force-with-lease</code> force-pushes safely by checking that no one else has pushed in the meantime.</div>
 
--   会多一个 **Merge commit（M）**
--   历史变成“树状”，比较乱
--   PR 看起来不干净
+Benefits of rebase:
 
-<img src="https://pub-c69d652d2a0747fab9aad1fab48ff742.r2.dev/images/image-20260206215456002" alt="image-20260206215456002" style="zoom:50%;" /> 
+- <span style="color:#2980B9">Clean, linear commit history</span>
+- <span style="color:#2980B9">Clearer, easier-to-review PRs</span>
+- The **standard practice** for syncing a fork with upstream
 
+![After rebase](https://pub-c69d652d2a0747fab9aad1fab48ff742.r2.dev/images/image-20260206215538616)
 
+---
 
-## 用rebase
+## 4. Handling Conflicts in Merge / Rebase / Sync Fork
 
->   用了 `rebase` 之后：你的原来的 commit **会被丢弃（不再在当前分支历史里）**。Git 会创建：**内容一样，但 ID 全新的 commit**。==这也是为什么要 `--force-with-lease`，远程仓库还是D，本地变成D'==
+<div style="background:#F5F5F5;border-left:4px solid #E8600A;border-radius:0 6px 6px 0;padding:12px 16px;margin:14px 0;font-size:14px;line-height:1.85"><span style="color:#E8600A;font-weight:700">Note: </span> Conflict resolution content to be added here.</div>
 
-提交历史干净
+---
 
--   PR 清晰
--   是 **fork 同步 upstream 的标准做法**
-
-<img src="https://pub-c69d652d2a0747fab9aad1fab48ff742.r2.dev/images/image-20260206215538616" alt="image-20260206215538616" style="zoom:50%;" /> 
-
-
-
-
-
-
-
-# merge / rebase / Sync fork 冲突
+<div style="background:linear-gradient(135deg,#EBF0FF 0%,#FFF3E0 100%);border:1.5px solid #c5d3ff;border-radius:8px;padding:14px 20px;margin-top:24px"><span style="color:#3B5BDB;font-weight:700">💡 One-line Takeaway</span><br> Use <code style="background:#FFF3E0;color:#7a2e00;border-radius:4px;padding:1px 6px">git restore .</code> for tracked files and <code style="background:#FFF3E0;color:#7a2e00;border-radius:4px;padding:1px 6px">git clean -fdxn</code> (dry-run first!) for untracked ones; when syncing a fork, always prefer <code style="background:#FFF3E0;color:#7a2e00;border-radius:4px;padding:1px 6px">rebase</code> over <code style="background:#FFF3E0;color:#7a2e00;border-radius:4px;padding:1px 6px">merge</code> to keep a clean, linear history — then <code style="background:#FFF3E0;color:#7a2e00;border-radius:4px;padding:1px 6px">push --force-with-lease</code> to update the remote safely.</div>
 
 
 

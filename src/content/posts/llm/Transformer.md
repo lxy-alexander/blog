@@ -370,7 +370,7 @@ class EmbeddingLayer(nn.Module):
 
 Scaled Dot-Product Attention
 
-We divide by √d_model to keep the dot product from getting too big in high dimensions, so softmax doesn’t blow up and training stays stable.
+
 
 ![image-20260206003157672](https://pub-c69d652d2a0747fab9aad1fab48ff742.r2.dev/images/image-20260206003157672)
 

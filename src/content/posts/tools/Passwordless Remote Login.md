@@ -9,108 +9,108 @@ draft: false
 lang: ""
 ---
 
-> 目标：在 Mac/Windows/Linux 本机登录远程服务器（如 `spiedie.binghamton.edu`）时实现**免输入密码**，并让 VS Code Remote-SSH 更稳定。
+# **I. SSH Passwordless Login — Key-Based Authentication**
+
+<div style="background:#EBF0FF;border-left:4px solid #3B5BDB;border-radius:0 6px 6px 0;padding:14px 18px;margin:16px 0;line-height:1.9">
+<strong>Overview:</strong> The goal is to log in to a remote server (e.g., <code style="background:#E8F4FD;color:#1a3a5c;border-radius:4px;padding:1px 6px">spiedie.binghamton.edu</code>) from Mac/Windows/Linux <strong>without entering a password</strong>, and to make VS Code Remote-SSH connections more stable. This is achieved by replacing password-based authentication with <strong>public/private key authentication (公钥/私钥认证)</strong>.
+</div>
 
 ---
 
-## 1. 核心知识：SSH 免密登录原理（公钥/私钥认证）
+## 1. Core Concept: How SSH Passwordless Login Works
 
-SSH “免密登录”不是不验证身份，而是把“输入密码认证”换成“密钥认证”。
+SSH "passwordless login" does not skip identity verification — it replaces password-based authentication with key-based authentication.
 
-### 1.1 两个关键文件
-- **私钥（Private Key）**：保存在本机  
-  例：`~/.ssh/id_ed25519`  
-  ✅ 绝对不能泄露  
-- **公钥（Public Key）**：可以发给服务器  
-  例：`~/.ssh/id_ed25519.pub`  
-  ✅ 可以公开/复制到服务器
+### 1) Two Key Files
 
-### 1.2 服务器如何记住你？
-服务器会把你的公钥写入：
+- <span style="color:#E8600A;font-weight:700">Private Key (私钥)</span>: stored on your local machine
+  Example: `~/.ssh/id_ed25519`
+  <span style="color:#C0392B;font-weight:600">Must never be leaked or shared</span>
+
+- <span style="color:#E8600A;font-weight:700">Public Key (公钥)</span>: can be sent to the server
+  Example: `~/.ssh/id_ed25519.pub`
+  Safe to share openly / copy to servers
+
+### 2) How Does the Server Remember You?
+
+The server stores your public key in:
 
 ```bash
 ~/.ssh/authorized_keys
 ```
 
-之后服务器就会允许“持有对应私钥的人”登录。
+Once added, the server will allow anyone who holds the corresponding private key to log in.
 
-### 1.3 登录认证发生了什么（简化流程）
+### 3) What Happens During Authentication (Simplified Flow)
 
-1.  你发起连接：`ssh user@host`
-2.  服务器从 `authorized_keys` 找到你的公钥
-3.  服务器发一个随机挑战（challenge）
-4.  你用 **私钥** 在本机对挑战签名（私钥不离开本机）
-5.  服务器用 **公钥** 验证签名
-6.  验证通过 → 登录成功（不再输入账号密码）
+1. You initiate a connection: `ssh user@host`
+2. The server looks up your public key in `authorized_keys`
+3. The server sends a random **challenge**
+4. Your machine signs the challenge using your **private key** (the private key never leaves your machine)
+5. The server verifies the signature using your **public key**
+6. Verification passes → Login succeeds (no password prompt)
 
-------
+---
 
-## 2. 免密登录操作流程（推荐步骤）
+## 2. Step-by-Step Setup
 
-以下示例用你的服务器信息：
+The following examples use:
 
--   用户名：`xli49`
--   主机：`spiedie.binghamton.edu`
+- Username: `xli49`
+- Host: `spiedie.binghamton.edu`
 
-------
+### 1) Step 1: Generate an SSH Key on Your Local Machine
 
-### Step 1：本机生成 SSH Key
-
-先检查有没有 key：
+Check whether a key already exists:
 
 ```bash
 ls ~/.ssh/id_ed25519 ~/.ssh/id_rsa 2>/dev/null
 ```
 
-没有就生成（推荐 ed25519）：
+If not, generate one (ed25519 recommended):
 
 ```bash
 ssh-keygen -t ed25519 -C "xli49@spiedie.binghamton.edu"
 ```
 
->   ✅ 想“完全免输入”：passphrase 直接回车留空
->   ✅ 更安全：设置 passphrase（可配合 Keychain / ssh-agent）
+<div style="background:#F5F5F5;border-left:4px solid #E8600A;border-radius:0 6px 6px 0;padding:12px 16px;margin:14px 0;font-size:14px;line-height:1.85"><span style="color:#E8600A;font-weight:700">Note: </span> For a completely password-free experience, press Enter to leave the passphrase empty. For better security, set a passphrase and use it with Keychain / <code style="background:#FFF3E0;color:#7a2e00;border-radius:4px;padding:1px 6px">ssh-agent</code>.</div>
 
-------
+### 2) Step 2: Copy the Public Key to the Server
 
-### Step 2：把公钥拷贝到服务器（免密的关键）
-
-✅ 推荐（有 `ssh-copy-id` 时）：
+✅ Recommended (when `ssh-copy-id` is available):
 
 ```bash
 ssh-copy-id xli49@spiedie.binghamton.edu
 ```
 
-输入一次密码即可。
+Enter your password once — that's the last time.
 
-#### 如果没有 `ssh-copy-id`（手动方式）
+#### Manual Method (if `ssh-copy-id` is not available)
 
 ```bash
 cat ~/.ssh/id_ed25519.pub | ssh xli49@spiedie.binghamton.edu \
 "mkdir -p ~/.ssh && cat >> ~/.ssh/authorized_keys && chmod 700 ~/.ssh && chmod 600 ~/.ssh/authorized_keys"
 ```
 
-------
-
-### Step 3：测试免密是否成功
+### 3) Step 3: Test the Passwordless Login
 
 ```bash
 ssh xli49@spiedie.binghamton.edu
 ```
 
-✅ 不再要求输入密码 → 成功
+✅ If no password prompt appears → setup successful.
 
-------
+---
 
-## 3. 配置 `~/.ssh/config`（更方便 + 更稳）
+## 3. Configuring `~/.ssh/config` (Recommended)
 
-编辑：
+Edit the config file:
 
 ```bash
 nano ~/.ssh/config
 ```
 
-推荐写法（用域名当 Host）：
+Recommended configuration (using the full hostname as the `Host`):
 
 ```sshconfig
 Host spiedie.binghamton.edu
@@ -120,33 +120,33 @@ Host spiedie.binghamton.edu
     ServerAliveCountMax 120
 ```
 
-之后连接直接：
+After saving, connect with just:
 
 ```bash
 ssh spiedie.binghamton.edu
 ```
 
-------
+---
 
-## 4. `IdentityFile` 是否需要？
+## 4. When Is `IdentityFile` Needed?
 
-### 4.1 一般情况下不需要
+### 1) Usually Not Required
 
-因为 SSH 默认会自动尝试：
+SSH automatically tries the following keys in order:
 
--   `~/.ssh/id_ed25519`
--   `~/.ssh/id_rsa`
--   ssh-agent 里已经加载的 key
+- `~/.ssh/id_ed25519`
+- `~/.ssh/id_rsa`
+- Any keys already loaded into `ssh-agent`
 
-所以 key 在默认位置时，通常不用写 `IdentityFile`。
+If your key is in one of these default locations, you typically do not need to specify `IdentityFile`.
 
-### 4.2 必须写 `IdentityFile` 的情况
+### 2) When You Must Specify `IdentityFile`
 
-✅ 当你有多把 key，SSH 可能选错
-✅ key 不在默认路径
-✅ 服务器要求使用特定 key
+- <span style="color:#2980B9">You have multiple keys</span> and SSH might pick the wrong one
+- <span style="color:#2980B9">Your key is not in a default path</span>
+- <span style="color:#2980B9">The server requires a specific key</span>
 
-示例：
+Example:
 
 ```sshconfig
 Host spiedie.binghamton.edu
@@ -155,45 +155,45 @@ Host spiedie.binghamton.edu
     IdentityFile ~/.ssh/id_ed25519
 ```
 
-------
+---
 
-## 5. Remote-SSH 经常掉线：保活原理与设置（推荐开启）
+## 5. Preventing VS Code Remote-SSH Disconnections (KeepAlive)
 
-掉线常见原因：
+Common causes of disconnection:
 
--   学校网络/防火墙会清理长时间“空闲连接”
--   远程长时间无输出被认为 idle
+- The school network or firewall clears long-idle connections
+- The remote session is considered idle when there is no output for an extended period
 
-解决：启用 SSH 心跳包（KeepAlive）
+Solution: enable SSH heartbeat packets (KeepAlive):
 
 ```sshconfig
 ServerAliveInterval 30
 ServerAliveCountMax 120
 ```
 
-含义：
+What this means:
 
--   每 30 秒发一次心跳包
--   最多允许 120 次无响应（约 1 小时）才断开
+- Send a heartbeat packet every <span style="color:#E8600A;font-weight:700">30 seconds</span>
+- Allow up to <span style="color:#E8600A;font-weight:700">120 consecutive non-responses</span> (~1 hour) before disconnecting
 
-------
+---
 
-## 6. 排错工具
+## 6. Troubleshooting
 
-### 6.1 看看 SSH 到底用的是哪把 key
+### 1) Check Which Key SSH Is Using
 
 ```bash
 ssh -v xli49@spiedie.binghamton.edu
 ```
 
-重点看类似：
+Look for lines like:
 
--   `Offering public key: ...`
--   `Authentication succeeded`
+- `Offering public key: ...`
+- `Authentication succeeded`
 
-### 6.2 服务器端检查默认 shell（避免错误配置）
+### 2) Check the Default Shell on the Server
 
-远程执行：
+Run remotely to rule out misconfiguration:
 
 ```bash
 echo $SHELL
@@ -201,5 +201,6 @@ getent passwd xli49 | cut -d: -f7
 which zsh
 ```
 
-------
+---
 
+<div style="background:linear-gradient(135deg,#EBF0FF 0%,#FFF3E0 100%);border:1.5px solid #c5d3ff;border-radius:8px;padding:14px 20px;margin-top:24px"><span style="color:#3B5BDB;font-weight:700">💡 One-line Takeaway</span><br> Generate a key with <code style="background:#FFF3E0;color:#7a2e00;border-radius:4px;padding:1px 6px">ssh-keygen -t ed25519</code>, copy it to the server once with <code style="background:#FFF3E0;color:#7a2e00;border-radius:4px;padding:1px 6px">ssh-copy-id</code>, add <code style="background:#FFF3E0;color:#7a2e00;border-radius:4px;padding:1px 6px">ServerAliveInterval 30</code> to <code style="background:#FFF3E0;color:#7a2e00;border-radius:4px;padding:1px 6px">~/.ssh/config</code>, and you'll never type a password or suffer a dropped VS Code connection again.</div>
