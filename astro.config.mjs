@@ -162,6 +162,15 @@ export default defineConfig({
 		],
 	},
 	vite: {
+    // --- 新增 server 配置 ---
+        server: {
+            watch: {
+                // 1. 设置延迟，防止 Typora 每打一个字就刷新，只有停下 20 秒后才刷新
+                delay: 5000, 
+                // 2. 忽略 Typora 的临时文件和常见的干扰项
+                ignored: ['**/*.tmp', '**/node_modules/**', '**/.git/**']
+            }
+        },
 		build: {
 			rollupOptions: {
 				onwarn(warning, warn) {
