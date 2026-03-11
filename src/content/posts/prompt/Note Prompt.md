@@ -66,7 +66,7 @@ it should has detailed explanations for Prerequisite Knowledge. It serves for th
 # Normal Prompt for Cluade
 
 ```python
-Generate a English learning note in Typora-compatible Markdown with the following requirements:
+Generate a English learning note in Typora-compatible Markdown with the following requirements，Please explain it concisely and easy to understand:
 
 ## 1. Language
 - Write all explanations in **English**
