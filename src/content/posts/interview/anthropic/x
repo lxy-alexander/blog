@@ -1,0 +1,231 @@
+```
+你这份清单本质上是**面试题题库的合集（偏 Anthropic / 系统设计 / Python 实现）**，里面有大量重复和同类问题。可以按“核心能力”来压缩成更清晰的几大类。
+
+下面是**去重 + 分类后的结构化总结**：
+
+---
+
+# 一、文件系统 / 数据处理类（高频核心）
+
+**主题：去重、存储、数据结构、文件处理**
+
+1）文件去重（一个大类）
+
+* Find Duplicate Files / Deduplicate Files
+* File Deduplication Using Hashing
+* Find Duplicate Files by Content
+* File Profiler
+
+👉 本质能力：
+
+* 文件遍历（DFS / BFS）
+* Hash（MD5 / SHA256）
+* 按 size → 再 hash 的优化
+* 内存 vs 磁盘权衡
+
+---
+
+2）数据库 / 存储系统
+
+* In-Memory Database
+* get_when（时间版本查询）
+* Cloud Storage System
+* Banking System
+
+👉 本质能力：
+
+* KV store 设计
+* 时间版本控制（类似 snapshot / MVCC）
+* CRUD + 查询优化
+
+---
+
+3）缓存系统
+
+* LRU Cache
+* LRU Cache Extension
+* Debug LRU Cache
+
+👉 本质能力：
+
+* HashMap + Doubly Linked List
+* O(1) 设计
+* 持久化 / crash recovery（进阶）
+
+---
+
+# 二、爬虫 / 并发系统（Anthropic 超高频）
+
+**主题：Web Crawler + 并发控制**
+
+1）Crawler 基础版
+
+* Web Crawler（single-threaded）
+* Same-domain crawler
+* URL deduplication
+
+---
+
+2）并发 / 多线程版本
+
+* Multithreaded Web Crawler
+* Thread-safe crawler
+* Async crawler（asyncio）
+
+---
+
+3）Crawler 变种
+
+* Fragment handling
+* URL normalization
+* BFS vs DFS crawling
+
+👉 本质能力：
+
+* 多线程 / async
+* 去重（visited set）
+* 限速 / politeness
+* 线程安全（locks / queues）
+
+---
+
+# 三、系统设计（中高级）
+
+**偏向 LLM / 分布式 / API**
+
+1）LLM & 推理系统
+
+* Inference API System Design
+* LLM Request Batching API
+* Prompt Playground
+* Route prompts via hash table
+
+👉 本质能力：
+
+* batching（吞吐 vs latency）
+* load balancing
+* caching（prompt-level）
+
+---
+
+2）分布式 / 集群
+
+* Efficient Model Deployment
+* Distributed Model Deployment
+* Distributed Mode & Median
+
+👉 本质能力：
+
+* 分布式调度
+* shard / replication
+* fault tolerance
+
+---
+
+# 四、任务系统 / 业务系统设计
+
+**偏“OA风格”题**
+
+* Task Management System
+* Employee Management System
+* Recipe Manager
+
+👉 本质能力：
+
+* OOP 设计
+* API 设计
+* 状态管理
+
+---
+
+# 五、算法 / 数据处理类
+
+1）字符串 & NLP
+
+* Tokenization（Longest-match + UNK）
+* Token usage calculation
+
+---
+
+2）数组 / 统计
+
+* Distributed Median
+* Batch processing
+
+---
+
+3）模拟类
+
+* Infection Simulation in Grid
+* Image Processing / Cat images
+
+---
+
+# 六、调试 / Debug 类（Anthropic特色）
+
+* Debug LRU Cache
+* Numpy debugging
+* RL training bugs
+* Real-world debugging
+
+👉 本质能力：
+
+* 读代码能力
+* 找 edge cases
+* 系统性排查
+
+---
+
+# 七、图像 / 批处理
+
+* Batch Image Processor
+* Image Transformation
+
+👉 本质能力：
+
+* pipeline 设计
+* I/O + CPU 分离
+* 并行处理
+
+---
+
+# 八、行为面 / 软技能
+
+* Hiring Manager Questions
+* Culture Interview
+
+---
+
+# 总结：真正核心就 6 大能力
+
+把所有题压缩后，本质只考这几块：
+
+1）文件系统 + Hash（去重问题）
+2）缓存（LRU）
+3）爬虫 + 并发（最重要）
+4）KV / 内存数据库
+5）系统设计（LLM / 分布式）
+6）Debug 能力（Anthropic 很看重）
+
+---
+
+# 高频程度（帮你抓重点）
+
+最值得优先准备：
+
+* Web Crawler（各种版本）
+* File Deduplication
+* LRU Cache（含 debug）
+* In-Memory DB
+* Batching / Inference API
+
+---
+
+如果你想，我可以帮你把这些题整理成：
+
+* 一份“面试高频 TOP 20”
+* 或者“按难度递进刷题路径”
+* 甚至每一类给你**标准答案模板**（特别适合面试）
+
+```
+
