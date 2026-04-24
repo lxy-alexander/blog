@@ -1,9 +1,9 @@
 ---
 title: "Triton Foundation APIs"
 published: 2026-04-20
-description: "Triton Foundation APIs"
+description: "CuTe Foundation APIs"
 image: ""
-tags: ["CuTe","Triton Foundation APIs"]
+tags: ["CuTe","CuTe Foundation APIs"]
 category: CuTe
 draft: false
 lang: ""

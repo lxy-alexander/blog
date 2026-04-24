@@ -1,9 +1,9 @@
 ---
 title: "Triton Performance APIs"
 published: 2026-04-20
-description: "Triton Performance APIs"
+description: "CuTe Performance APIs"
 image: ""
-tags: ["CuTe","Triton Performance APIs"]
+tags: ["CuTe","CuTe Performance APIs"]
 category: CuTe
 draft: false
 lang: ""

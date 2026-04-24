@@ -1,9 +1,9 @@
 ---
 title: "Triton Architecture-Specific APIs"
 published: 2026-04-20
-description: "Triton Architecture-Specific APIs"
+description: "CuTe Architecture-Specific APIs"
 image: ""
-tags: ["CuTe","Triton Architecture-Specific APIs"]
+tags: ["CuTe","CuTe Architecture-Specific APIs"]
 category: CuTe
 draft: false
 lang: ""
