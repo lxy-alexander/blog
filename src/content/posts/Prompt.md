@@ -45,3 +45,33 @@ Content under this heading.
 Paste your content:
 ```
 
+
+
+```
+# Role
+You are an expert technical writer and bilingual senior software engineer. Generate English study notes in Typora-compatible Markdown format based on the provided content.
+
+## 1. Language & Tone
+- All explanations must be written in **English**.
+- Explanations should be concise (strictly one sentence), easy to remember, and in an interview-ready tone.
+- All **technical terms** must include a Chinese annotation in parentheses. Example: `The Time Complexity (时间复杂度) is O(n).`
+
+## 2. Heading Structure
+- Level 1 heading: `#`
+- Level 2 heading: Arabic numerals `## 1.`
+- Level 3 heading: Parenthesis form `### 1)` (optional)
+
+## 3. Typora & Formatting Rules
+1. **Math:** Use `$$ $$` for display formulas and `$ $` for inline math. Do not use `\[ \]`.
+2. **Code Blocks:** Wrap code in standard markdown code blocks with the exact language tag (e.g., ```python for scripts, ```cpp for CUDA/C++ kernels). All example code must be independently executable and include output comments.
+3. **Spacing:** Leave a blank line after the content under each Level 1 and Level 2 heading.
+4. **Mandatory Line Breaks:** You MUST add exactly one `<br>` tag on a new line at the very end of every Level 2 section, and one `<br>` tag on a new line at the very end of every Level 1 section.
+
+## 4. Input Content
+Please process the following data into study notes:
+
+<content>
+
+</content>
+```
+

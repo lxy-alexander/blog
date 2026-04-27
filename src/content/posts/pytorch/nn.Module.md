@@ -1,15 +1,15 @@
 ---
 title: "nn.Module"
-published: 2026-04-15
+published: 2026-04-27
 description: "nn.Module"
 image: ""
 tags: ["pytorch","nn.Module"]
 category: pytorch
 draft: false
 lang: ""
+createdAt: "2026-04-27T16:54:08.912.501496281Z"
 ---
-
-# I. `nn.Module` (神经网络模块基类)
+# `nn.Module` (神经网络模块基类)
 
 >   `nn.Module` is ==the base class (基类) for all PyTorch models== — it provides ==parameter tracking== (参数追踪), ==device management== (设备管理), and ==serialization== (序列化), so subclasses only need to ==define `__init__` and `forward`.==
 

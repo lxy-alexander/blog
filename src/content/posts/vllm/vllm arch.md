@@ -1,24 +1,23 @@
 ---
-title: "vllm arch"
-published: 2026-04-26
-description: "vllm arch"
+title: "vllm Arch"
+published: 2026-04-27
+description: "vllm Arch"
 image: ""
-tags: ["vllm","vllm arch"]
+tags: ["vllm","vllm Arch"]
 category: vllm
 draft: false
 lang: ""
+createdAt: "2026-04-27T17:07:09.230.909869266Z"
 ---
-
-
 
 ```
 vllm
-├── assets              // Shared example/test asset utilities for downloading, caching, and loading media files
-│   ├── __init__.py     // Marks this directory as a Python package, e.g. from vllm.assets.image import ImageAsset
-│   ├── audio.py        // Audio asset wrapper; provides AudioAsset for downloading .ogg files and loading audio arrays/sample rates
-│   ├── base.py         // Shared base logic: public S3 URL, local cache directory, and asset download helper
-│   ├── image.py        // Image asset wrapper; provides ImageAsset for loading PIL images, raw bytes, and test image embeddings
-│   └── video.py        // Video asset wrapper; provides VideoAsset for downloading videos, extracting frames, metadata, and audio
+├── assets 
+│   ├── __init__.py 
+│   ├── audio.py
+│   ├── base.py
+│   ├── image.py
+│   └── video.py
 ```
 
 
@@ -3381,8 +3380,6 @@ vllm
 └── version.py
 
 ```
-
-
 
 
 

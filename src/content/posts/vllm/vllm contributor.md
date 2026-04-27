@@ -1,17 +1,16 @@
 ---
-title: "vllm contributor"
-published: 2026-03-08
-description: "vllm contributor"
+title: "vllm Contributor"
+published: 2026-04-27
+description: "vllm Contributor"
 image: ""
-tags: ["vllm","vllm contributor"]
+tags: ["vllm","vllm Contributor"]
 category: vllm
 draft: false
 lang: ""
+createdAt: "2026-04-27T17:06:30.677.574426455Z"
 ---
 
-
-
-# **I. Contributing to vLLM — Development Guide**
+# **Contributing to vLLM — Development Guide**
 
 <div style="background:#EBF0FF;border-left:4px solid #3B5BDB;border-radius:0 6px 6px 0;padding:14px 18px;margin:16px 0;line-height:1.9">
 <strong>Overview:</strong> This document covers the complete workflow for contributing to vLLM, including environment setup, two installation paths (Python-only vs. CUDA/C++ compilation), linting, documentation preview, test execution, and PR submission guidelines. Whether you are contributing for the first time or working on daily development, this guide serves as a handy reference.
@@ -296,4 +295,3 @@ Examples:
 ---
 
 <div style="background:linear-gradient(135deg,#EBF0FF 0%,#FFF3E0 100%);border:1.5px solid #c5d3ff;border-radius:8px;padding:14px 20px;margin-top:24px"><span style="color:#3B5BDB;font-weight:700">💡 One-line Takeaway</span><br> For Python-only changes, use <code style="background:#FFF3E0;color:#7a2e00;border-radius:4px;padding:1px 6px">VLLM_USE_PRECOMPILED=1 uv pip install -e .</code> to get started in seconds; for CUDA/C++ changes, always compile with <code style="background:#FFF3E0;color:#7a2e00;border-radius:4px;padding:1px 6px">--no-build-isolation</code> and match your torch CUDA version to avoid ABI symbol errors.</div>
-

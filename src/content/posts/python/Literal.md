@@ -12,11 +12,11 @@ createdAt: "2026-04-27T15:07:01.580.819768228Z"
 
 # Python `Literal` Type Hint
 
-`Literal` is a type hint (类型提示) from the `typing` module that restricts a variable or argument to a fixed set of constant values (常量值), enabling stricter type checking (类型检查).
+==`Literal` is a type hint== (类型提示) from the `typing` module that restricts a variable or argument to a fixed set of constant values (常量值), enabling stricter type checking (类型检查).
 
 ## 1. Basic Usage
 
-`Literal` specifies that a value must be exactly one of the listed constants (常量), checked by static type checkers (静态类型检查器) like `mypy`.
+`Literal` ==specifies that a value must be exactly one of the listed constants== (常量), checked by static type checkers (静态类型检查器) like `mypy`.
 
 ```python
 from typing import Literal
@@ -92,4 +92,4 @@ print(parse(42))      # 42
 | Boolean-like flag (布尔标志)         | `Literal[0, 1]`             |
 | Return value constraint (返回值约束) | `-> Literal["ok", "error"]` |
 
-<br> <br>
+<br><br>
