@@ -10,8 +10,8 @@ async function getRawSortedPosts() {
 	});
 
 	const sorted = allBlogPosts.sort((a, b) => {
-		const dateA = new Date(a.data.published);
-		const dateB = new Date(b.data.published);
+		const dateA = a.data.createdAt || a.data.published.toISOString();
+		const dateB = b.data.createdAt || b.data.published.toISOString();
 		return dateA > dateB ? -1 : 1;
 	});
 	return sorted;
