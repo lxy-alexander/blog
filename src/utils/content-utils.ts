@@ -12,6 +12,7 @@ async function getRawSortedPosts() {
 	const sorted = allBlogPosts.sort((a, b) => {
 		const dateA = a.data.createdAt || a.data.published.toISOString();
 		const dateB = b.data.createdAt || b.data.published.toISOString();
+		if (dateA === dateB) return 0;
 		return dateA > dateB ? -1 : 1;
 	});
 	return sorted;

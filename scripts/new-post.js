@@ -11,6 +11,14 @@ function getDate() {
   return `${year}-${month}-${day}`;
 }
 
+function getCreatedAt() {
+  const now = new Date();
+  const iso = now.toISOString();
+  // 模拟纳秒，添加随机纳秒部分
+  const nano = Math.floor(Math.random() * 1000000000).toString().padStart(9, '0');
+  return iso.replace('Z', `.${nano}Z`);
+}
+
 function removeExt(name) {
   return name.replace(/\.(md|mdx)$/i, "");
 }
@@ -84,6 +92,7 @@ tags: ${JSON.stringify(tags)}
 category: ${tagDirs.join(" / ")}
 draft: false
 lang: ""
+createdAt: "${getCreatedAt()}"
 ---
 `;
 

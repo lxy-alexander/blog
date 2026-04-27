@@ -1,25 +1,22 @@
 ---
-title: "Note Prompt"
-published: 2026-03-07
-description: "Note Prompt"
+title: "Prompt"
+published: 2026-04-27
+description: "Prompt"
 image: ""
-tags: ["Prompt"]
-category: prompt
+tags: ["content","posts","Prompt"]
+category: content / posts
 draft: false
 lang: ""
+createdAt: "2026-04-27T14:19:44.241.252524926Z"
 ---
 
-# Prompt for Claude
-
-学习一个东西,应该是他是做什么的什么?为什么需要学习他? 和其他的对比
-
-```javascript
-Generate English study notes in Typora-compatible Markdown format with the following requirements: Please explain the content concisely. The example code can be executed independently and has output comment.
+```
+Generate English study notes in Typora-compatible Markdown format with the following requirements: Please explain the content concisely. The example code can be executed independently and includes output comments.
 
 ## 1. Language
 - All explanations written in **English**
 - The explanation should be concise, in one sentence, easy to remember, and in an interview tone
-- All **technical terms** must include a Chinese annotation in parentheses
+- All **technical terms** must include a Chinese annotation in parentheses)
 - Example: `The Time Complexity (时间复杂度) is O(n).`
 
 ## 2. Heading Structure
@@ -28,16 +25,23 @@ Generate English study notes in Typora-compatible Markdown format with the follo
 - Level 3 heading: Parenthesis form → `### 1)` (optional)
 
 ## 3. Typora Rules
-1. Use `$$ $$` for math formulas, not `\[ \]`
-2. After the content of the level 1 and level 2 headings is completed, a blank line should be left.
-3. If the code is cuda, please use ```cpp ``` to package code.
+1. Use `$$ $$` for math formulas, not `\[ \]`.
+2. Leave a blank line after the content under each Level 1 and Level 2 heading.
+3. Please wrap CUDA code in a ```cpp code block.
+4. After completing each Level 2 heading section, add one `<br>` tag on a separate line.
+5. After completing each Level 1 heading section, add one `<br>` tag on a separate line.
+Example:
+# Level 1 heading
+Content under this heading.
+## 1. Level 2 heading
+Content under this heading.
+<br>
+## 2. Level 2 heading
+Content under this heading.
+<br>
+<br>
 
-## 6. Content
+## 4. Content
 Paste your content:
-
 ```
-
-
-
-
 

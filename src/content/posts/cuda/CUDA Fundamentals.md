@@ -7,6 +7,7 @@ tags: ["cuda","CUDA Fundamentals"]
 category: cuda
 draft: false
 lang: ""
+createdAt: "2026-04-27T14:32:00.155.939043365Z"
 ---
 
 # CUDA Fundamentals 
@@ -129,6 +130,8 @@ int main() {
 
 Serial Execution (串行执行) handles tasks one after another, while Parallel Execution (并行执行) handles many tasks together.
 
+<br>
+
 ## 2. GPU Hardware Architecture
 
 GPU Hardware Architecture (GPU硬件架构) is designed around many lightweight cores that execute massive numbers of threads.
@@ -145,7 +148,7 @@ CUDA Core (CUDA核心) handles general numeric computation, while Tensor Core (�
 
 A Warp (线程束) is a group of 32 Threads (线程) scheduled together by an SM (流式多处理器).
 
-```cuda
+```cpp
 #include <iostream>
 
 __global__ void printThreadInfo() {
@@ -213,6 +216,8 @@ int main() {
 // Output:
 // 2 4 6 8
 ```
+
+<br>
 
 ## 3. CUDA Programming Model
 
@@ -325,6 +330,8 @@ int main() {
 // ...
 ```
 
+<br>
+
 ## 4. CUDA Memory Hierarchy
 
 CUDA Memory Hierarchy (CUDA内存层级) provides different memory spaces with different speed, size, and visibility.
@@ -346,7 +353,7 @@ Global Memory (全局内存) is large but slow, while Register Memory (寄存器
 
 Register Memory (寄存器内存) stores private scalar variables for each Thread (线程).
 
-```c p p
+```cpp
 #include <iostream>
 
 __global__ void registerExample(int* output) {
@@ -379,8 +386,6 @@ int main() {
 // Output:
 // 0 2 4 6
 ```
-
-
 
 #### Shared Memory Example
 
@@ -603,39 +608,12 @@ int main() {
 //
 // Output:
 // 5 10 15 20
+
 ```
 
 
 
-### 2）Host Memory vs Device Memory
-
-Host Memory (主机内存) belongs to the CPU (中央处理器), while Device Memory (设备内存) belongs to the GPU (图形处理器).
-
-```cuda
-#include <iostream>
-
-int main() {
-    int hostValue = 42;
-    int* deviceValue = nullptr;
-
-    cudaMalloc((void**)&deviceValue, sizeof(int));
-    cudaMemcpy(deviceValue, &hostValue, sizeof(int), cudaMemcpyHostToDevice);
-
-    int copiedBack = 0;
-    cudaMemcpy(&copiedBack, deviceValue, sizeof(int), cudaMemcpyDeviceToHost);
-
-    std::cout << "Value from device memory: " << copiedBack << std::endl;
-
-    cudaFree(deviceValue);
-    return 0;
-}
-
-// Compile:
-// nvcc main.cu -o main
-//
-// Output:
-// Value from device memory: 42
-```
+<br>
 
 ## 5. First CUDA Program
 
@@ -744,7 +722,7 @@ nvcc vector_add.cu -o vector_add
 
 The CUDA Program Flow (CUDA程序流程) is allocate memory, copy input, launch kernel, copy output, and release memory.
 
-```cpp
+```text
 Host data
   -> cudaMalloc
   -> cudaMemcpy HostToDevice
@@ -758,6 +736,8 @@ $$
 $$
 
 This formula ensures enough Blocks (线程块) are launched to cover all elements.
+
+<br>
 
 ## 6. Interview Summary
 
