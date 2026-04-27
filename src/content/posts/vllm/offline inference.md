@@ -100,3 +100,203 @@ lang: ""
 **43. Vision Language** 视觉语言单图推理。将单张图片与文本一起输入模型，支持图像问答、图像描述等 VQA 任务。
 
 **44. Vision Language Multi Image** 视觉语言多图推理。支持在单次对话中传入多张图片，处理图像对比、多帧理解等更复杂的视觉任务。
+
+
+
+```mermaid
+sequenceDiagram
+    participant User as basic_py
+    participant LLM as LLM
+    participant Engine as LLMEngine
+    participant Input as InputProc
+    participant Core as EngineCore
+    participant Exec as Executor
+    participant Worker as GPUWorker
+    participant Runner as ModelRunner
+    participant Model as OPTModel
+    participant Attn as AttnLayer
+    participant TOps as TorchOps
+    participant Kernel as CUDAKernel
+    participant Out as OutputProc
+
+    Note over User,Kernel: Phase 1 - Initialization
+
+    User->>LLM: LLM(model=opt-125m)
+    LLM->>Engine: from_engine_args
+    Engine->>Input: create InputProc
+    Engine->>Out: create OutputProc
+    Engine->>Core: create EngineCoreClient
+    Core->>Exec: start Executor
+    Exec->>Worker: start Worker
+    Worker->>Runner: init ModelRunner
+    Runner->>Model: instantiate model
+    Model->>Attn: build Attention layers
+    Runner->>Model: load_weights
+    Model-->>Runner: ready
+    Engine-->>LLM: ready
+    LLM-->>User: llm object
+
+    Note over User,Kernel: Phase 2 - Generate
+
+    User->>LLM: llm.generate
+    LLM->>Input: tokenize prompts
+    Input-->>LLM: requests
+    LLM->>Engine: add_request
+    Engine->>Core: add_request
+
+    loop until all finished
+        LLM->>Engine: step
+        Engine->>Core: get_output
+        Core->>Exec: execute_model
+        Exec->>Worker: rpc execute
+        Worker->>Runner: execute_model
+        Runner->>Model: forward
+
+        loop each decoder layer
+            Model->>Attn: qkv_proj
+            Attn->>TOps: unified_kv_cache_update
+            TOps->>Kernel: reshape_and_cache
+            Attn->>TOps: unified_attention_with_output
+            TOps->>Kernel: flash_attention
+            Kernel-->>Attn: attn output
+            Attn->>Model: out_proj and MLP
+        end
+
+        Model-->>Runner: hidden_states
+        Runner->>Model: compute_logits
+        Model-->>Runner: logits
+        Runner->>Runner: sample tokens
+        Runner-->>Worker: output
+        Worker-->>Core: tokens
+        Core-->>Engine: outputs
+        Engine->>Out: process_outputs
+        Out-->>Engine: request_output
+        Engine-->>LLM: list of outputs
+    end
+
+    LLM-->>User: outputs
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+```mermaid
+sequenceDiagram
+    participant User as async_llm_streaming.py
+    participant AsyncIO as asyncio loop
+    participant Args as AsyncEngineArgs
+    participant AsyncLLM as AsyncLLM
+    participant Input as InputProcessor
+    participant Out as OutputProcessor
+    participant Collector as RequestOutputCollector
+    participant Handler as output_handler task
+    participant Core as EngineCoreClient
+    participant EngineCore as EngineCore
+    participant Exec as Executor
+    participant Worker as GPUWorker
+    participant Runner as GPUModelRunner
+    participant Model as LlamaModel
+    participant Attn as AttnLayer
+    participant TOps as TorchOps
+    participant Kernel as CUDAKernel
+Note over User,Kernel: Phase 1 - Initialization
+
+User->>AsyncIO: asyncio.run(main())
+User->>Args: AsyncEngineArgs(model=Llama-3.2-1B-Instruct, tp=4, dtype=bf16)
+User->>AsyncLLM: AsyncLLM.from_engine_args(engine_args)
+
+AsyncLLM->>Args: create_engine_config()
+Args-->>AsyncLLM: VllmConfig
+AsyncLLM->>Input: create InputProcessor
+AsyncLLM->>Out: create OutputProcessor
+AsyncLLM->>Core: make_async_mp_client(...)
+Core->>EngineCore: start background EngineCore process
+EngineCore->>Exec: start Executor
+Exec->>Worker: start GPUWorker(s)
+Worker->>Runner: init GPUModelRunner
+Runner->>Model: instantiate model
+Model->>Attn: build Attention layers
+Runner->>Model: load_weights
+Model-->>Runner: ready
+Runner-->>Worker: ready
+Worker-->>EngineCore: ready
+EngineCore-->>Core: ready
+AsyncLLM-->>User: engine object
+
+Note over User,Kernel: Phase 2 - Streaming Generate
+
+User->>User: create SamplingParams(output_kind=DELTA)
+User->>AsyncLLM: async for output in engine.generate(...)
+
+AsyncLLM->>AsyncLLM: add_request(...)
+AsyncLLM->>Input: process_inputs(prompt, sampling_params)
+Input-->>AsyncLLM: EngineCoreRequest
+
+AsyncLLM->>Handler: start output_handler task
+AsyncLLM->>Collector: create per-request output queue
+AsyncLLM->>Out: add_request(request, queue)
+AsyncLLM->>Core: add_request_async(request)
+Core->>EngineCore: enqueue request
+
+par Background engine execution
+    loop until request finished
+        EngineCore->>EngineCore: Scheduler selects prefill/decode batch
+        EngineCore->>Exec: execute_model(scheduler_output)
+        Exec->>Worker: RPC execute
+        Worker->>Runner: execute_model(scheduler_output)
+        Runner->>Model: forward(input_ids, positions, ...)
+
+        loop each decoder layer
+            Model->>Attn: qkv_proj
+            Attn->>TOps: unified_kv_cache_update
+            TOps->>Kernel: reshape_and_cache
+            Attn->>TOps: unified_attention_with_output
+            TOps->>Kernel: flash_attention / paged_attention
+            Kernel-->>Attn: attn output
+            Attn-->>Model: attention output
+            Model->>Model: out_proj + MLP
+        end
+
+        Model-->>Runner: hidden_states
+        Runner->>Model: compute_logits(hidden_states)
+        Model-->>Runner: logits
+        Runner->>Runner: sample next token
+        Runner-->>Worker: ModelRunnerOutput
+        Worker-->>Exec: output
+        Exec-->>EngineCore: sampled tokens
+        EngineCore-->>Core: EngineCoreOutputs
+    end
+and Background output handling
+    loop while engine alive
+        Handler->>Core: await get_output_async()
+        Core-->>Handler: EngineCoreOutputs
+        Handler->>Out: process_outputs(...)
+        Out->>Collector: push RequestOutput
+    end
+and User streaming consumption
+    loop until output.finished
+        AsyncLLM->>Collector: await queue.get()
+        Collector-->>AsyncLLM: RequestOutput(delta text)
+        AsyncLLM-->>User: yield output
+        User->>User: print completion.text
+    end
+end
+
+Note over User,Kernel: Phase 3 - Shutdown
+
+User->>AsyncLLM: engine.shutdown()
+AsyncLLM->>Core: shutdown EngineCore process
+AsyncLLM->>Handler: cancel output_handler
+```

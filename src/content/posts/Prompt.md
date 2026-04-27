@@ -14,7 +14,7 @@ lang: ""
 学习一个东西,应该是他是做什么的什么?为什么需要学习他? 和其他的对比
 
 ```javascript
-Generate English study notes in Typora-compatible Markdown format with the following requirements: Please explain the content concisely. The example code can be executed independently.
+Generate English study notes in Typora-compatible Markdown format with the following requirements: Please explain the content concisely. The example code can be executed independently and has output comment.
 
 ## 1. Language
 - All explanations written in **English**
@@ -23,13 +23,14 @@ Generate English study notes in Typora-compatible Markdown format with the follo
 - Example: `The Time Complexity (时间复杂度) is O(n).`
 
 ## 2. Heading Structure
-- Level 1 heading: Roman numerals → `# I.`
+- Level 1 heading: → `#`
 - Level 2 heading: Arabic numerals → `## 1.`
-- Level 3 heading: Parenthesis form → `### 1)`
+- Level 3 heading: Parenthesis form → `### 1)` (optional)
 
 ## 3. Typora Rules
 1. Use `$$ $$` for math formulas, not `\[ \]`
 2. After the content of the level 1 and level 2 headings is completed, a blank line should be left.
+3. If the code is cuda, please use ```cpp ``` to package code.
 
 ## 6. Content
 Paste your content:

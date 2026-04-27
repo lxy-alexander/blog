@@ -1,0 +1,172 @@
+python
+├── 01_basics
+│   ├── syntax
+│   ├── variables
+│   ├── operators
+│   ├── control_flow
+│   ├── comprehensions
+│   └── common_builtins
+├── 02_data_structures
+│   ├── list
+│   ├── tuple
+│   ├── dict
+│   ├── set
+│   ├── collections
+│   ├── copy
+│   └── sorting
+├── 03_functions
+│   ├── function_basics
+│   ├── args_kwargs
+│   ├── scope_closure
+│   ├── lambda
+│   ├── decorators
+│   ├── generators
+│   └── recursion
+├── 04_oop
+│   ├── class_object
+│   ├── inheritance
+│   ├── polymorphism
+│   ├── magic_methods
+│   ├── property
+│   ├── dataclass
+│   ├── enum
+│   ├── abc
+│   └── metaclass
+├── 05_modules_packages
+│   ├── import_system
+│   ├── module
+│   ├── package
+│   ├── relative_import
+│   ├── pathlib
+│   └── standard_library_overview
+├── 06_io_exceptions
+│   ├── file_io
+│   ├── json_yaml_csv
+│   ├── pathlib
+│   ├── exception_basics
+│   ├── custom_exception
+│   └── context_manager
+├── 07_typing
+│   ├── type_hints
+│   ├── builtin_generics
+│   ├── optional_union_literal
+│   ├── callable_protocol
+│   ├── generic_typevar
+│   ├── typed_dict
+│   ├── overload
+│   ├── pydantic
+│   └── mypy_pyright
+├── 08_concurrency
+│   ├── thread
+│   ├── process
+│   ├── asyncio
+│   ├── async_await
+│   ├── queue
+│   ├── lock
+│   ├── concurrent_futures
+│   └── multiprocessing
+├── 09_networking
+│   ├── socket
+│   ├── http
+│   ├── requests
+│   ├── aiohttp
+│   ├── websocket
+│   ├── grpc
+│   └── api_client
+├── 10_regex_text
+│   ├── regex_basics
+│   ├── grouping
+│   ├── lookaround
+│   ├── substitution
+│   ├── unicode
+│   └── text_processing
+├── 11_runtime_internals
+│   ├── python_execution_model
+│   ├── object_model
+│   ├── memory_management
+│   ├── gc
+│   ├── gil
+│   ├── descriptor
+│   ├── iterator_protocol
+│   ├── context_protocol
+│   └── import_mechanism
+├── 12_testing_debugging
+│   ├── unittest
+│   ├── pytest
+│   ├── mock
+│   ├── fixture
+│   ├── pdb
+│   ├── logging
+│   ├── traceback
+│   └── profiling
+├── 13_engineering
+│   ├── project_layout
+│   ├── virtualenv
+│   ├── dependency_management
+│   ├── pyproject_toml
+│   ├── lint_format
+│   ├── pre_commit
+│   ├── packaging
+│   ├── cli
+│   └── config_management
+├── 14_performance
+│   ├── time_complexity
+│   ├── profiling
+│   ├── memory_profiling
+│   ├── caching
+│   ├── vectorization
+│   ├── cython
+│   ├── numba
+│   └── optimization_patterns
+├── 15_web_backend
+│   ├── flask
+│   ├── fastapi
+│   ├── django
+│   ├── asgi_wsgi
+│   ├── middleware
+│   ├── auth
+│   ├── background_tasks
+│   └── deployment
+├── 16_database
+│   ├── sqlite
+│   ├── postgresql_mysql
+│   ├── sqlalchemy
+│   ├── orm
+│   ├── migration
+│   ├── redis
+│   └── connection_pool
+├── 17_data_science
+│   ├── numpy
+│   ├── pandas
+│   ├── matplotlib
+│   ├── scipy
+│   ├── jupyter
+│   └── data_pipeline
+├── 18_ai_ml
+│   ├── sklearn
+│   ├── pytorch
+│   ├── transformers
+│   ├── datasets
+│   ├── inference
+│   └── training_basics
+├── 19_security
+│   ├── input_validation
+│   ├── secrets
+│   ├── hashing
+│   ├── cryptography
+│   ├── pickle_security
+│   └── dependency_security
+├── 20_ecosystem
+│   ├── pip
+│   ├── uv
+│   ├── poetry
+│   ├── conda
+│   ├── pypi
+│   ├── wheels
+│   └── common_libraries
+└── 21_source_reading
+    ├── stdlib_source
+    ├── open_source_project
+    ├── design_patterns
+    ├── architecture_analysis
+    └── notes
