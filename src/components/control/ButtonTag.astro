@@ -4,10 +4,18 @@ interface Props {
 	dot?: boolean;
 	href?: string;
 	label?: string;
+	title?: string;
 }
-const { dot, href, label }: Props = Astro.props;
+const { dot, href, label, title }: Props = Astro.props;
 ---
-<a href={href} aria-label={label} class="btn-regular h-8 text-sm px-3 rounded-lg">
+<a
+    href={href}
+    aria-label={label}
+    title={title}
+    class="btn-regular h-8 max-w-full min-w-0 px-3 rounded-lg text-sm whitespace-nowrap overflow-hidden"
+>
     {dot && <div class="h-1 w-1 bg-[var(--btn-content)] dark:bg-[var(--card-bg)] transition rounded-md mr-2"></div>}
-    <slot></slot>
+    <span class="block min-w-0 overflow-hidden text-ellipsis whitespace-nowrap">
+        <slot></slot>
+    </span>
 </a>
