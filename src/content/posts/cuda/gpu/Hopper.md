@@ -15,6 +15,8 @@ Hopper (霍珀) is critical for large model training (大模型训练) because i
 
 ## 1. Architecture Diagram (架构图)
 
+
+
 <br>
 
 ## 2. Tensor Cores 4th Gen (张量核心第四代)

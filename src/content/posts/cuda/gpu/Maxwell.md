@@ -9,193 +9,266 @@ draft: false
 lang: ""
 createdAt: "2026-04-28T03:54:24.259.903477228Z"
 ---
-# Maxwell (共享内存原子操作变快)
+# Maxwell Architecture (麦克斯韦架构)
 
-Maxwell (麦克斯韦) implemented native shared memory atomic operations (原生共享内存原子操作), especially for 32-bit integer atomics (32 位整数原子操作), making atomic-heavy kernels (原子操作密集型内核) like histogram (直方图) much faster.
+The Maxwell Architecture (麦克斯韦架构, 2014) is NVIDIA's "perf-per-watt" (每瓦性能) generation that redesigned the SM (流式多处理器) into smaller partitions, dedicated 96 KB of pure Shared Memory (共享内存) per SM, and added Native Shared Memory Atomics (原生共享内存原子操作) — making histograms (直方图) and reductions (归约) several times faster.
 
-## 1. Architecture Diagram (架构图)
+**Representative GPU Models**:
 
-<img src="https://pub-c69d652d2a0747fab9aad1fab48ff742.r2.dev/images/image-20260428002137876" alt="image-20260428002137876" style="zoom:50%;" /> 
+- GeForce GTX 750 / 750 Ti (GM107, "first Maxwell")
+- GeForce GTX 970 / 980 / 980 Ti / TITAN X (GM204 / GM200) — 16–24 SMM, 2048–3072 CUDA Cores
+- Tesla M40 / M4 (data center / inference)
+- Quadro M6000
+- Jetson TX1 (embedded, 嵌入式)
 
--   This file illustrates the architecture of NVIDIA Maxwell（英伟达 Maxwell）around 2014.
--   It uses the GeForce GTX 980 as a representative GPU model.
--   It shows the PCIe Host Interface（PCIe 主机接口）, GPC Cluster（图形处理集群）, SMM units（Maxwell 流式多处理器）, L2 Cache（二级缓存）, memory controllers（显存控制器）, and GDDR5 graphics memory（GDDR5 显存）.
--   It highlights key Maxwell-era improvements, including high power efficiency（高能效）and memory compression（显存压缩）.
--   It summarizes key specifications, including 2048 CUDA cores（CUDA 核心）, 28 nm process technology（28 纳米制程）, 1126 / 1216 MHz base / boost clock（基础 / 加速频率）, 4 GB GDDR5 memory（4GB GDDR5 显存）, 256-bit memory bus（256 位显存总线）, 224 GB/s memory bandwidth（显存带宽）, and 4.61 TFLOPS single-precision performance（单精度浮点性能）.
+**Architecture Diagram** — GM200 Example (24 SMM):
 
+```
+┌────────────────────────────────────────────────────────────────────┐
+│                       GM200 GPU (Maxwell)                          │
+│  ┌──────────────────────────────────────────────────────────────┐  │
+│  │              Host Interface (PCIe 3.0) + Hyper-Q             │  │
+│  └──────────────────────────────────────────────────────────────┘  │
+│  ┌──────────────────────────────────────────────────────────────┐  │
+│  │                      GigaThread Engine                       │  │
+│  └──────────────────────────────────────────────────────────────┘  │
+│                                                                    │
+│   GPC 0          GPC 1         ...                       GPC 5     │
+│  ┌───────┐      ┌───────┐                              ┌───────┐   │
+│  │SMM 0  │      │SMM 4  │                              │SMM 20 │   │
+│  │SMM 1  │      │SMM 5  │                              │SMM 21 │   │
+│  │SMM 2  │      │SMM 6  │            ...               │SMM 22 │   │
+│  │SMM 3  │      │SMM 7  │                              │SMM 23 │   │
+│  │       │      │       │                              │       │   │
+│  │ Each  │      │ Each  │                              │ Each  │   │
+│  │ SMM:  │      │ SMM:  │                              │ SMM:  │   │
+│  │ 4 x 32│      │ 4 x 32│                              │ 4 x 32│   │
+│  │ = 128 │      │ = 128 │                              │ = 128 │   │
+│  │ SP    │      │ SP    │                              │ SP    │   │
+│  │ 96 KB │      │ 96 KB │                              │ 96 KB │   │
+│  │ Shmem │      │ Shmem │                              │ Shmem │   │
+│  └───────┘      └───────┘                              └───────┘   │
+│       │              │                                      │      │
+│  ┌──────────────────────────────────────────────────────────────┐  │
+│  │                  Unified L2 Cache (3 MB)                     │  │
+│  └──────────────────────────────────────────────────────────────┘  │
+│  ┌──────────────────────────────────────────────────────────────┐  │
+│  │              Global Memory (GDDR5, 384-bit)                  │  │
+│  └──────────────────────────────────────────────────────────────┘  │
+└────────────────────────────────────────────────────────────────────┘
 
+Total: 24 SMM × 128 SP = 3072 CUDA Cores
+Each SMM: split into 4 partitions of 32 SP, 96 KB dedicated Shared Memory
+(L1 is now separate from Shared Memory, unlike Fermi/Kepler)
+```
 
-Uses of the **Maxwell architecture（Maxwell 架构）** include:
+**Solved**: Kepler shared 64 KB between L1 and Shared Memory (capping shared to 48 KB) and routed shared-memory atomics through a slow lock/CAS path — Maxwell separates L1 from Shared Memory (giving full 96 KB of Shared Memory) and implements atomics in hardware directly inside Shared Memory.
 
--   **GeForce GTX 980**: The representative model shown in the diagram.
--   **GeForce GTX 970**: A popular high-end Maxwell GPU.
--   **GeForce GTX 960**: A mid-range Maxwell GPU.
--   **GeForce GTX 750 Ti**: One of the first Maxwell-based consumer GPUs.
--   **GeForce GTX Titan X**: High-end Maxwell GPU based on the GM200 core（GM200 核心）.
--   **GeForce GTX 980 Ti**: High-performance Maxwell GPU, also based on GM200.
--   **Tesla M40**: Maxwell-based data-center GPU for deep learning（深度学习）and HPC（高性能计算）.
--   **Tesla M60**: Maxwell-based data-center GPU mainly used for virtualization（虚拟化）and cloud graphics（云图形）.
--   **Quadro M2000 / M4000 / M5000 / M6000**: Professional workstation GPUs（专业工作站 GPU）based on Maxwell.
-
-The most typical model for this architecture is **GeForce GTX 980**, while Maxwell was also used in **GeForce GTX 700/900 series, Tesla M series, and Quadro M series**. 
+**Best Suited For**: Histogram-heavy workloads (直方图密集型负载), per-block reductions (块内归约), image processing (图像处理), and power-constrained / embedded inference (受功耗约束的推理 / 嵌入式推理).
 
 <br>
 
-## 2. atomicAdd in Shared Memory (共享内存原子加)
+## 1. Native Shared Memory Atomics (原生共享内存原子操作)
 
-`atomicAdd` (原子加) on shared memory (共享内存) became hardware-native (硬件原生) in Maxwell (麦克斯韦), making per-block accumulation (块内累加) extremely fast.
+Native Shared Memory Atomics (原生共享内存原子操作) execute directly inside the SM's Shared Memory hardware, with much lower latency (延迟) and higher throughput (吞吐量) than Kepler's lock-based emulation.
 
-### 1) What bottleneck does it solve? (解决了什么瓶颈?)
+**Solved**: On Fermi/Kepler, `atomicAdd` on `__shared__` memory was emulated using a lock per bank — under heavy contention (高竞争), throughput collapsed.
 
-It solves the slow-shared-atomics bottleneck (慢共享原子瓶颈) of pre-Maxwell GPUs where shared atomics (共享原子操作) were emulated with locks (锁模拟), making them barely faster than global atomics (全局原子操作).
+### 1) 32-bit Integer Shared Memory Atomics (32 位整数共享内存原子操作)
 
-### 2) What kernels is it good for? (适合什么 kernel?)
+Maxwell implements 32-bit integer atomics on Shared Memory at near-native speed, making per-block counters and bin updates (桶更新) extremely fast.
 
-It is good for privatized histograms (私有化直方图), per-block counters (块内计数器), and any kernel (内核) that aggregates many threads' contributions (多线程贡献) into a small shared structure (小型共享结构).
-
-### 3) What goes wrong without it? (不用它时有什么问题?)
-
-Without fast shared atomics (快速共享原子), all atomic updates (原子更新) must hit global memory (全局内存), creating contention (竞争) at hot spots (热点) and serializing throughput (串行化吞吐).
+**Old**: Use Global Memory atomics for counters because shared-memory atomics are too slow on Kepler.
 
 ```cpp
-#include <cuda_runtime.h>
 #include <cstdio>
+#include <cuda_runtime.h>
 
-__global__ void shared_counter(int* global_count, int n) {
-    __shared__ int local_count;
-    if (threadIdx.x == 0) local_count = 0;
-    __syncthreads();
-
-    int idx = blockIdx.x * blockDim.x + threadIdx.x;
-    if (idx < n) atomicAdd(&local_count, 1);
-    __syncthreads();
-
-    if (threadIdx.x == 0) atomicAdd(global_count, local_count);
+__global__ void countGlobal(const int* data, int N, int* counter) {
+    int i = blockIdx.x * blockDim.x + threadIdx.x;
+    if (i < N && (data[i] % 2 == 0)) {
+        atomicAdd(counter, 1);   // global memory atomic — slow under contention
+    }
 }
 
 int main() {
-    const int n = 1024;
-    int *d_count, h_count = 0;
-    cudaMalloc(&d_count, sizeof(int));
-    cudaMemset(d_count, 0, sizeof(int));
+    const int N = 10000;
+    int* h = (int*)malloc(N*sizeof(int));
+    for (int i = 0; i < N; ++i) h[i] = i;   // 5000 even values
 
-    shared_counter<<<4, 256>>>(d_count, n);
-    cudaMemcpy(&h_count, d_count, sizeof(int), cudaMemcpyDeviceToHost);
+    int *d, *dCount;
+    int hCount = 0;
+    cudaMalloc(&d, N*sizeof(int));
+    cudaMalloc(&dCount, sizeof(int));
+    cudaMemcpy(d, h, N*sizeof(int), cudaMemcpyHostToDevice);
+    cudaMemcpy(dCount, &hCount, sizeof(int), cudaMemcpyHostToDevice);
 
-    printf("count = %d\n", h_count);
-    // Output: count = 1024
+    countGlobal<<<(N+255)/256, 256>>>(d, N, dCount);
+    cudaMemcpy(&hCount, dCount, sizeof(int), cudaMemcpyDeviceToHost);
 
-    cudaFree(d_count);
+    printf("Even count (global atomics): %d\n", hCount);
+
+    free(h); cudaFree(d); cudaFree(dCount);
+    return 0;
 }
+
+/* Expected Output:
+Even count (global atomics): 5000
+*/
+```
+
+**New**: Each block maintains a local counter in Shared Memory using fast native atomics, then merges once into Global Memory.
+
+```cpp
+#include <cstdio>
+#include <cuda_runtime.h>
+
+__global__ void countShared(const int* data, int N, int* counter) {
+    __shared__ int sCount;
+    if (threadIdx.x == 0) sCount = 0;
+    __syncthreads();
+
+    int i = blockIdx.x * blockDim.x + threadIdx.x;
+    if (i < N && (data[i] % 2 == 0)) {
+        atomicAdd(&sCount, 1);   // native shared-memory atomic on Maxwell
+    }
+    __syncthreads();
+
+    if (threadIdx.x == 0) atomicAdd(counter, sCount);  // one global update per block
+}
+
+int main() {
+    const int N = 10000;
+    int* h = (int*)malloc(N*sizeof(int));
+    for (int i = 0; i < N; ++i) h[i] = i;   // 5000 even values
+
+    int *d, *dCount;
+    int hCount = 0;
+    cudaMalloc(&d, N*sizeof(int));
+    cudaMalloc(&dCount, sizeof(int));
+    cudaMemcpy(d, h, N*sizeof(int), cudaMemcpyHostToDevice);
+    cudaMemcpy(dCount, &hCount, sizeof(int), cudaMemcpyHostToDevice);
+
+    countShared<<<(N+255)/256, 256>>>(d, N, dCount);
+    cudaMemcpy(&hCount, dCount, sizeof(int), cudaMemcpyDeviceToHost);
+
+    printf("Even count (shared atomics + 1 global merge): %d\n", hCount);
+
+    free(h); cudaFree(d); cudaFree(dCount);
+    return 0;
+}
+
+/* Expected Output:
+Even count (shared atomics + 1 global merge): 5000
+*/
 ```
 
 <br>
 
-## 3. Shared Memory Atomics Performance (共享内存原子操作性能)
+## 2. Histogram-friendly Atomic Operations (直方图友好的原子操作)
 
-Shared memory atomics (共享内存原子操作) became ~100x faster (约 100 倍) than global memory atomics (全局原子操作), enabling efficient privatization (私有化) patterns.
+Histogram (直方图) computation has many threads updating a small set of bins (桶) — the canonical contention-heavy workload (高竞争负载) where Maxwell's fast Shared Memory atomics shine.
 
-### 1) What bottleneck does it solve? (解决了什么瓶颈?)
+**Solved**: A pure global-memory histogram serializes updates to popular bins — extremely slow. Per-block private histograms in Shared Memory + native atomics scale much better.
 
-It solves the global-atomic-contention bottleneck (全局原子竞争瓶颈) where many warps (线程束) hammering the same global address (全局地址) serialize all updates (所有更新串行化).
-
-### 2) What kernels is it good for? (适合什么 kernel?)
-
-It is good for two-stage reduction patterns (两阶段归约模式): first accumulate locally in shared memory (先共享累加), then merge globally with one atomic per block (再每块一次全局原子).
-
-### 3) What goes wrong without it? (不用它时有什么问题?)
-
-Without fast shared atomics (快速共享原子), the privatization optimization (私有化优化) is not worth the bookkeeping cost (簿记开销), and developers default to slow global atomics (慢全局原子).
+**Old**: Every thread does `atomicAdd` directly on the global histogram — heavy contention.
 
 ```cpp
-#include <cuda_runtime.h>
 #include <cstdio>
+#include <cuda_runtime.h>
 
-__global__ void parallel_voting(const int* in, int* yes_count, int n) {
-    __shared__ int s_yes;
-    if (threadIdx.x == 0) s_yes = 0;
-    __syncthreads();
+#define BINS 16
 
-    int idx = blockIdx.x * blockDim.x + threadIdx.x;
-    if (idx < n && in[idx] > 0) atomicAdd(&s_yes, 1);
-    __syncthreads();
-
-    if (threadIdx.x == 0) atomicAdd(yes_count, s_yes);
+__global__ void histGlobal(const int* data, int N, int* hist) {
+    int i = blockIdx.x * blockDim.x + threadIdx.x;
+    if (i < N) {
+        int bin = data[i] % BINS;
+        atomicAdd(&hist[bin], 1);   // global atomic — heavy contention
+    }
 }
 
 int main() {
-    const int n = 1024;
-    int h_in[1024];
-    for (int i = 0; i < n; i++) h_in[i] = (i % 2 == 0) ? 1 : -1;
+    const int N = 4096;
+    int* h = (int*)malloc(N*sizeof(int));
+    for (int i = 0; i < N; ++i) h[i] = i;   // each bin gets N/BINS = 256
 
-    int *d_in, *d_count, h_count = 0;
-    cudaMalloc(&d_in, n * sizeof(int)); cudaMalloc(&d_count, sizeof(int));
-    cudaMemcpy(d_in, h_in, n * sizeof(int), cudaMemcpyHostToDevice);
-    cudaMemset(d_count, 0, sizeof(int));
+    int *d, *dHist;
+    int hHist[BINS] = {0};
+    cudaMalloc(&d, N*sizeof(int));
+    cudaMalloc(&dHist, BINS*sizeof(int));
+    cudaMemcpy(d, h, N*sizeof(int), cudaMemcpyHostToDevice);
+    cudaMemcpy(dHist, hHist, BINS*sizeof(int), cudaMemcpyHostToDevice);
 
-    parallel_voting<<<4, 256>>>(d_in, d_count, n);
-    cudaMemcpy(&h_count, d_count, sizeof(int), cudaMemcpyDeviceToHost);
+    histGlobal<<<(N+255)/256, 256>>>(d, N, dHist);
+    cudaMemcpy(hHist, dHist, BINS*sizeof(int), cudaMemcpyDeviceToHost);
 
-    printf("yes_count = %d\n", h_count);
-    // Output: yes_count = 512
+    printf("Histogram (global atomics): ");
+    for (int b = 0; b < BINS; ++b) printf("%d ", hHist[b]);
+    printf("\n");
 
-    cudaFree(d_in); cudaFree(d_count);
+    free(h); cudaFree(d); cudaFree(dHist);
+    return 0;
 }
+
+/* Expected Output:
+Histogram (global atomics): 256 256 256 256 256 256 256 256 256 256 256 256 256 256 256 256
+*/
+```
+
+**New**: Per-block private histogram in Shared Memory using native atomics, then merge to global once.
+
+```cpp
+#include <cstdio>
+#include <cuda_runtime.h>
+
+#define BINS 16
+
+__global__ void histShared(const int* data, int N, int* hist) {
+    __shared__ int sHist[BINS];
+    int tid = threadIdx.x;
+
+    // Initialize private histogram
+    if (tid < BINS) sHist[tid] = 0;
+    __syncthreads();
+
+    int i = blockIdx.x * blockDim.x + tid;
+    if (i < N) {
+        int bin = data[i] % BINS;
+        atomicAdd(&sHist[bin], 1);   // fast native shared-memory atomic
+    }
+    __syncthreads();
+
+    // Merge once into global histogram
+    if (tid < BINS) atomicAdd(&hist[tid], sHist[tid]);
+}
+
+int main() {
+    const int N = 4096;
+    int* h = (int*)malloc(N*sizeof(int));
+    for (int i = 0; i < N; ++i) h[i] = i;   // each bin gets N/BINS = 256
+
+    int *d, *dHist;
+    int hHist[BINS] = {0};
+    cudaMalloc(&d, N*sizeof(int));
+    cudaMalloc(&dHist, BINS*sizeof(int));
+    cudaMemcpy(d, h, N*sizeof(int), cudaMemcpyHostToDevice);
+    cudaMemcpy(dHist, hHist, BINS*sizeof(int), cudaMemcpyHostToDevice);
+
+    histShared<<<(N+255)/256, 256>>>(d, N, dHist);
+    cudaMemcpy(hHist, dHist, BINS*sizeof(int), cudaMemcpyDeviceToHost);
+
+    printf("Histogram (shared atomics): ");
+    for (int b = 0; b < BINS; ++b) printf("%d ", hHist[b]);
+    printf("\n");
+
+    free(h); cudaFree(d); cudaFree(dHist);
+    return 0;
+}
+
+/* Expected Output:
+Histogram (shared atomics): 256 256 256 256 256 256 256 256 256 256 256 256 256 256 256 256
+*/
 ```
 
 <br>
-
-## 4. Privatized Histogram (私有化直方图)
-
-Privatized histogram (私有化直方图) keeps a per-block (块内) histogram in shared memory (共享内存), then merges to global — the canonical Maxwell-era (麦克斯韦时代) optimization.
-
-### 1) What bottleneck does it solve? (解决了什么瓶颈?)
-
-It solves the histogram-hotspot bottleneck (直方图热点瓶颈) where many threads (线程) hit the same bin (区间) on global memory (全局内存), causing severe atomic contention (原子竞争).
-
-### 2) What kernels is it good for? (适合什么 kernel?)
-
-It is good for histogram (直方图), bucket sort (桶排序), counting sort (计数排序), and any kernel where each thread (线程) updates one of a small set of bins (少量桶).
-
-### 3) What goes wrong without it? (不用它时有什么问题?)
-
-Without privatization (私有化), histogram throughput drops by 10-100x (吞吐下降 10-100 倍) under heavy contention (重度竞争), even with native shared atomics (原生共享原子) available.
-
-```cpp
-#include <cuda_runtime.h>
-#include <cstdio>
-#define BINS 8
-
-__global__ void privatized_hist(const int* in, int* hist, int n) {
-    __shared__ int s_hist[BINS];
-    if (threadIdx.x < BINS) s_hist[threadIdx.x] = 0;
-    __syncthreads();
-
-    int idx = blockIdx.x * blockDim.x + threadIdx.x;
-    if (idx < n) atomicAdd(&s_hist[in[idx] % BINS], 1);
-    __syncthreads();
-
-    if (threadIdx.x < BINS) atomicAdd(&hist[threadIdx.x], s_hist[threadIdx.x]);
-}
-
-int main() {
-    const int n = 64;
-    int h_in[64], h_hist[BINS] = {0};
-    for (int i = 0; i < n; i++) h_in[i] = i;
-
-    int *d_in, *d_hist;
-    cudaMalloc(&d_in, n * sizeof(int)); cudaMalloc(&d_hist, BINS * sizeof(int));
-    cudaMemcpy(d_in, h_in, n * sizeof(int), cudaMemcpyHostToDevice);
-    cudaMemset(d_hist, 0, BINS * sizeof(int));
-
-    privatized_hist<<<2, 32>>>(d_in, d_hist, n);
-    cudaMemcpy(h_hist, d_hist, BINS * sizeof(int), cudaMemcpyDeviceToHost);
-
-    for (int i = 0; i < BINS; i++) printf("bin[%d]=%d ", i, h_hist[i]);
-    // Output: bin[0]=8 bin[1]=8 bin[2]=8 bin[3]=8 bin[4]=8 bin[5]=8 bin[6]=8 bin[7]=8
-
-    cudaFree(d_in); cudaFree(d_hist);
-}
-```
-
 <br>

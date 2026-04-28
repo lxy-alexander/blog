@@ -9,227 +9,511 @@ draft: false
 lang: ""
 createdAt: "2026-04-28T03:45:16.878.289847808Z"
 ---
+# Tesla / Early CUDA Architecture
 
-# Tesla / Early CUDA (基础 CUDA 模型)
+The Tesla Architecture (特斯拉架构) is NVIDIA's first unified shader GPU architecture (2006), which introduced CUDA (统一计算设备架构) and made general-purpose GPU computing (通用 GPU 计算) practical for the first time.
 
-This generation established the basic CUDA execution model (执行模型) including Kernel Launch (内核启动), Grid (网格), Block (线程块), Thread (线程), Streams (流), Events (事件), and Pinned Memory (页锁定内存).
+**Representative GPU Models**:
 
-## 1. Architecture Diagram (架构图)
+- GeForce 8800 GTX (G80, 2006) — 16 SMs, 128 CUDA Cores
+- GeForce GTX 280 (GT200, 2008) — 30 SMs, 240 CUDA Cores
+- Tesla C870 / C1060 (data center cards)
+- Quadro FX 5600
 
-<img src="https://pub-c69d652d2a0747fab9aad1fab48ff742.r2.dev/images/image-20260428001139702" alt="image-20260428001139702" style="zoom:50%;" /> 
+**Architecture Diagram** — G80 Example (16 SMs):
 
--   This file illustrates the architecture of NVIDIA Tesla（英伟达 Tesla）in the early CUDA（统一计算设备架构）era around 2008.
--   It uses the Tesla C1060 as a representative model.
--   It shows the PCIe Host Interface（PCIe 主机接口）, Streaming Multiprocessors / SMs（流式多处理器）, shared L2 cache / ROP（共享二级缓存 / 光栅操作单元）, memory controllers（显存控制器）, and GDDR3 graphics memory（GDDR3 显存）.
--   It highlights the 512-bit memory bus（512 位显存总线）used for high-bandwidth memory access.
--   It summarizes key specifications, including 240 CUDA cores（CUDA 核心）, 55 nm process technology（55 纳米制程）, 4 GB GDDR3 memory（4GB GDDR3 显存）, 102 GB/s memory bandwidth（显存带宽）, and 933 GFLOPS single-precision performance（单精度浮点性能）.
+```
+┌────────────────────────────────────────────────────────────────┐
+│                        G80 GPU (Tesla)                         │
+│  ┌──────────────────────────────────────────────────────────┐  │
+│  │                  Host Interface (PCIe)                   │  │
+│  └──────────────────────────────────────────────────────────┘  │
+│  ┌──────────────────────────────────────────────────────────┐  │
+│  │              Thread Execution Manager (Grid Scheduler)   │  │
+│  └──────────────────────────────────────────────────────────┘  │
+│                                                                │
+│   TPC 0          TPC 1          ...          TPC 7             │
+│  ┌──────┐      ┌──────┐                    ┌──────┐            │
+│  │SM0|SM1│     │SM2|SM3│                   │SM14|SM15│         │
+│  │ ───── │     │ ───── │                   │ ─────  │          │
+│  │ 8 SP  │     │ 8 SP  │                   │ 8 SP   │          │
+│  │ each  │     │ each  │     ...           │ each   │          │
+│  │ 16KB  │     │ 16KB  │                   │ 16KB   │          │
+│  │ Shmem │     │ Shmem │                   │ Shmem  │          │
+│  └──────┘      └──────┘                    └──────┘            │
+│                                                                │
+│  ┌──────────────────────────────────────────────────────────┐  │
+│  │              Global Memory (GDDR3, no L2 cache)          │  │
+│  └──────────────────────────────────────────────────────────┘  │
+└────────────────────────────────────────────────────────────────┘
+
+Total: 16 SMs × 8 SP = 128 CUDA Cores
+```
+
+**Solved**: Replaced the fixed-function graphics pipeline (固定功能图形管线) with unified programmable cores, enabling general-purpose computation on GPUs.
+
+**Best Suited For**: Embarrassingly parallel tasks (高度并行任务) such as matrix multiplication (矩阵乘法), image processing (图像处理), and scientific simulation (科学计算).
 
 <br>
 
-## 2. Streams (流)
+## 1. Kernel Launch (核函数启动)
 
-A Stream (流) is a sequence of operations that execute in order on the GPU, while different streams (流) can overlap (重叠) for concurrency (并发).
+A Kernel (核函数) is a `__global__` function executed in parallel by many GPU threads (线程), launched from the host using the triple-angle-bracket syntax `<<<grid, block>>>`.
 
-### 1) What bottleneck does it solve? (解决了什么瓶颈?)
-
-It solves the serial execution bottleneck (串行执行瓶颈) where all kernels (内核) and memcpys (内存拷贝) run one after another, leaving GPU resources idle (空闲).
-
-### 2) What kernels is it good for? (适合什么 kernel?)
-
-It is good for pipelined workloads (流水线工作负载) like multi-stage data processing (多阶段数据处理) where compute (计算) and memcpy (内存拷贝) can overlap.
-
-### 3) What goes wrong without it? (不用它时有什么问题?)
-
-Without streams (流), every operation uses the default stream (默认流) and runs sequentially, so memcpy and kernel never overlap and GPU utilization (GPU 利用率) stays low.
+**Solved**: Before CUDA, GPGPU required mapping computation to graphics shaders (图形着色器) — Tesla introduced direct C-like kernel launch as the first available way, so there is no "old vs new" comparison here.
 
 ```cpp
-#include <cuda_runtime.h>
 #include <cstdio>
+#include <cuda_runtime.h>
 
-__global__ void add_kernel(float* x, float val, int n) {
-    int idx = blockIdx.x * blockDim.x + threadIdx.x;
-    if (idx < n) x[idx] += val;
+__global__ void helloKernel() {
+    printf("Hello from thread %d\n", threadIdx.x);
 }
 
 int main() {
-    const int n = 1024;
-    size_t bytes = n * sizeof(float);
-    float *d_a, *d_b;
-    cudaMalloc(&d_a, bytes); cudaMalloc(&d_b, bytes);
-    cudaMemset(d_a, 0, bytes); cudaMemset(d_b, 0, bytes);
-
-    cudaStream_t s1, s2;
-    cudaStreamCreate(&s1); cudaStreamCreate(&s2);
-
-    add_kernel<<<(n + 255) / 256, 256, 0, s1>>>(d_a, 1.0f, n);
-    add_kernel<<<(n + 255) / 256, 256, 0, s2>>>(d_b, 2.0f, n);
-
-    cudaStreamSynchronize(s1); cudaStreamSynchronize(s2);
-
-    float h_a, h_b;
-    cudaMemcpy(&h_a, d_a, sizeof(float), cudaMemcpyDeviceToHost);
-    cudaMemcpy(&h_b, d_b, sizeof(float), cudaMemcpyDeviceToHost);
-    printf("a[0]=%.1f b[0]=%.1f\n", h_a, h_b);
-    // Output: a[0]=1.0 b[0]=2.0
-
-    cudaStreamDestroy(s1); cudaStreamDestroy(s2);
-    cudaFree(d_a); cudaFree(d_b);
+    helloKernel<<<1, 4>>>();   // 1 block, 4 threads
+    cudaDeviceSynchronize();
+    return 0;
 }
+
+/* Expected Output (order may vary):
+Hello from thread 0
+Hello from thread 1
+Hello from thread 2
+Hello from thread 3
+*/
 ```
 
 <br>
 
-## 3. Events (事件)
+## 2. Grid / Block / Thread (网格 / 块 / 线程)
 
-Events (事件) are GPU-side timestamps (时间戳) used for precise kernel timing (精确计时) and inter-stream synchronization (流间同步).
+CUDA organizes parallel work as a Grid (网格) of Blocks (块), where each Block contains many Threads (线程) that share Shared Memory (共享内存) and can synchronize.
 
-### 1) What bottleneck does it solve? (解决了什么瓶颈?)
+**Solved**: Provides a scalable hierarchy (可扩展的层次结构) so the same kernel runs on GPUs with different SM counts without rewriting.
 
-It solves the timing accuracy bottleneck (计时精度瓶颈) where CPU-side timers (CPU 计时器) include host-device sync overhead (主机-设备同步开销) and miss the real GPU duration (GPU 实际耗时).
-
-### 2) What kernels is it good for? (适合什么 kernel?)
-
-It is good for any kernel (任何内核) being benchmarked (基准测试) or profiled (性能分析), and for cross-stream dependencies (跨流依赖) like "wait until kernel A finishes."
-
-### 3) What goes wrong without it? (不用它时有什么问题?)
-
-Without events (事件), you measure with `cudaDeviceSynchronize` plus `clock()`, which inflates timing (放大计时) due to sync overhead and gives misleading benchmark results (错误的基准结果).
+**Old**: CPU serial loop processes elements one at a time.
 
 ```cpp
-#include <cuda_runtime.h>
 #include <cstdio>
 
-__global__ void busy_kernel(float* x, int n) {
-    int idx = blockIdx.x * blockDim.x + threadIdx.x;
-    if (idx < n) {
-        float v = x[idx];
-        for (int i = 0; i < 100; i++) v = v * 1.001f + 0.001f;
-        x[idx] = v;
+void addVectorsCPU(const float* A, const float* B, float* C, int N) {
+    for (int i = 0; i < N; ++i) C[i] = A[i] + B[i];   // serial loop
+}
+
+int main() {
+    const int N = 8;
+    float A[N] = {1,2,3,4,5,6,7,8};
+    float B[N] = {10,20,30,40,50,60,70,80};
+    float C[N] = {0};
+    addVectorsCPU(A, B, C, N);
+    for (int i = 0; i < N; ++i) printf("%g ", C[i]);
+    printf("\n");
+    return 0;
+}
+
+/* Expected Output:
+11 22 33 44 55 66 77 88
+*/
+```
+
+**New**: Launch a 2-level grid; each thread handles one element in parallel.
+
+```cpp
+#include <cstdio>
+#include <cuda_runtime.h>
+
+__global__ void addVectors(const float* A, const float* B, float* C, int N) {
+    int idx = blockIdx.x * blockDim.x + threadIdx.x; // global thread index (全局线程索引)
+    if (idx < N) C[idx] = A[idx] + B[idx];
+}
+
+int main() {
+    const int N = 8;
+    float hA[N] = {1,2,3,4,5,6,7,8};
+    float hB[N] = {10,20,30,40,50,60,70,80};
+    float hC[N] = {0};
+
+    float *dA, *dB, *dC;
+    cudaMalloc(&dA, N*sizeof(float));
+    cudaMalloc(&dB, N*sizeof(float));
+    cudaMalloc(&dC, N*sizeof(float));
+    cudaMemcpy(dA, hA, N*sizeof(float), cudaMemcpyHostToDevice);
+    cudaMemcpy(dB, hB, N*sizeof(float), cudaMemcpyHostToDevice);
+
+    int block = 4;
+    int grid  = (N + block - 1) / block;
+    addVectors<<<grid, block>>>(dA, dB, dC, N);
+    cudaMemcpy(hC, dC, N*sizeof(float), cudaMemcpyDeviceToHost);
+
+    for (int i = 0; i < N; ++i) printf("%g ", hC[i]);
+    printf("\n");
+
+    cudaFree(dA); cudaFree(dB); cudaFree(dC);
+    return 0;
+}
+
+/* Expected Output:
+11 22 33 44 55 66 77 88
+*/
+```
+
+<br>
+
+## 3. Streams (流)
+
+A CUDA Stream (流) is a queue of GPU operations that execute in issue order, while operations in different streams can run concurrently (并发执行).
+
+**Solved**: Overlap (重叠) of host-device data transfer (主机-设备数据传输) and kernel execution to hide latency (隐藏延迟).
+
+**Old**: All operations on the default stream (默认流) — strictly serial, copy-then-kernel-then-copy.
+
+```cpp
+#include <cstdio>
+#include <cuda_runtime.h>
+
+__global__ void scale(float* x, float k, int N) {
+    int i = blockIdx.x * blockDim.x + threadIdx.x;
+    if (i < N) x[i] *= k;
+}
+
+int main() {
+    const int N = 4;
+    float h[N] = {1,2,3,4};
+    float *d1, *d2;
+    cudaMalloc(&d1, N*sizeof(float));
+    cudaMalloc(&d2, N*sizeof(float));
+
+    // All on default stream — serial
+    cudaMemcpy(d1, h, N*sizeof(float), cudaMemcpyHostToDevice);
+    scale<<<1, N>>>(d1, 2.0f, N);
+    cudaMemcpy(d2, h, N*sizeof(float), cudaMemcpyHostToDevice);
+    scale<<<1, N>>>(d2, 3.0f, N);
+
+    float r1[N], r2[N];
+    cudaMemcpy(r1, d1, N*sizeof(float), cudaMemcpyDeviceToHost);
+    cudaMemcpy(r2, d2, N*sizeof(float), cudaMemcpyDeviceToHost);
+
+    printf("s1: ");
+    for (int i = 0; i < N; ++i) printf("%g ", r1[i]);
+    printf("\ns2: ");
+    for (int i = 0; i < N; ++i) printf("%g ", r2[i]);
+    printf("\n");
+
+    cudaFree(d1); cudaFree(d2);
+    return 0;
+}
+
+/* Expected Output:
+s1: 2 4 6 8
+s2: 3 6 9 12
+*/
+```
+
+**New**: Multiple non-default streams + `cudaMemcpyAsync` enable concurrent execution.
+
+```cpp
+#include <cstdio>
+#include <cuda_runtime.h>
+
+__global__ void scale(float* x, float k, int N) {
+    int i = blockIdx.x * blockDim.x + threadIdx.x;
+    if (i < N) x[i] *= k;
+}
+
+int main() {
+    const int N = 4;
+    float* h;  cudaMallocHost(&h, N*sizeof(float)); // pinned for async copy
+    h[0]=1; h[1]=2; h[2]=3; h[3]=4;
+    float *d1, *d2;
+    cudaMalloc(&d1, N*sizeof(float));
+    cudaMalloc(&d2, N*sizeof(float));
+
+    cudaStream_t s1, s2;
+    cudaStreamCreate(&s1);
+    cudaStreamCreate(&s2);
+
+    cudaMemcpyAsync(d1, h, N*sizeof(float), cudaMemcpyHostToDevice, s1);
+    cudaMemcpyAsync(d2, h, N*sizeof(float), cudaMemcpyHostToDevice, s2);
+    scale<<<1, N, 0, s1>>>(d1, 2.0f, N);
+    scale<<<1, N, 0, s2>>>(d2, 3.0f, N);
+
+    float r1[N], r2[N];
+    cudaMemcpyAsync(r1, d1, N*sizeof(float), cudaMemcpyDeviceToHost, s1);
+    cudaMemcpyAsync(r2, d2, N*sizeof(float), cudaMemcpyDeviceToHost, s2);
+    cudaDeviceSynchronize();
+
+    printf("s1: ");
+    for (int i = 0; i < N; ++i) printf("%g ", r1[i]);
+    printf("\ns2: ");
+    for (int i = 0; i < N; ++i) printf("%g ", r2[i]);
+    printf("\n");
+
+    cudaStreamDestroy(s1); cudaStreamDestroy(s2);
+    cudaFreeHost(h); cudaFree(d1); cudaFree(d2);
+    return 0;
+}
+
+/* Expected Output:
+s1: 2 4 6 8
+s2: 3 6 9 12
+*/
+```
+
+<br>
+
+## 4. Events (事件)
+
+A CUDA Event (事件) is a marker inserted into a stream used for precise GPU-side timing (GPU 端计时) and inter-stream synchronization (流间同步).
+
+**Solved**: CPU-side `clock()` cannot accurately time asynchronous GPU work — events solve this.
+
+**Old**: `clock()` around `cudaDeviceSynchronize()` — coarse, includes host overhead.
+
+```cpp
+#include <cstdio>
+#include <ctime>
+#include <cuda_runtime.h>
+
+__global__ void busy(float* x, int N, int iters) {
+    int i = blockIdx.x * blockDim.x + threadIdx.x;
+    if (i < N) {
+        float v = x[i];
+        for (int k = 0; k < iters; ++k) v = v * 1.0001f + 0.001f;
+        x[i] = v;
     }
 }
 
 int main() {
-    const int n = 1 << 20;
-    size_t bytes = n * sizeof(float);
-    float *d_x;
-    cudaMalloc(&d_x, bytes);
-    cudaMemset(d_x, 0, bytes);
+    const int N = 1 << 16;
+    float* d;
+    cudaMalloc(&d, N*sizeof(float));
+    cudaMemset(d, 0, N*sizeof(float));
+
+    clock_t t0 = clock();
+    busy<<<(N+255)/256, 256>>>(d, N, 1000);
+    cudaDeviceSynchronize();
+    clock_t t1 = clock();
+
+    double ms = 1000.0 * (t1 - t0) / CLOCKS_PER_SEC;
+    printf("CPU-timed kernel: %.2f ms (coarse)\n", ms);
+
+    cudaFree(d);
+    return 0;
+}
+
+/* Expected Output (value depends on GPU and CPU clock resolution):
+CPU-timed kernel: 1.00 ms (coarse)
+*/
+```
+
+**New**: `cudaEventRecord` + `cudaEventElapsedTime` measure pure GPU time.
+
+```cpp
+#include <cstdio>
+#include <cuda_runtime.h>
+
+__global__ void busy(float* x, int N, int iters) {
+    int i = blockIdx.x * blockDim.x + threadIdx.x;
+    if (i < N) {
+        float v = x[i];
+        for (int k = 0; k < iters; ++k) v = v * 1.0001f + 0.001f;
+        x[i] = v;
+    }
+}
+
+int main() {
+    const int N = 1 << 16;
+    float* d;
+    cudaMalloc(&d, N*sizeof(float));
+    cudaMemset(d, 0, N*sizeof(float));
 
     cudaEvent_t start, stop;
-    cudaEventCreate(&start); cudaEventCreate(&stop);
+    cudaEventCreate(&start);
+    cudaEventCreate(&stop);
 
     cudaEventRecord(start);
-    busy_kernel<<<(n + 255) / 256, 256>>>(d_x, n);
+    busy<<<(N+255)/256, 256>>>(d, N, 1000);
     cudaEventRecord(stop);
     cudaEventSynchronize(stop);
 
-    float ms = 0.0f;
+    float ms = 0.f;
     cudaEventElapsedTime(&ms, start, stop);
-    printf("kernel time = %.3f ms\n", ms);
-    // Output (example): kernel time = 0.150 ms
+    printf("GPU-timed kernel: %.2f ms\n", ms);
 
     cudaEventDestroy(start); cudaEventDestroy(stop);
-    cudaFree(d_x);
+    cudaFree(d);
+    return 0;
 }
+
+/* Expected Output (value depends on GPU):
+GPU-timed kernel: 1.23 ms
+*/
 ```
 
 <br>
 
-## 4. Pinned Memory (页锁定内存)
+## 5. Pinned Memory (锁页内存)
 
-Pinned Memory (页锁定内存) is host memory (主机内存) that is non-pageable (不可换页), enabling faster `cudaMemcpyAsync` (异步拷贝) and overlap with kernels (内核重叠).
+Pinned Memory (锁页内存 / 页锁定内存) is host memory locked from being paged out by the OS, enabling DMA (直接内存访问) and asynchronous transfers (异步传输).
 
-### 1) What bottleneck does it solve? (解决了什么瓶颈?)
+**Solved**: Pageable memory (可分页内存) cannot be used for true async copy and provides lower bandwidth (带宽).
 
-It solves the host-to-device transfer bottleneck (主机到设备传输瓶颈) caused by the OS paging memory (操作系统换页) — pinned pages let DMA (直接内存访问) move data directly.
-
-### 2) What kernels is it good for? (适合什么 kernel?)
-
-It is good for kernels (内核) that need overlapped memcpy and compute (重叠传输与计算), and for high-frequency host-device exchange (高频主机-设备交换) like deep learning training (深度学习训练).
-
-### 3) What goes wrong without it? (不用它时有什么问题?)
-
-Without pinned memory (页锁定内存), `cudaMemcpyAsync` quietly falls back to synchronous copy (悄悄退化为同步拷贝), so streams (流) cannot overlap and bandwidth (带宽) is roughly halved.
+**Old**: `malloc` allocates pageable memory — slower, blocks `cudaMemcpyAsync`.
 
 ```cpp
-#include <cuda_runtime.h>
 #include <cstdio>
+#include <cstdlib>
+#include <cuda_runtime.h>
 
 int main() {
-    const int n = 1 << 20;
-    size_t bytes = n * sizeof(float);
+    const int N = 1 << 20;
+    size_t bytes = N * sizeof(float);
 
-    float* h_pageable = (float*)malloc(bytes);
-    float* h_pinned;
-    cudaMallocHost(&h_pinned, bytes);
+    float* pageable = (float*)malloc(bytes);
+    float* d;
+    cudaMalloc(&d, bytes);
 
-    for (int i = 0; i < n; i++) { h_pageable[i] = 1.0f; h_pinned[i] = 1.0f; }
-
-    float *d_x;
-    cudaMalloc(&d_x, bytes);
-
-    cudaEvent_t s, e; cudaEventCreate(&s); cudaEventCreate(&e);
-    float t1, t2;
+    cudaEvent_t s, e;
+    cudaEventCreate(&s); cudaEventCreate(&e);
 
     cudaEventRecord(s);
-    cudaMemcpy(d_x, h_pageable, bytes, cudaMemcpyHostToDevice);
+    cudaMemcpy(d, pageable, bytes, cudaMemcpyHostToDevice);
     cudaEventRecord(e); cudaEventSynchronize(e);
-    cudaEventElapsedTime(&t1, s, e);
 
-    cudaEventRecord(s);
-    cudaMemcpy(d_x, h_pinned, bytes, cudaMemcpyHostToDevice);
-    cudaEventRecord(e); cudaEventSynchronize(e);
-    cudaEventElapsedTime(&t2, s, e);
+    float t; cudaEventElapsedTime(&t, s, e);
+    printf("Pageable H2D: %.2f ms\n", t);
 
-    printf("pageable=%.3f ms, pinned=%.3f ms\n", t1, t2);
-    // Output (example): pageable=0.800 ms, pinned=0.350 ms
-
-    free(h_pageable); cudaFreeHost(h_pinned); cudaFree(d_x);
+    free(pageable); cudaFree(d);
     cudaEventDestroy(s); cudaEventDestroy(e);
+    return 0;
 }
+
+/* Expected Output:
+Pageable H2D: 0.85 ms
+*/
+```
+
+**New**: `cudaMallocHost` allocates pinned memory — faster, async-capable.
+
+```cpp
+#include <cstdio>
+#include <cuda_runtime.h>
+
+int main() {
+    const int N = 1 << 20;
+    size_t bytes = N * sizeof(float);
+
+    float* pinned;
+    cudaMallocHost(&pinned, bytes);
+    float* d;
+    cudaMalloc(&d, bytes);
+
+    cudaEvent_t s, e;
+    cudaEventCreate(&s); cudaEventCreate(&e);
+
+    cudaEventRecord(s);
+    cudaMemcpy(d, pinned, bytes, cudaMemcpyHostToDevice);
+    cudaEventRecord(e); cudaEventSynchronize(e);
+
+    float t; cudaEventElapsedTime(&t, s, e);
+    printf("Pinned H2D: %.2f ms (typically 1.5x-3x faster)\n", t);
+
+    cudaFreeHost(pinned); cudaFree(d);
+    cudaEventDestroy(s); cudaEventDestroy(e);
+    return 0;
+}
+
+/* Expected Output:
+Pinned H2D: 0.32 ms (typically 1.5x-3x faster)
+*/
 ```
 
 <br>
 
-## 5. Early Atomic Operations (早期原子操作)
+## 6. Early Atomic Operations (早期原子操作)
 
-Early CUDA (早期 CUDA) supported integer atomic operations (整数原子操作) on global memory (全局内存); float atomic (浮点原子操作) and double atomic (双精度原子操作) came in later compute capabilities (计算能力).
+Tesla introduced limited Atomic Operations (原子操作) on Global Memory (全局内存) for integers only — guaranteeing read-modify-write (读-改-写) without race conditions (竞争条件).
 
-### 1) What bottleneck does it solve? (解决了什么瓶颈?)
+**Solved**: Allowed multiple threads to safely update shared counters (共享计数器) or histogram bins (直方图桶).
 
-It solves the race condition bottleneck (竞态条件瓶颈) where multiple threads (线程) try to update the same memory location, causing lost updates (丢失更新).
-
-### 2) What kernels is it good for? (适合什么 kernel?)
-
-It is good for counters (计数器), histograms (直方图), and lock-free data structures (无锁数据结构) where multiple threads (线程) write to the same address (地址).
-
-### 3) What goes wrong without it? (不用它时有什么问题?)
-
-Without atomics (原子操作), shared writes (共享写) produce undefined results (未定义结果) — final values depend on the unpredictable interleaving (交错) of threads.
+**Old**: Without atomics, plain `(*counter)++` from many threads loses updates.
 
 ```cpp
-#include <cuda_runtime.h>
 #include <cstdio>
+#include <cuda_runtime.h>
 
-__global__ void count_kernel(int* counter, int n) {
-    int idx = blockIdx.x * blockDim.x + threadIdx.x;
-    if (idx < n) atomicAdd(counter, 1);
+__global__ void countEvensRacy(const int* data, int N, int* counter) {
+    int i = blockIdx.x * blockDim.x + threadIdx.x;
+    if (i < N && (data[i] % 2 == 0)) {
+        (*counter)++;   // race condition — undercounts
+    }
 }
 
 int main() {
-    const int n = 1024;
-    int *d_counter, h_counter = 0;
-    cudaMalloc(&d_counter, sizeof(int));
-    cudaMemset(d_counter, 0, sizeof(int));
+    const int N = 10000;
+    int* h = (int*)malloc(N*sizeof(int));
+    for (int i = 0; i < N; ++i) h[i] = i; // 5000 even values
 
-    count_kernel<<<(n + 255) / 256, 256>>>(d_counter, n);
-    cudaMemcpy(&h_counter, d_counter, sizeof(int), cudaMemcpyDeviceToHost);
+    int *d, *dCount;
+    int hCount = 0;
+    cudaMalloc(&d, N*sizeof(int));
+    cudaMalloc(&dCount, sizeof(int));
+    cudaMemcpy(d, h, N*sizeof(int), cudaMemcpyHostToDevice);
+    cudaMemcpy(dCount, &hCount, sizeof(int), cudaMemcpyHostToDevice);
 
-    printf("counter = %d\n", h_counter);
-    // Output: counter = 1024
+    countEvensRacy<<<(N+255)/256, 256>>>(d, N, dCount);
+    cudaMemcpy(&hCount, dCount, sizeof(int), cudaMemcpyDeviceToHost);
 
-    cudaFree(d_counter);
+    printf("Even count without atomics: %d (should be 5000)\n", hCount);
+
+    free(h); cudaFree(d); cudaFree(dCount);
+    return 0;
 }
+
+/* Expected Output (wrong, value varies per run):
+Even count without atomics: 312 (should be 5000)
+*/
 ```
 
+**New**: Native `atomicAdd` on integer global memory — correct under contention.
+
+```cpp
+#include <cstdio>
+#include <cuda_runtime.h>
+
+__global__ void countEvens(const int* data, int N, int* counter) {
+    int i = blockIdx.x * blockDim.x + threadIdx.x;
+    if (i < N && (data[i] % 2 == 0)) {
+        atomicAdd(counter, 1);
+    }
+}
+
+int main() {
+    const int N = 10000;
+    int* h = (int*)malloc(N*sizeof(int));
+    for (int i = 0; i < N; ++i) h[i] = i; // 5000 even values
+
+    int *d, *dCount;
+    int hCount = 0;
+    cudaMalloc(&d, N*sizeof(int));
+    cudaMalloc(&dCount, sizeof(int));
+    cudaMemcpy(d, h, N*sizeof(int), cudaMemcpyHostToDevice);
+    cudaMemcpy(dCount, &hCount, sizeof(int), cudaMemcpyHostToDevice);
+
+    countEvens<<<(N+255)/256, 256>>>(d, N, dCount);
+    cudaMemcpy(&hCount, dCount, sizeof(int), cudaMemcpyDeviceToHost);
+
+    printf("Even count: %d\n", hCount);
+
+    free(h); cudaFree(d); cudaFree(dCount);
+    return 0;
+}
+
+/* Expected Output:
+Even count: 5000
+*/
+```
+
+<br>
 <br>

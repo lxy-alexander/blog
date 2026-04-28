@@ -15,6 +15,21 @@ Ampere (安培) is a critical generation for kernel optimization (内核优化) 
 
 ## 1. Architecture Diagram (架构图)
 
+<img src="https://pub-c69d652d2a0747fab9aad1fab48ff742.r2.dev/images/image-20260428003922215" alt="image-20260428003922215" style="zoom:50%;" /> 
+
+-   This file illustrates the architecture of NVIDIA Ampere（英伟达 Ampere）around 2020.
+-   It uses the A100 80GB as a representative GPU model.
+-   It shows the PCIe / NVLink Interface（PCIe / NVLink 接口）, Streaming Multiprocessors / SMs（流式多处理器）, Tensor Cores（张量核心）, L2 Cache（二级缓存）, HBM2e Stacks（HBM2e 堆叠显存）, and HBM2e graphics memory（HBM2e 显存）.
+-   It highlights key Ampere-era features, including MIG（多实例 GPU）, sparse Tensor Cores（稀疏张量核心）, and improved AI / HPC acceleration（AI / 高性能计算加速）.
+-   It summarizes key specifications, including 6912 CUDA cores（CUDA 核心）, 432 Tensor Cores（张量核心）, 7 nm process technology（7 纳米制程）, 1.41 GHz boost clock（加速频率）, 80 GB HBM2e memory（80GB HBM2e 显存）, 5120-bit memory bus（5120 位显存总线）, 2.0 TB/s memory bandwidth（显存带宽）, and 19.5 TFLOPS single-precision performance（单精度浮点性能）.
+
+**Ampere architecture（Ampere 架构）GPU models**
+
+-   **NVIDIA A100 40GB / A100 80GB**: Representative Ampere data-center GPU shown in the diagram.
+-   **NVIDIA A30 / A40 / A10 / A16 / A2**: Ampere data-center GPUs for AI inference（AI 推理）, virtualization（虚拟化）, and cloud workloads（云工作负载）.
+-   **GeForce RTX 3090 / RTX 3080 / RTX 3070 / RTX 3060**: Consumer Ampere GPUs with RT Cores（光线追踪核心）and Tensor Cores（张量核心）.
+-   **RTX A6000 / RTX A5000 / RTX A4000 / RTX A2000**: Professional workstation GPUs（专业工作站 GPU）based on Ampere.
+-   **NVIDIA CMP series**: Mining-focused GPUs（挖矿专用 GPU）based on Ampere variants.
 
 <br>
 

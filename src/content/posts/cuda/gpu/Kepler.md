@@ -9,184 +9,349 @@ draft: false
 lang: ""
 createdAt: "2026-04-28T03:52:30.335.569021499Z"
 ---
+# Kepler Architecture (开普勒架构)
 
-# Kepler (Warp 内通信出现)
+The Kepler Architecture (开普勒架构, 2012) is NVIDIA's first architecture designed for energy efficiency (能效) at scale, introducing Warp Shuffle (线程束洗牌), Dynamic Parallelism (动态并行), and Hyper-Q (超级队列) — letting GPUs schedule themselves and host more concurrent work.
 
-Kepler (开普勒) is the generation where Warp-level Primitives (Warp 级原语) became important — it introduced Warp Shuffle Functions (Warp 洗牌函数), requiring Compute Capability (计算能力) 3.0 or higher.
+**Representative GPU Models**:
 
-## 1. Architecture Diagram
+- GeForce GTX 680 / GTX 770 (GK104) — 8 SMX, 1536 CUDA Cores
+- GeForce GTX 780 / GTX 780 Ti / TITAN (GK110) — 14–15 SMX, 2688–2880 CUDA Cores
+- Tesla K20 / K20X / K40 / K80 (data center)
+- Quadro K6000
 
-<img src="https://pub-c69d652d2a0747fab9aad1fab48ff742.r2.dev/images/image-20260428001909777" alt="image-20260428001909777" style="zoom:50%;" /> 
+**Architecture Diagram** — GK110 Example (15 SMX):
 
--   This file illustrates the architecture of NVIDIA Kepler（英伟达 Kepler）around 2012.
--   It uses the Tesla K20X as a representative GPU model.
--   It shows the PCIe Host Interface（PCIe 主机接口）, GPC Cluster（图形处理集群）, SMX units（流式多处理器扩展单元）, L2 Cache（二级缓存）, memory controllers（显存控制器）, and GDDR5 graphics memory（GDDR5 显存）.
--   It highlights key Kepler-era features, including Hyper-Q（多队列并行调度技术）and Dynamic Parallelism（动态并行）.
--   It summarizes key specifications, including 2688 CUDA cores（CUDA 核心）, 28 nm process technology（28 纳米制程）, 732 MHz core frequency（核心频率）, 6 GB GDDR5 memory（6GB GDDR5 显存）, 384-bit memory bus（384 位显存总线）, 250 GB/s memory bandwidth（显存带宽）, and 3.95 TFLOPS single-precision performance（单精度浮点性能）.
+```
+┌────────────────────────────────────────────────────────────────────┐
+│                       GK110 GPU (Kepler)                           │
+│  ┌──────────────────────────────────────────────────────────────┐  │
+│  │              Host Interface (PCIe 3.0) + 32 Hyper-Q queues   │  │
+│  └──────────────────────────────────────────────────────────────┘  │
+│  ┌──────────────────────────────────────────────────────────────┐  │
+│  │           GigaThread Engine (with Dynamic Parallelism)       │  │
+│  └──────────────────────────────────────────────────────────────┘  │
+│                                                                    │
+│  GPC 0          GPC 1         ...                       GPC 4      │
+│  ┌──────┐      ┌──────┐                                ┌──────┐    │
+│  │SMX 0 │      │SMX 3 │                                │SMX 12│    │
+│  │SMX 1 │      │SMX 4 │                                │SMX 13│    │
+│  │SMX 2 │      │SMX 5 │             ...                │SMX 14│    │
+│  │ 192  │      │ 192  │                                │ 192  │    │
+│  │ SP   │      │ SP   │                                │ SP   │    │
+│  │ each │      │ each │                                │ each │    │
+│  │ 64KB │      │ 64KB │                                │ 64KB │    │
+│  │L1+Sh │      │L1+Sh │                                │L1+Sh │    │
+│  └──────┘      └──────┘                                └──────┘    │
+│       │             │                                       │      │
+│  ┌──────────────────────────────────────────────────────────────┐  │
+│  │                   Unified L2 Cache (1.5 MB)                  │  │
+│  └──────────────────────────────────────────────────────────────┘  │
+│  ┌──────────────────────────────────────────────────────────────┐  │
+│  │             Global Memory (GDDR5, 384-bit, ECC)              │  │
+│  └──────────────────────────────────────────────────────────────┘  │
+└────────────────────────────────────────────────────────────────────┘
 
-Uses of the **Kepler architecture（Kepler 架构）** include:
+Total: 15 SMX × 192 SP = 2880 CUDA Cores
+Each SMX: 192 SP + 64 DP units + 32 SFU + 32 LD/ST units
+```
 
--   **Tesla K20X**: The representative model shown in the diagram, mainly used for HPC（高性能计算）and CUDA computing（CUDA 计算）.
--   **Tesla K20 / K20Xm**: Kepler-based GPUs for servers and supercomputing.
--   **Tesla K40 / K40c / K40m**: Later Kepler Tesla GPUs with larger memory capacity and higher performance.
--   **Tesla K80**: Dual-GPU Kepler accelerator widely used in data centers.
--   **GeForce GTX 680**: High-end consumer GPU based on Kepler.
--   **GeForce GTX 670 / GTX 660 Ti**: Consumer gaming GPUs using the Kepler architecture.
--   **GeForce GTX 780 / GTX 780 Ti / GTX Titan**: Higher-end Kepler GPUs based on GK110（GK110 核心）.
--   **Quadro K2000 / K4000 / K5000 / K6000**: Professional workstation GPUs using the Kepler architecture.
+**Solved**: Fermi was power-limited (功耗受限) and had only one CPU-to-GPU work queue — Kepler greatly increased core density per watt, added register-to-register communication (`__shfl`), let kernels launch kernels (Dynamic Parallelism), and exposed 32 hardware work queues (Hyper-Q).
 
-The most typical model for this architecture is **Tesla K20X**, while Kepler was also widely used in **Tesla K series, GeForce GTX 600/700 series, Titan, and Quadro K series professional GPUs（专业图形 GPU）**.
+**Best Suited For**: Recursive / nested algorithms (递归 / 嵌套算法), warp-cooperative reductions (线程束协作归约), and multi-process MPI / multi-stream workloads sharing one GPU.
 
 <br>
 
-## 2. Warp-level Primitives (Warp 级原语)
+## 1. Warp-level Primitives (线程束级原语)
 
-Warp-level primitives (Warp 级原语) let threads (线程) in the same warp (线程束) exchange register values (寄存器值) directly, bypassing shared memory (共享内存).
+Warp-level Primitives (线程束级原语) are intrinsics that exchange data directly between the 32 threads of a Warp (线程束) using on-chip register paths, bypassing Shared Memory entirely.
+
+**Solved**: Pre-Kepler intra-warp data exchange required Shared Memory (共享内存) round-trips with `__syncthreads()` — slow and wastes shared memory.
+
+### 1) `__shfl` (洗牌指令)
+
+`__shfl` (and variants `__shfl_up`, `__shfl_down`, `__shfl_xor`) lets a thread read another thread's register value within the same warp in one instruction.
+
+**Old**: Shared memory + `__syncthreads()` for warp-internal communication.
 
 ```cpp
-#include <cuda_runtime.h>
 #include <cstdio>
+#include <cuda_runtime.h>
 
-__global__ void warp_broadcast(int* out) {
+__global__ void warpReduceShared(const int* in, int* out) {
+    __shared__ int sdata[32];
     int tid = threadIdx.x;
-    int val = tid * 10;
-    // Broadcast lane 0's value to all lanes (将 lane 0 的值广播到所有 lane)
-    int broadcast = __shfl_sync(0xffffffff, val, 0);
-    out[tid] = broadcast;
+    sdata[tid] = in[tid];
+    __syncthreads();
+
+    // Tree reduction inside one warp via shared memory
+    for (int s = 16; s > 0; s >>= 1) {
+        if (tid < s) sdata[tid] += sdata[tid + s];
+        __syncthreads();
+    }
+    if (tid == 0) *out = sdata[0];
 }
 
 int main() {
-    int *d_out, h_out[32];
-    cudaMalloc(&d_out, 32 * sizeof(int));
-    warp_broadcast<<<1, 32>>>(d_out);
-    cudaMemcpy(h_out, d_out, 32 * sizeof(int), cudaMemcpyDeviceToHost);
+    int h[32];
+    for (int i = 0; i < 32; ++i) h[i] = i + 1;   // sum = 528
 
-    for (int i = 0; i < 4; i++) printf("%d ", h_out[i]);
-    // Output: 0 0 0 0  (all lanes get lane 0's value, which is 0)
+    int *d, *o;
+    cudaMalloc(&d, 32*sizeof(int));
+    cudaMalloc(&o, sizeof(int));
+    cudaMemcpy(d, h, 32*sizeof(int), cudaMemcpyHostToDevice);
 
-    cudaFree(d_out);
+    warpReduceShared<<<1, 32>>>(d, o);
+
+    int r;
+    cudaMemcpy(&r, o, sizeof(int), cudaMemcpyDeviceToHost);
+    printf("Warp sum (shared memory): %d\n", r);
+
+    cudaFree(d); cudaFree(o);
+    return 0;
 }
+
+/* Expected Output:
+Warp sum (shared memory): 528
+*/
 ```
 
-<br>
-
-## 3. Early `__shfl` (Warp 内数据交换)
-
-The original `__shfl` (Warp 洗牌) on Kepler (开普勒) had no explicit mask (掩码) — modern code should use `__shfl_sync` from Volta (沃尔塔) onward, but the principle is the same.
+**New**: `__shfl_down_sync` performs the reduction with no shared memory and no `__syncthreads()`.
 
 ```cpp
-#include <cuda_runtime.h>
 #include <cstdio>
+#include <cuda_runtime.h>
 
-__global__ void warp_shift(int* out) {
+__global__ void warpReduceShfl(const int* in, int* out) {
     int tid = threadIdx.x;
-    int val = tid;
-    // Shift values down by 1 lane (向下平移 1 个 lane)
-    int shifted = __shfl_up_sync(0xffffffff, val, 1);
-    out[tid] = shifted;
+    int v = in[tid];
+
+    // Register-to-register reduction inside the warp
+    for (int offset = 16; offset > 0; offset >>= 1) {
+        v += __shfl_down_sync(0xFFFFFFFF, v, offset);
+    }
+    if (tid == 0) *out = v;
 }
 
 int main() {
-    int *d_out, h_out[8];
-    cudaMalloc(&d_out, 8 * sizeof(int));
-    warp_shift<<<1, 8>>>(d_out);
-    cudaMemcpy(h_out, d_out, 8 * sizeof(int), cudaMemcpyDeviceToHost);
+    int h[32];
+    for (int i = 0; i < 32; ++i) h[i] = i + 1;   // sum = 528
 
-    for (int i = 0; i < 8; i++) printf("%d ", h_out[i]);
-    // Output: 0 0 1 2 3 4 5 6  (lane 0 keeps its own value)
+    int *d, *o;
+    cudaMalloc(&d, 32*sizeof(int));
+    cudaMalloc(&o, sizeof(int));
+    cudaMemcpy(d, h, 32*sizeof(int), cudaMemcpyHostToDevice);
 
-    cudaFree(d_out);
+    warpReduceShfl<<<1, 32>>>(d, o);
+
+    int r;
+    cudaMemcpy(&r, o, sizeof(int), cudaMemcpyDeviceToHost);
+    printf("Warp sum (shfl): %d\n", r);
+
+    cudaFree(d); cudaFree(o);
+    return 0;
 }
+
+/* Expected Output:
+Warp sum (shfl): 528
+*/
 ```
 
 <br>
 
-## 4. Dynamic Parallelism (动态并行)
+## 2. Dynamic Parallelism (动态并行)
 
-Dynamic Parallelism (动态并行) lets a kernel (内核) launch other kernels (内核) directly from the device (设备) without going back to the host (主机).
+Dynamic Parallelism (动态并行) lets a GPU kernel launch other kernels directly from the device (设备端), without returning to the host.
+
+**Solved**: Recursive / data-dependent algorithms (数据依赖算法) such as adaptive mesh refinement (自适应网格细化) previously required round-trips to the CPU between launches — Kepler removes that bottleneck.
+
+**Old**: Host re-launches a child kernel per element after inspecting parent results.
 
 ```cpp
-// Compile with: nvcc -rdc=true dynamic_parallelism.cu -o app
-#include <cuda_runtime.h>
 #include <cstdio>
+#include <cuda_runtime.h>
 
-__global__ void child_kernel(float* x, int n, float val) {
-    int idx = blockIdx.x * blockDim.x + threadIdx.x;
-    if (idx < n) x[idx] += val;
-}
-
-__global__ void parent_kernel(float* x, int n) {
-    if (threadIdx.x == 0 && blockIdx.x == 0) {
-        // Launch child kernel from device (从设备端启动子内核)
-        child_kernel<<<(n + 31) / 32, 32>>>(x, n, 5.0f);
-        cudaDeviceSynchronize();
-    }
+__global__ void parent(const int* counts, int* out, int parentIdx) {
+    int i = threadIdx.x;
+    if (i < counts[parentIdx]) out[i] = parentIdx * 10 + i;
 }
 
 int main() {
-    const int n = 64;
-    float h_x[64], *d_x;
-    for (int i = 0; i < n; i++) h_x[i] = 1.0f;
-    cudaMalloc(&d_x, n * sizeof(float));
-    cudaMemcpy(d_x, h_x, n * sizeof(float), cudaMemcpyHostToDevice);
+    const int N = 3;
+    int hCounts[N] = {2, 3, 4};
+    int *dCounts;
+    cudaMalloc(&dCounts, N*sizeof(int));
+    cudaMemcpy(dCounts, hCounts, N*sizeof(int), cudaMemcpyHostToDevice);
 
-    parent_kernel<<<1, 1>>>(d_x, n);
-    cudaMemcpy(h_x, d_x, n * sizeof(float), cudaMemcpyDeviceToHost);
+    // Host loops: one child launch per parent index
+    for (int p = 0; p < N; ++p) {
+        int *dOut;
+        cudaMalloc(&dOut, hCounts[p]*sizeof(int));
+        parent<<<1, hCounts[p]>>>(dCounts, dOut, p);
 
-    printf("x[0]=%.1f x[63]=%.1f\n", h_x[0], h_x[63]);
-    // Output: x[0]=6.0 x[63]=6.0  (1.0 + 5.0)
-
-    cudaFree(d_x);
+        int hOut[8] = {0};
+        cudaMemcpy(hOut, dOut, hCounts[p]*sizeof(int), cudaMemcpyDeviceToHost);
+        printf("parent %d: ", p);
+        for (int i = 0; i < hCounts[p]; ++i) printf("%d ", hOut[i]);
+        printf("\n");
+        cudaFree(dOut);
+    }
+    cudaFree(dCounts);
+    return 0;
 }
+
+/* Expected Output:
+parent 0: 0 1
+parent 1: 10 11 12
+parent 2: 20 21 22 23
+*/
 ```
 
-<br>
-
-## 5. Hyper-Q (多硬件工作队列)
-
-Hyper-Q (多硬件工作队列) provides 32 hardware work queues (硬件队列), allowing multiple CPU streams (CPU 流) or processes to feed the GPU concurrently (并发) without serialization (串行化).
+**New**: A device-side kernel launches its own child kernels — no host involvement.
 
 ```cpp
-#include <cuda_runtime.h>
+// Compile: nvcc -arch=sm_35 -rdc=true file.cu
 #include <cstdio>
+#include <cuda_runtime.h>
 
-__global__ void compute_kernel(float* x, int n, float v) {
-    int idx = blockIdx.x * blockDim.x + threadIdx.x;
-    if (idx < n) x[idx] += v;
+__global__ void child(int parentIdx, int* out) {
+    int i = threadIdx.x;
+    out[i] = parentIdx * 10 + i;
+}
+
+__global__ void parent(const int* counts, int** outs) {
+    int p = threadIdx.x;
+    // Launch child kernel from the device
+    child<<<1, counts[p]>>>(p, outs[p]);
 }
 
 int main() {
-    const int n = 4096, NSTREAMS = 4;
-    size_t bytes = n * sizeof(float);
-    float* d_x[NSTREAMS];
-    cudaStream_t streams[NSTREAMS];
+    const int N = 3;
+    int hCounts[N] = {2, 3, 4};
+    int *dCounts;
+    cudaMalloc(&dCounts, N*sizeof(int));
+    cudaMemcpy(dCounts, hCounts, N*sizeof(int), cudaMemcpyHostToDevice);
 
-    for (int i = 0; i < NSTREAMS; i++) {
-        cudaMalloc(&d_x[i], bytes);
-        cudaMemset(d_x[i], 0, bytes);
-        cudaStreamCreate(&streams[i]);  // Each stream uses its own queue (每流独立队列)
-    }
+    int* hOutPtrs[N];
+    for (int i = 0; i < N; ++i) cudaMalloc(&hOutPtrs[i], hCounts[i]*sizeof(int));
+    int** dOutPtrs;
+    cudaMalloc(&dOutPtrs, N*sizeof(int*));
+    cudaMemcpy(dOutPtrs, hOutPtrs, N*sizeof(int*), cudaMemcpyHostToDevice);
 
-    // All 4 streams can run concurrently thanks to Hyper-Q (Hyper-Q 让 4 流并发)
-    for (int i = 0; i < NSTREAMS; i++)
-        compute_kernel<<<(n + 255) / 256, 256, 0, streams[i]>>>(d_x[i], n, (float)(i + 1));
-
+    parent<<<1, N>>>(dCounts, dOutPtrs);
     cudaDeviceSynchronize();
 
-    float h_v;
-    for (int i = 0; i < NSTREAMS; i++) {
-        cudaMemcpy(&h_v, d_x[i], sizeof(float), cudaMemcpyDeviceToHost);
-        printf("stream %d: x[0]=%.1f\n", i, h_v);
+    for (int p = 0; p < N; ++p) {
+        int hOut[8] = {0};
+        cudaMemcpy(hOut, hOutPtrs[p], hCounts[p]*sizeof(int), cudaMemcpyDeviceToHost);
+        printf("parent %d: ", p);
+        for (int i = 0; i < hCounts[p]; ++i) printf("%d ", hOut[i]);
+        printf("\n");
+        cudaFree(hOutPtrs[p]);
     }
-    // Output: stream 0: x[0]=1.0
-    //         stream 1: x[0]=2.0
-    //         stream 2: x[0]=3.0
-    //         stream 3: x[0]=4.0
-
-    for (int i = 0; i < NSTREAMS; i++) {
-        cudaFree(d_x[i]); cudaStreamDestroy(streams[i]);
-    }
+    cudaFree(dCounts); cudaFree(dOutPtrs);
+    return 0;
 }
+
+/* Expected Output:
+parent 0: 0 1
+parent 1: 10 11 12
+parent 2: 20 21 22 23
+*/
 ```
 
+<br>
+
+## 3. Hyper-Q (超级队列)
+
+Hyper-Q (超级队列) provides 32 independent hardware work queues (硬件工作队列) on the GPU, so multiple host threads, MPI ranks, or CUDA streams can submit work concurrently without serializing in a single front-end queue.
+
+**Solved**: Pre-Kepler GPUs had only one hardware work queue (一个硬件队列) — launches from independent streams collapsed into a single queue, killing concurrency between MPI ranks (MPI 进程) sharing one GPU.
+
+**Old**: Single default stream forces serial execution across independent contexts.
+
+```cpp
+#include <cstdio>
+#include <cuda_runtime.h>
+
+__global__ void kernelA(int* x, int N) {
+    int i = blockIdx.x * blockDim.x + threadIdx.x;
+    if (i < N) x[i] = 1;
+}
+__global__ void kernelB(int* x, int N) {
+    int i = blockIdx.x * blockDim.x + threadIdx.x;
+    if (i < N) x[i] = 2;
+}
+
+int main() {
+    const int N = 1024;
+    int *dA, *dB;
+    cudaMalloc(&dA, N*sizeof(int));
+    cudaMalloc(&dB, N*sizeof(int));
+
+    // Both on default stream — strictly serial, even though independent
+    kernelA<<<4, 256>>>(dA, N);
+    kernelB<<<4, 256>>>(dB, N);
+    cudaDeviceSynchronize();
+
+    int hA, hB;
+    cudaMemcpy(&hA, dA, sizeof(int), cudaMemcpyDeviceToHost);
+    cudaMemcpy(&hB, dB, sizeof(int), cudaMemcpyDeviceToHost);
+    printf("A=%d B=%d (executed serially)\n", hA, hB);
+
+    cudaFree(dA); cudaFree(dB);
+    return 0;
+}
+
+/* Expected Output:
+A=1 B=2 (executed serially)
+*/
+```
+
+**New**: Multiple non-default streams map to independent Hyper-Q hardware queues — true concurrency.
+
+```cpp
+#include <cstdio>
+#include <cuda_runtime.h>
+
+__global__ void kernelA(int* x, int N) {
+    int i = blockIdx.x * blockDim.x + threadIdx.x;
+    if (i < N) x[i] = 1;
+}
+__global__ void kernelB(int* x, int N) {
+    int i = blockIdx.x * blockDim.x + threadIdx.x;
+    if (i < N) x[i] = 2;
+}
+
+int main() {
+    const int N = 1024;
+    int *dA, *dB;
+    cudaMalloc(&dA, N*sizeof(int));
+    cudaMalloc(&dB, N*sizeof(int));
+
+    cudaStream_t s1, s2;
+    cudaStreamCreate(&s1);
+    cudaStreamCreate(&s2);
+
+    // Independent Hyper-Q queues — concurrent on Kepler+
+    kernelA<<<4, 256, 0, s1>>>(dA, N);
+    kernelB<<<4, 256, 0, s2>>>(dB, N);
+    cudaDeviceSynchronize();
+
+    int hA, hB;
+    cudaMemcpy(&hA, dA, sizeof(int), cudaMemcpyDeviceToHost);
+    cudaMemcpy(&hB, dB, sizeof(int), cudaMemcpyDeviceToHost);
+    printf("A=%d B=%d (concurrent via Hyper-Q)\n", hA, hB);
+
+    cudaStreamDestroy(s1); cudaStreamDestroy(s2);
+    cudaFree(dA); cudaFree(dB);
+    return 0;
+}
+
+/* Expected Output:
+A=1 B=2 (concurrent via Hyper-Q)
+*/
+```
+
+<br>
 <br>
