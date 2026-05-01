@@ -181,7 +181,9 @@ int main() {
 
 ### 4）SIMT Execution Model
 
-SIMT (单指令多线程) means many Threads (线程) execute the same instruction on different data.
+**SIMD, Single Instruction, Multiple Data**: one instruction performs the same operation on multiple data elements at once.
+
+**SIMT, Single Instruction, Multiple Threads**: multiple threads execute the same instruction in parallel, each on its own data.
 
 ```cpp
 #include <iostream>
@@ -226,6 +228,16 @@ The CUDA Programming Model (CUDA编程模型) organizes parallel work into Grid 
 ### 1）Grid, Block, and Thread
 
 A Grid (网格) contains Blocks (线程块), and each Block (线程块) contains Threads (线程).
+
+**Thread**: the smallest execution unit; each thread runs the kernel code and works on its own data.
+
+**Warp**: a group of threads, typically 32, that execute instructions together in SIMT style.
+
+**Block**: a group of threads; it contains one or more warps and can use shared memory and synchronization.
+
+**Grid**: a collection of blocks launched for one kernel execution.
+
+Hierarchy: **Grid → Blocks → Warps → Threads**.
 
 ```cpp
 #include <iostream>
@@ -340,6 +352,8 @@ CUDA Memory Hierarchy (CUDA内存层级) provides different memory spaces with d
 
 Global Memory (全局内存) is large but slow, while Register Memory (寄存器内存) and Shared Memory (共享内存) are faster but limited.
 
+**Register >> Shared >> (Cached Constant/Texture) >> Global ≈ Local**
+
 | Memory (内存)       | Speed (速度)     | Size (大小) | Scope (作用域)     | Common Use (常见用途)         |
 | ------------------- | ---------------- | ----------- | ------------------ | ----------------------------- |
 | Register (寄存器)   | Fastest          | Very small  | One Thread (线程)  | Local scalar variables        |
@@ -389,35 +403,37 @@ int main() {
 
 #### Shared Memory Example
 
-Shared Memory (共享内存) allows Threads (线程) in the same Block (线程块) to reuse data quickly.
+Shared Memory (共享内存)  stores the data shared by all the threads in the same block.
 
 ```cpp
 #include <iostream>
 
 __global__ void sharedExample(int* output) {
     __shared__ int sharedData[4];
-
     int tid = threadIdx.x;
     sharedData[tid] = tid + 1;
-
+    // Required: thread 0 will read data written by other threads
     __syncthreads();
-
-    output[tid] = sharedData[tid] * 10;
+    if (tid == 0) {
+        int sum = 0;
+        for (int i = 0; i < 4; i++) {
+            sum += sharedData[i];
+        }
+        output[0] = sum * 10;
+    }
 }
 
 int main() {
-    int h_output[4] = {0};
+    int h_output[1] = {0};
     int* d_output = nullptr;
 
-    cudaMalloc((void**)&d_output, 4 * sizeof(int));
+    cudaMalloc((void**)&d_output, sizeof(int));
 
     sharedExample<<<1, 4>>>(d_output);
 
-    cudaMemcpy(h_output, d_output, 4 * sizeof(int), cudaMemcpyDeviceToHost);
+    cudaMemcpy(h_output, d_output, sizeof(int), cudaMemcpyDeviceToHost);
 
-    for (int i = 0; i < 4; i++) {
-        std::cout << h_output[i] << " ";
-    }
+    std::cout << h_output[0] << std::endl;
 
     cudaFree(d_output);
     return 0;
@@ -427,7 +443,7 @@ int main() {
 // nvcc main.cu -o main
 //
 // Output:
-// 10 20 30 40
+// 100
 ```
 
 #### Global Memory Example

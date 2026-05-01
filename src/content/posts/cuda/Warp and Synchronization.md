@@ -23,6 +23,8 @@ A Warp (线程束) is a group of 32 threads (线程) executing the same instruct
 ### 1) Warp (线程束)
 
 A Warp (线程束) is the GPU's hardware scheduling unit (硬件调度单位) — 32 threads (线程) issued together as one instruction.
+The warp scheduler switches among ready warps, so while one warp is waiting, the SM can keep executing other warps. This is not a heavy CPU-style context switch. It is a lightweight hardware scheduling decision.
+
 
 ### 2) Warp Size (线程束大小)
 
@@ -38,7 +40,7 @@ Warp Divergence (线程束分支发散) occurs when threads (线程) in the same
 
 ### 5) `__syncthreads()` (线程块同步)
 
-`__syncthreads()` is a barrier (屏障) that synchronizes **all threads in a block** (整个线程块), commonly used after writing to shared memory (共享内存).
+`__syncthreads()` is a barrier (屏障) that synchronizes **all threads in a block** (整个线程块), commonly used When threads read and write to each other through shared memory.
 
 ### 6) Warp-level Primitives (Warp 级原语)
 

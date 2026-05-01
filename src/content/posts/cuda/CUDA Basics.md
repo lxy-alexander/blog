@@ -126,7 +126,7 @@ int main() {
 
 ### 3) relu.cu (ReLU 激活函数)
 
-ReLU (修正线性单元) is `max(0, x)`, a fully element-wise (逐元素) operation perfect for GPU parallelism (并行).
+ReLU (修正线性单元, Rectified Linear Unit) is `max(0, x)`, a fully element-wise (逐元素) operation perfect for GPU parallelism (并行).
 
 ```cpp
 #include <cuda_runtime.h>
@@ -159,7 +159,7 @@ int main() {
 
 Sigmoid (S 型函数) maps any real number into (0, 1) via the formula:
 
-$$ \sigma(x) = \frac{1}{1 + e^{-x}} $$
+$$ \sigma(x) = \frac{1}{1 + e^{-x}} $$  (Sigma of x equals one over, one plus e to the negative x.)
 
 ```cpp
 #include <cuda_runtime.h>
@@ -230,7 +230,7 @@ Because the launched thread count (线程数) is rounded up to a multiple of `bl
 
 ### 2) Why are block sizes (线程块大小) commonly 128, 256, or 512?
 
-Because they are multiples of the warp size (线程束大小, 32) and balance occupancy (占用率) with per-thread register/shared-memory (寄存器/共享内存) usage.
+Block sizes like 128, 256, or 512 are multiples of 32 (warp size), so they map efficiently to warps and are easy for the GPU to schedule. Larger blocks may use more registers and shared memory, which can reduce the number of blocks that fit on one SM. So 128, 256, and 512 are common choices because they usually provide a good balance between parallelism, scheduling efficiency, and resource usage.
 
 ### 3) Why is the GPU good at large-scale data parallelism (数据并行)?
 

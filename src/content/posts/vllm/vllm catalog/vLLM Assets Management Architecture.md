@@ -3,8 +3,8 @@ title: "vLLM Assets Management Architecture"
 published: 2026-04-27
 description: "vLLM Assets Management Architecture"
 image: ""
-tags: ["vllm","arch","vLLM Assets Management Architecture"]
-category: vllm / arch
+tags: ["vllm","vllm catalog","vLLM Assets Management Architecture"]
+category: vllm / vllm catalog
 draft: false
 lang: ""
 createdAt: "2026-04-27T17:49:57.502.921926825Z"

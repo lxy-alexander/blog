@@ -7,6 +7,7 @@ tags: ["llm","Continuous Batching"]
 category: llm
 draft: false
 lang: ""
+createdAt: "2026-03-09T04:09:27.802.186613900Z"
 ---
 
 # I. Continuous Batching (连续批处理)
