@@ -11,7 +11,7 @@ createdAt: "2026-04-27T14:19:44.241.252524926Z"
 ---
 
 ```
-Generate English study notes in Typora-compatible Markdown format with the following requirements: Please explain the content concisely. The example code can be executed independently and includes output comments.
+Generate English study notes in Typora-compatible Markdown format with the following requirements: Please explain the content concisely and in interviewr tone. The example code can be executed independently and includes output comments.
 
 ## 1. Language
 - All explanations written in **English**
