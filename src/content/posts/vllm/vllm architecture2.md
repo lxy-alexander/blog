@@ -92,6 +92,8 @@ sequenceDiagram
 要点说明：
 
 -   `Executor.get_class` 会根据 `parallel_config.distributed_executor_backend` 选出要实例化的执行器类：若传入的是 类对象，则必须是 `Executor` 的子类，否则抛 `TypeError`；若是字符串 `"ray"`，则看 `VLLM_USE_RAY_V2_EXECUTOR_BACKEND` 选 `RayExecutorV2` 或 `RayDistributedExecutor`；`"mp"` / `"uni"` / `"external_launcher"` 分别对应多进程、单进程和外部启动器封装；若是 其它字符串，则当作全限定类名用 `resolve_obj_by_qualname` 解析，并再次校验是否为 `Executor` 子类；其它情况抛 `ValueError`。
+-   `InputProcessor` 在 `AsyncLLM` 里负责「请求进引擎」：构造时把 `VllmConfig` 和共用的 `renderer` 存好，并挂一个 `InputPreprocessor`。真正干活在后面的 `process_inputs`：校验采样/池化参数、必要时用预处理器把原始 prompt 变成带 token id 的引擎输入，再结合多模态、LoRA、数据并行等，最终打包成发给 `EngineCore` 的 `EngineCoreRequest`。
+-   `OutputProcessor` 负责「引擎结果回到调用方」：用与 `renderer` 相同的 `tokenizer`（以及 `log_stats`、流式间隔、是否 tracing）初始化。之后 `EngineCore` 返回的 `EngineCoreOutputs` 由它解码、整理成上层看到的 `RequestOutput`（含流式增量），保证输出侧和输入侧用同一套分词约定。
 
 - `from_engine_args` 在 `vllm/engine/arg_utils.py` 中把 CLI/参数转为 `VllmConfig`；其中 `model` 会拉起 HF tokenizer / config（meta-llama/Llama-3.2-1B-Instruct）。
 - `AsyncMPClient` 通过 ZMQ 的 ROUTER/PULL socket 与子进程 `EngineCoreProc` 解耦，`launch_core_engines` 负责真正 `fork/spawn`。
@@ -215,61 +217,59 @@ sequenceDiagram
 ```mermaid
 sequenceDiagram
     autonumber
-    participant Caller as stream_response (examples/offline_inference/async_llm_streaming.py)
-    participant Gen as AsyncLLM.generate() (vllm/v1/engine/async_llm.py)
-    participant OutHandler as output_handler task (vllm/v1/engine/async_llm.py)
-    participant Client as AsyncMPClient (vllm/v1/engine/core_client.py)
-    participant Sock as zmq.asyncio.Socket (vllm/utils/network_utils.py)
-    participant Proc as EngineCoreProc (vllm/v1/engine/core.py)
-    participant OutProc as OutputProcessor (vllm/v1/engine/output_processor.py)
-    participant Detok as IncrementalDetokenizer (vllm/v1/engine/detokenizer.py)
-    participant Tok as TokenizerLike (HF tokenizer, vllm/tokenizers)
-    participant Queue as RequestOutputCollector (vllm/v1/engine/output_processor.py)
+    participant Caller as Caller<br/>(offline streaming example)
+    participant AsyncLLM as AsyncLLM
+    participant OutLoop as AsyncLLM<br/>output task
+    participant CoreCli as EngineCoreClient
+    participant ZMQ as ZMQ async socket
+    participant CoreProc as EngineCore<br/>(child process)
+    participant OutProc as OutputProcessor
+    participant Detok as IncrementalDetokenizer
+    participant Tok as TokenizerLike<br/>(HF / vllm.tokenizers)
+    participant Coll as RequestOutputCollector
 
-    Note over Proc: EngineCore 子进程：每次 step 完成后
-    Proc->>Proc: process_output_sockets 线程: output_queue.get → msgpack.encode
-    Proc-)Sock: zmq.PUSH 多帧 (engine_id, EngineCoreOutputs)
+    Note over CoreProc: Each step: build outputs, enqueue to IO thread
+    CoreProc->>CoreProc: output thread: serialize EngineCoreOutputs
+    CoreProc-)ZMQ: PUSH multipart
 
-    Note over OutHandler: AsyncLLM 主进程的后台任务（_run_output_handler）
-    OutHandler->>Client: await get_output_async()
-    Client->>Sock: await output_socket.recv_multipart(copy=False)
-    Sock-->>Client: frames (bytes)
-    Client->>Client: MsgpackDecoder.decode(frames) → EngineCoreOutputs
-    Client-->>OutHandler: EngineCoreOutputs (含 new_token_ids 列表)
+    Note over OutLoop: Background: _run_output_handler
+    OutLoop->>CoreCli: get_output_async
+    CoreCli->>ZMQ: recv_multipart
+    ZMQ-->>CoreCli: frames
+    CoreCli->>CoreCli: decode → EngineCoreOutputs
+    CoreCli-->>OutLoop: EngineCoreOutputs
 
-    OutHandler->>OutProc: process_outputs(outputs_slice, ts, iteration_stats)
-    loop 对每个 EngineCoreOutput
-        OutProc->>OutProc: 取 RequestState (按 request_id)
-        OutProc->>Detok: detokenizer.update(new_token_ids, finish_reason==STOP)
-        Detok->>Tok: tokenizer.decode(new_token_ids, skip_special_tokens=...)
-        Tok-->>Detok: 新增字符串片段 (delta_text)
-        Detok-->>OutProc: stop_string / None
-        OutProc->>OutProc: logprobs_processor.update_from_output(...)
-        OutProc->>OutProc: req_state.make_request_output(new_token_ids, finish_reason, ...)
-        Note right of OutProc: SamplingParams.output_kind=DELTA → 只填增量 text/token_ids
-        OutProc->>Queue: req_state.queue.put(RequestOutput(delta))
+    OutLoop->>OutProc: process_outputs(slice, timestamp, iteration_stats)
+    loop Per EngineCoreOutput
+        OutProc->>OutProc: lookup RequestState by request_id
+        OutProc->>Detok: update(new_token_ids, is_stop)
+        Detok->>Tok: decode (incremental / skip_special_tokens per policy)
+        Tok-->>Detok: text delta
+        Detok-->>OutProc: optional stop_string
+        OutProc->>OutProc: logprobs_processor.update_from_output
+        OutProc->>OutProc: make_request_output
+        OutProc->>Coll: put(RequestOutput)
     end
-    OutHandler->>OutHandler: 若有 reqs_to_abort → engine_core.abort_requests_async(...)
-    OutHandler->>OutHandler: logger_manager.record(scheduler_stats, iteration_stats)
+    OutLoop->>CoreCli: abort_requests_async (if reqs_to_abort)
+    OutLoop->>OutLoop: logger_manager.record (if enabled)
 
-    Note over Caller,Gen: 同时另一侧：调用方协程
-    Caller->>Gen: async for output in engine.generate(...)
-    Gen->>Queue: out = q.get_nowait() or await q.get()
-    Queue-->>Gen: RequestOutput(delta_text="…")
-    Gen-->>Caller: yield output
-    Caller->>Caller: print(completion.text, end="", flush=True)
-    alt output.finished == True
-        Gen->>Gen: finished = True 退出循环
-        Gen->>OutProc: (finish_reason 已置位，_finish_request 清理 RequestState)
-        Gen-->>Caller: 生成器结束
-    else 未结束
-        Caller->>Gen: 继续 async for 下一个 token
+    Note over Caller,AsyncLLM: Consumer coroutine
+    Caller->>AsyncLLM: async for item in generate
+    AsyncLLM->>Coll: get_nowait / await get
+    Coll-->>AsyncLLM: RequestOutput
+    AsyncLLM-->>Caller: yield item
+    Caller->>Caller: consume completion.text (stream)
+
+    alt Request finished
+        Note over OutProc: _finish_request clears state
+        AsyncLLM-->>Caller: generator ends after final chunk
     end
 
-    Note over Caller: 全部 prompt 处理完毕
-    Caller->>Gen: engine.shutdown()
-    Gen->>Client: engine_core.shutdown()
-    Client->>Proc: 关闭 ZMQ socket / 终止子进程 / 释放 KV cache
+    Note over Caller,CoreCli: Shutdown
+    Caller->>AsyncLLM: shutdown
+    AsyncLLM->>CoreCli: shutdown
+    CoreCli->>CoreProc: stop sockets / join child
+
 ```
 
 要点说明：
