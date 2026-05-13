@@ -12,7 +12,7 @@ createdAt: "2026-04-27T15:07:01.580.819768228Z"
 
 # Python `Literal` Type Hint
 
-==`Literal` is a type hint== (类型提示) from the `typing` module that restricts a variable or argument to a fixed set of constant values (常量值), enabling stricter type checking (类型检查).
+==`Literal` is a type hint== (类型提示) from the `typing` module that ==restricts a variable or argument to a fixed set of constant values== (常量值), enabling stricter type checking (类型检查).
 
 ## 1. Basic Usage
 

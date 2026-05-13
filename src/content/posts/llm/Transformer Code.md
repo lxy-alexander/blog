@@ -12,15 +12,19 @@ createdAt: "2026-03-08T04:09:27.802.186613989Z"
 
 
 
-# **I. Transformer — Complete Learning Handbook**
+# **Transformer**
 
-<div style="background:#EBF0FF;border-left:4px solid #3B5BDB;border-radius:0 6px 6px 0;padding:14px 18px;margin:16px 0;line-height:1.9"> <strong>Overview:</strong> The <strong>Transformer (变换器)</strong> is the foundational architecture behind virtually all modern large language models — GPT, BERT, T5, LLaMA, and beyond. Introduced in <em>"Attention Is All You Need"</em> (Vaswani et al., 2017), it replaces recurrence with <strong>Self-Attention (自注意力机制)</strong>, enabling fully parallel training and capturing long-range dependencies without vanishing gradients. This handbook covers every component from first principles, and ends with complete, runnable training and inference code. </div>
+A **Transformer** is a neural network architecture based on **self-attention**, which lets each token understand its relationship with other tokens in the sequence.
+
+Compared with RNNs, Transformers can process tokens in parallel and capture long-range dependencies better.
+
+In simple terms, it converts tokens into embeddings, adds positional information, and passes them through multiple Transformer blocks. Each block uses **multi-head self-attention** to let every token look at other tokens in the sequence, and a **feed-forward network** to further transform the representation.
 
 ------
 
-## 1. Architecture Overview (架构总览)
+## 1. Architecture Overview 
 
-![image-20260206003119904](https://pub-c69d652d2a0747fab9aad1fab48ff742.r2.dev/images/image-20260206003119904)
+![Transformer Architecture: Redefining Machine Learning Across NLP and Beyond](https://pub-c69d652d2a0747fab9aad1fab48ff742.r2.dev/images/Gi6IybLpxFg1hAU2TIJnoSQ)
 
 A standard **Encoder-Decoder Transformer (编码器-解码器变换器)** consists of:
 

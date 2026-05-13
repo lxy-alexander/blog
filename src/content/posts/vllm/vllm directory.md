@@ -1,9 +1,9 @@
 ---
 title: "vllm Arch"
 published: 2026-04-27
-description: "vllm Arch"
+description: "vllm directory"
 image: ""
-tags: ["vllm","vllm Arch"]
+tags: ["vllm","vllm directory"]
 category: vllm
 draft: false
 lang: ""
@@ -18,18 +18,6 @@ vllm
 │   ├── base.py
 │   ├── image.py
 │   └── video.py
-```
-
-
-
-
-
-
-
-
-
-```
-vllm
 ├── benchmarks
 │   ├── datasets
 │   │   ├── __init__.py

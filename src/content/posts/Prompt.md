@@ -11,13 +11,12 @@ createdAt: "2026-04-27T14:19:44.241.252524926Z"
 ---
 
 ```
-Generate English study notes in Typora-compatible Markdown format with the following requirements: Please explain the content concisely and in interviewr tone. The example code can be executed independently and includes output comments.
+Generate English study notes in Typora-compatible Markdown format with the following requirements. The example code can be executed independently and includes output comments.
 
 ## 1. Language
 - All explanations written in **English**
 - The explanation should be concise, in one sentence, easy to remember, and in an interview tone
-- All **technical terms** must include a Chinese annotation in parentheses)
-- Example: `The Time Complexity (时间复杂度) is O(n).`
+- complex **technical terms** must include a Chinese annotation in parentheses)
 
 ## 2. Heading Structure
 - Level 1 heading: → `#`
