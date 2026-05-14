@@ -22,7 +22,7 @@ Attention(Q,K,V)=softmax\left(\frac{QK^T}{\sqrt{d_k}}\right)V
 $$
 <br>
 
-## 3. Cost
+## 2. Cost
 
 KV Cache (键值缓存) trades GPU Memory (显存) for speed because each Layer (层) stores past Key (键) and Value (值) tensors.
 $$
