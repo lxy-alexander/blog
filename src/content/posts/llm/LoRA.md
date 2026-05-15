@@ -10,7 +10,7 @@ lang: ""
 createdAt: "2026-05-13T22:14:44.088.457187561Z"
 ---
 
-# LoRA in Large Language Model Applications
+# LoRA 
 
 LoRA (Low-Rank Adaptation, 低秩适配) is ==a lightweight fine-tuning (微调) method== that freezes the original model weights and only trains a small number of additional parameters. It usually applied to q_proj and v_proj. training becomes cheaper and faster.
 
@@ -34,144 +34,9 @@ $$ W = W_0 + \Delta W = W_0 + BA $$
 
 Where $W_0 \in \mathbb{R}^{d \times k}$ is the frozen (冻结) pretrained weight, $B \in \mathbb{R}^{d \times r}$ and $A \in \mathbb{R}^{r \times k}$ are trainable, and $r \ll \min(d, k)$ is the rank (秩).<br>
 
-## 2. Why LoRA Works
 
-Fine-tuning large language models updates billions of parameters, but research shows the update matrix $\Delta W$ is intrinsically low-rank, meaning most useful adaptation lives in a small subspace (子空间).
 
-Key advantages in interview tone: **no inference latency (推理延迟)** because $BA$ can be merged into $W_0$, **10000x fewer trainable parameters**, and **task switching** by swapping small adapter weights instead of full models.
-
-<br>
-
-## 3. Initialization Strategy
-
-$A$ is initialized with a random Gaussian (高斯分布) distribution and $B$ is initialized to zero, so $\Delta W = BA = 0$ at the start of training, ensuring the model begins identical to the pretrained baseline.
-
-$$ A \sim \mathcal{N}(0, \sigma^2), \quad B = 0 ;\Rightarrow; \Delta W_{\text{init}} = 0 $$
-
-<br>
-
-## 4. Scaling Factor Alpha
-
-LoRA scales the update by $\frac{\alpha}{r}$ so that tuning $r$ does not require retuning the learning rate (学习率); $\alpha$ acts like a learning rate multiplier on the adapter.
-
-$$ h = W_0 x + \frac{\alpha}{r} B A x $$
-
-In practice, $\alpha$ is often set to $2r$ (e.g., $r=8, \alpha=16$) as a stable default.
-
-<br>
-
-## 5. Target Modules
-
-LoRA is typically applied to the attention (注意力) projection matrices $W_q$, $W_k$, $W_v$, $W_o$ in Transformer (变换器) blocks, since these dominate the parameter count and adaptation impact.
-
-The original paper found that **applying LoRA to $W_q$ and $W_v$** gives the best parameter-performance trade-off (权衡), while applying it to all four is best when budget allows.<br>
-
-## 6. Parameter Count Comparison
-
-For a single linear layer with input dim $d$ and output dim $k$, full fine-tuning trains $d \times k$ parameters, while LoRA trains only $r \times (d + k)$ parameters.
-
-$$ \text{Reduction Ratio} = \frac{r(d + k)}{dk} $$
-
-For example, with $d = k = 4096$ and $r = 8$, LoRA trains $65{,}536$ params vs. full fine-tuning's $16{,}777{,}216$ — a **~256x reduction (减少)** in trainable parameters.
-
-<br>
-
-## 7. Merge for Zero Inference Latency
-
-After training, the adapter can be folded into the base weights via $W' = W_0 + BA$, so the deployed model has the **exact same architecture and speed** as the original — there is no extra matrix multiplication at inference time.
-
-$$ W'_{\text{merged}} = W_0 + \frac{\alpha}{r} BA $$
-
-<br>
-
-## 8. LoRA Training Workflow
-
-The end-to-end workflow involves freezing the base model, injecting adapters into target modules, training only the adapters, and optionally merging them back for deployment (部署).<br>
-
-## 9. Code Example with PEFT
-
-The Hugging Face `peft` library provides a one-liner to attach LoRA adapters to any `transformers` model, dramatically simplifying the workflow.
-
-```python
-import torch
-from transformers import AutoModelForCausalLM, AutoTokenizer
-from peft import LoraConfig, get_peft_model, TaskType
-
-# 1. Load base model
-model_name = "gpt2"
-tokenizer = AutoTokenizer.from_pretrained(model_name)
-model = AutoModelForCausalLM.from_pretrained(model_name)
-
-# 2. Configure LoRA
-lora_config = LoraConfig(
-    task_type=TaskType.CAUSAL_LM,
-    r=8,                         # Rank (秩)
-    lora_alpha=16,               # Alpha scaling factor
-    lora_dropout=0.05,           # Dropout (随机失活)
-    target_modules=["c_attn"],   # Target attention projections
-    bias="none",
-)
-
-# 3. Wrap model with PEFT
-model = get_peft_model(model, lora_config)
-model.print_trainable_parameters()
-# Output: trainable params: 294,912 || all params: 124,734,720 || trainable%: 0.2364
-
-# 4. Inspect what's trainable
-for name, param in model.named_parameters():
-    if param.requires_grad:
-        print(name, param.shape)
-        break
-# Output: base_model.model.transformer.h.0.attn.c_attn.lora_A.default.weight torch.Size([8, 768])
-
-# 5. Forward pass works as usual
-inputs = tokenizer("LoRA is", return_tensors="pt")
-with torch.no_grad():
-    outputs = model(**inputs)
-print(outputs.logits.shape)
-# Output: torch.Size([1, 3, 50257])
-
-# 6. Save only adapter weights (small file)
-model.save_pretrained("./lora_adapter")
-# Output: Saves ~1MB instead of ~500MB full model
-
-# 7. Merge for inference
-merged_model = model.merge_and_unload()
-print(type(merged_model).__name__)
-# Output: GPT2LMHeadModel
-```
-
-<br>
-
-## 10. LoRA vs. Other PEFT Methods
-
-LoRA differs from adapters (适配器) and prefix tuning (前缀微调) in *where* and *how* it modifies the model, with each method offering different trade-offs in parameters, latency, and quality.
-
-| Method               | Trainable Params | Inference Latency     | Where Applied                    |
-| -------------------- | ---------------- | --------------------- | -------------------------------- |
-| **Full fine-tuning** | 100%             | None                  | All weights                      |
-| **LoRA**             | ~0.1–1%          | None (after merge)    | Linear layers (mostly attention) |
-| **Adapters**         | ~0.5–8%          | Adds extra layers     | Between Transformer blocks       |
-| **Prefix tuning**    | ~0.1%            | Slight (extra tokens) | Input/key-value prefix           |
-| **Prompt tuning**    | ~0.01%           | Slight (extra tokens) | Input embeddings only            |
-
-<br>
-
-## 11. Variants and Extensions
-
-Several follow-up works extend LoRA: **QLoRA** quantizes (量化) the frozen base to 4-bit so a 65B model fits on one GPU, **DoRA** decomposes weights into magnitude and direction for better quality, and **AdaLoRA** dynamically allocates rank budget across layers based on importance.
-
-In interview tone: when GPU memory is tight, reach for **QLoRA**; when you want LoRA-level params with full-FT quality, try **DoRA**; when different layers need different capacity, use **AdaLoRA**.
-
-<br>
-
-## 12. Practical Tips
-
-Choose $r$ between 4 and 64 — larger ranks help for harder tasks but with diminishing returns (收益递减); keep $\alpha = 2r$ as a safe default; always target $W_q$ and $W_v$ first before expanding; and use `lora_dropout=0.05–0.1` to prevent overfitting (过拟合) on small datasets.
-
-<br> <br>
-
-## 8. Common Interview Questions
+## 2. Common Interview Questions
 
 ### 1) Why Is LoRA Efficient?
 
@@ -190,3 +55,473 @@ Attention layers contribute most to model capability.
 LoRA modifies weight updates mathematically, while Adapter adds extra neural layers.
 
 <br> <br>
+
+
+
+# LoRA Full Workflow
+
+LoRA training can be understood as: **load the base model → freeze original weights → inject LoRA adapters → train only adapters → save adapters → load or merge adapters for inference**.
+
+## 1. Load the Base Model
+
+First, load a pretrained large language model, such as Qwen, LLaMA, or Mistral.
+
+```python
+from transformers import AutoModelForCausalLM, AutoTokenizer
+
+model_name = "Qwen/Qwen2.5-0.5B-Instruct"
+
+tokenizer = AutoTokenizer.from_pretrained(
+    model_name,
+    trust_remote_code=True,
+)
+
+base_model = AutoModelForCausalLM.from_pretrained(
+    model_name,
+    device_map="auto",
+    trust_remote_code=True,
+)
+```
+
+At this point, the model is still the original Transformer model.
+
+```text
+Base Model
+├── Transformer Layer 0
+│   ├── Self-Attention
+│   │   ├── q_proj
+│   │   ├── k_proj
+│   │   ├── v_proj
+│   │   └── o_proj
+│   └── MLP / FFN
+│       ├── gate_proj
+│       ├── up_proj
+│       └── down_proj
+├── Transformer Layer 1
+└── ...
+```
+
+## 2. Freeze the Base Model
+
+The key idea of LoRA is to keep the original model weights frozen and train only small additional matrices.
+
+Full fine-tuning updates:
+
+```text
+Wq, Wk, Wv, Wo, MLP weights, LayerNorm, Embedding, ...
+```
+
+LoRA fine-tuning updates:
+
+```text
+Only LoRA A and LoRA B matrices.
+```
+
+The original Linear layer is:
+
+$$
+y = Wx
+$$
+
+After LoRA injection:
+
+$$
+y = Wx + BAx
+$$
+
+Where:
+
+| Symbol | Meaning                          |
+| ------ | -------------------------------- |
+| $W$    | Frozen original weight matrix    |
+| $A$    | Trainable down-projection matrix |
+| $B$    | Trainable up-projection matrix   |
+| $BA$   | Low-rank update                  |
+
+## 3. Define LoRA Configuration
+
+The LoRA configuration tells PEFT where to insert adapters and how large the low-rank update should be.
+
+```python
+from peft import LoraConfig
+
+lora_config = LoraConfig(
+    r=8,
+    lora_alpha=16,
+    lora_dropout=0.05,
+    bias="none",
+    task_type="CAUSAL_LM",
+    target_modules=[
+        "q_proj",
+        "k_proj",
+        "v_proj",
+        "o_proj",
+        "gate_proj",
+        "up_proj",
+        "down_proj",
+    ],
+)
+```
+
+| Parameter        | Meaning                                                      |
+| ---------------- | ------------------------------------------------------------ |
+| `r`              | LoRA rank, which controls the bottleneck dimension.          |
+| `lora_alpha`     | Scaling factor that controls the strength of LoRA updates.   |
+| `lora_dropout`   | Dropout used to reduce overfitting.                          |
+| `bias`           | Whether to train bias parameters, usually set to `"none"`.   |
+| `task_type`      | Task type, and causal language modeling uses `"CAUSAL_LM"`.  |
+| `target_modules` | The Linear layers where LoRA adapters will be inserted.      |
+| q_proj           | Query projection (查询投影): decides what each token looks for. |
+| k_proj           | Key projection (键投影): decides what each token offers for matching. |
+| v_proj           | Value projection (值投影): stores information passed through Attention. |
+| o_proj           | Output projection (输出投影): maps Attention output back to hidden size. |
+| gate_proj        | Gate projection (门控投影): controls gated activation in the MLP/FFN block. |
+| up_proj          | Up projection (升维投影): expands hidden states to a larger dimension. |
+| down_proj        | Down projection (降维投影): compresses hidden states back to model dimension. |
+
+## 4. Inject LoRA Adapters
+
+This line inserts LoRA adapters into the selected target modules.
+
+```python
+from peft import get_peft_model
+
+model = get_peft_model(base_model, lora_config)
+```
+
+Before LoRA:
+
+```text
+q_proj = Linear(hidden_size, hidden_size)
+```
+
+After LoRA:
+
+```text
+q_proj = Linear(hidden_size, hidden_size)
+       + lora_A: Linear(hidden_size, r)
+       + lora_B: Linear(r, hidden_size)
+```
+
+The computation becomes:
+
+```text
+Before LoRA:
+
+x ──> W ──> y
+
+
+After LoRA:
+
+        ┌──> frozen W ─────────────┐
+x ──────┤                          ├──> y
+        └──> trainable A -> B ─────┘
+```
+
+Adapters are injected into the selected Transformer modules.
+
+```text
+Transformer Layer
+├── Self-Attention
+│   ├── q_proj  ← add lora_A + lora_B
+│   ├── k_proj  ← add lora_A + lora_B
+│   ├── v_proj  ← add lora_A + lora_B
+│   └── o_proj  ← add lora_A + lora_B
+└── MLP / FFN
+    ├── gate_proj ← add lora_A + lora_B
+    ├── up_proj   ← add lora_A + lora_B
+    └── down_proj ← add lora_A + lora_B
+```
+
+You can verify the adapter locations with:
+
+```python
+for name, module in model.named_modules():
+    if "lora" in name.lower():
+        print(name)
+```
+
+Example output:
+
+```text
+base_model.model.model.layers.0.self_attn.q_proj.lora_A.default
+base_model.model.model.layers.0.self_attn.q_proj.lora_B.default
+base_model.model.model.layers.0.self_attn.v_proj.lora_A.default
+base_model.model.model.layers.0.self_attn.v_proj.lora_B.default
+base_model.model.model.layers.0.mlp.gate_proj.lora_A.default
+base_model.model.model.layers.0.mlp.gate_proj.lora_B.default
+```
+
+## 5. Forward Pass
+
+During forward propagation, the frozen Linear layer and the trainable LoRA branch work together.
+
+```text
+Input text
+↓
+Tokenizer
+↓
+Token IDs
+↓
+Embedding
+↓
+Transformer layers
+↓
+For each target Linear layer:
+    output = frozen_linear(x) + lora_B(lora_A(x)) * scale
+↓
+Logits
+↓
+Loss
+```
+
+The full LoRA formula is:
+
+$$
+y = Wx + \frac{\alpha}{r}BAx
+$$
+
+Where:
+
+| Term         | Meaning                        |
+| ------------ | ------------------------------ |
+| $W$          | Frozen base weight             |
+| $A$          | Trainable LoRA down-projection |
+| $B$          | Trainable LoRA up-projection   |
+| $\alpha / r$ | Scaling factor                 |
+
+LoRA does not replace the original Linear layer; it adds a trainable side branch to the frozen layer.
+
+## 6. Backward Pass
+
+During backpropagation, only LoRA adapter parameters are updated.
+
+```text
+Loss
+↓
+Backward
+↓
+Update lora_A and lora_B
+↓
+Keep original W frozen
+```
+
+Updated parameters:
+
+```text
+lora_A
+lora_B
+```
+
+Frozen parameters:
+
+```text
+q_proj.weight
+k_proj.weight
+v_proj.weight
+o_proj.weight
+gate_proj.weight
+up_proj.weight
+down_proj.weight
+embedding weights
+most original model weights
+```
+
+You can check trainable parameters with:
+
+```python
+model.print_trainable_parameters()
+```
+
+Example output:
+
+```text
+trainable params: 4,xxx,xxx || all params: 500,xxx,xxx || trainable%: 0.8
+```
+
+This is why LoRA saves GPU memory and training cost.
+
+## 7. Train the Model
+
+The training dataset usually contains instruction-response pairs.
+
+```python
+from datasets import Dataset
+from transformers import TrainingArguments
+from trl import SFTTrainer
+
+train_data = [
+    {
+        "text": "### Instruction:\nExplain LoRA.\n\n### Response:\nLoRA freezes the base model and trains low-rank adapters."
+    }
+]
+
+dataset = Dataset.from_list(train_data) # convert a normal Python list into a Hugging Face Dataset object.
+
+training_args = TrainingArguments(
+    output_dir="./qwen_lora_output",
+    per_device_train_batch_size=1,
+    gradient_accumulation_steps=4,
+    num_train_epochs=1,
+    learning_rate=2e-4,
+    logging_steps=1,
+    save_steps=20,
+    bf16=True,
+    report_to="none",
+)
+
+trainer = SFTTrainer(
+    model=model,
+    tokenizer=tokenizer,
+    train_dataset=dataset,
+    dataset_text_field="text",
+    max_seq_length=512,
+    args=training_args,
+)
+
+trainer.train()
+```
+
+During training, the base model stays frozen and only the LoRA adapter weights change.
+
+## 8. Save the Adapter
+
+After training, the common practice is to save only the LoRA adapter.
+
+```python
+model.save_pretrained("./qwen_lora_adapter")
+tokenizer.save_pretrained("./qwen_lora_adapter")
+```
+
+The output folder usually looks like this:
+
+```text
+qwen_lora_adapter
+├── adapter_config.json
+├── adapter_model.safetensors
+├── tokenizer.json
+├── tokenizer_config.json
+└── special_tokens_map.json
+```
+
+| File                        | Purpose                    |
+| --------------------------- | -------------------------- |
+| `adapter_config.json`       | Stores LoRA configuration. |
+| `adapter_model.safetensors` | Stores LoRA A/B weights.   |
+| Tokenizer files             | Store tokenizer settings.  |
+
+The adapter is small because it does not contain the full base model.
+
+## 9. Inference with LoRA Adapter
+
+For inference, load the base model first, then attach the LoRA adapter.
+
+```python
+import torch
+from transformers import AutoModelForCausalLM, AutoTokenizer
+from peft import PeftModel
+
+base_model_name = "Qwen/Qwen2.5-0.5B-Instruct"
+adapter_path = "./qwen_lora_adapter"
+
+tokenizer = AutoTokenizer.from_pretrained(
+    base_model_name,
+    trust_remote_code=True,
+)
+
+base_model = AutoModelForCausalLM.from_pretrained(
+    base_model_name,
+    torch_dtype=torch.bfloat16,
+    device_map="auto",
+    trust_remote_code=True,
+)
+
+model = PeftModel.from_pretrained(base_model, adapter_path)
+model.eval()
+
+prompt = "Explain LoRA in one sentence."
+
+inputs = tokenizer(prompt, return_tensors="pt").to(model.device)
+
+with torch.no_grad():
+    outputs = model.generate(
+        **inputs,
+        max_new_tokens=80,
+        temperature=0.7,
+        do_sample=True,
+    )
+
+print(tokenizer.decode(outputs[0], skip_special_tokens=True))
+
+# Output example:
+# Explain LoRA in one sentence.
+# LoRA fine-tunes a frozen large model by training small low-rank adapter matrices.
+```
+
+## 10. Merge LoRA for Deployment
+
+For deployment, LoRA can be merged into the base model weights.
+
+```python
+import torch
+from transformers import AutoModelForCausalLM, AutoTokenizer
+from peft import PeftModel
+
+base_model_name = "Qwen/Qwen2.5-0.5B-Instruct"
+adapter_path = "./qwen_lora_adapter"
+merged_model_path = "./qwen_lora_merged"
+
+tokenizer = AutoTokenizer.from_pretrained(
+    base_model_name,
+    trust_remote_code=True,
+)
+
+base_model = AutoModelForCausalLM.from_pretrained(
+    base_model_name,
+    torch_dtype=torch.bfloat16,
+    device_map="auto",
+    trust_remote_code=True,
+)
+
+model = PeftModel.from_pretrained(base_model, adapter_path)
+
+merged_model = model.merge_and_unload()
+
+merged_model.save_pretrained(merged_model_path)
+tokenizer.save_pretrained(merged_model_path)
+
+# Output:
+# The merged model is saved to ./qwen_lora_merged
+```
+
+After merging:
+
+```text
+Before merge:
+output = Wx + LoRA(x)
+
+After merge:
+W_new = W + LoRA_weight
+output = W_new x
+```
+
+So inference no longer needs a separate LoRA adapter branch.
+
+## 11. Final Interview Summary
+
+LoRA freezes the original large language model, injects small trainable low-rank adapters into selected Linear layers, trains only those adapters, and optionally merges them back into the base model for deployment.
+
+```text
+Base Model
+↓
+Freeze Original Weights
+↓
+Inject LoRA A/B Matrices
+↓
+Train Only LoRA Parameters
+↓
+Save Adapter
+↓
+Load Adapter or Merge for Deployment
+```
+

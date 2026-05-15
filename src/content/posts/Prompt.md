@@ -26,9 +26,8 @@ Generate English study notes in Typora-compatible Markdown format with the follo
 ## 3. Typora Rules
 1. Use `$$ $$` for math formulas, not `\[ \]`.
 2. Leave a blank line after the content under each Level 1 and Level 2 heading.
-3. Please wrap CUDA code in a ```cpp code block.
-4. After completing each Level 2 heading section, add one `<br>` tag on a separate line.
-5. After completing each Level 1 heading section, add one `<br>` tag on a separate line.
+3. After completing each Level 2 heading section, add one `<br>` tag on a separate line.
+4. After completing each Level 1 heading section, add one `<br>` tag on a separate line.
 Example:
 # Level 1 heading
 Content under this heading.
