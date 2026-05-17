@@ -16,7 +16,15 @@ These APIs transfer data between global memory (全局内存) and registers (寄
 
 ## 1. `tl.load(ptr, mask, other)`
 
-`tl.load` reads from a pointer (指针), with a mask (掩码) controlling which elements are loaded and `other` providing fallback values (默认值) for masked-out positions.
+`tl.load` means **load data from GPU memory**.
+
+-   `x_ptr + offs`: loads a block of elements from memory starting from the offsets in `offs`
+-   `mask=mask`: only positions where `mask=True` actually read from memory
+-   `other=-1.0`: positions where `mask=False` do not read memory and are filled with `-1.0` instead
+    -   sum: other=0
+    -   max: other=-inf
+    -   min: other=inf
+    -   Invalid marker: `other = -1`
 
 ```python
 import torch
@@ -56,7 +64,7 @@ import triton.language as tl
 def store_kernel(out_ptr, n, BLOCK: tl.constexpr):
     pid = tl.program_id(0)
     offs = pid * BLOCK + tl.arange(0, BLOCK)
-    mask = offs < n                                    # only write valid positions
+    mask = offs < n   # only write valid positions
     val = offs.to(tl.float32) * 2.0
     tl.store(out_ptr + offs, val, mask=mask)
 
@@ -73,7 +81,16 @@ print(out)
 
 ## 3. `tl.make_block_ptr`
 
-`tl.make_block_ptr` creates a block pointer (块指针) describing a 2D tile (二维分块) with shape, strides (步长), offsets (偏移), and block shape — preferred for matrix kernels (矩阵内核).
+`block_ptr_kernel` is used to load a 2D tile from `x`, multiply it by `2`, and store it into `out`.
+
+-   `x_block_ptr = tl.make_block_ptr`Create a block pointer for reading a rectangular tile from `x`.
+-   `base=x_ptr,`The starting memory address of tensor `x`.
+-   `shape=(M, N),`The full logical tensor shape: `M` rows and `N` columns.
+-   `strides=(stride_m, stride_n),`How far to move in memory when row or column index changes.Usually for contiguous `(M, N)`: `stride_m=N`, `stride_n=1`.
+-   `offsets=(0, 0),`Start reading from position `x[0, 0]`.
+-   `block_shape=(BM, BN),`The tile size to load: `BM` rows and `BN` columns.
+-   `order=(1, 0),`Inside the tile, dimension `1` moves fastest. ension `1` is `N`, the column dimension. **columns first, rows second**.
+-   `x = tl.load(x_block_ptr, boundary_check=(0, 1))`, Load one tile from x, and check both row and column boundaries.
 
 ```python
 import torch
@@ -90,7 +107,7 @@ def block_ptr_kernel(x_ptr, out_ptr, M, N,
         strides=(stride_m, stride_n),
         offsets=(0, 0),
         block_shape=(BM, BN),
-        order=(1, 0),
+        order=(1, 0), 
     )
     x = tl.load(x_block_ptr, boundary_check=(0, 1))
     out_block_ptr = tl.make_block_ptr(
@@ -111,11 +128,47 @@ print(out)
 #         [24., 26., 28., 30.]], device='cuda:0')
 ```
 
+### 1) Common ways to use `tl.load` in Triton:
+
+-   Load one value
+
+```python
+x = tl.load(x_ptr)
+read x[0]
+```
+
+-   Load a 1D vector
+
+```python
+offs = tl.arange(0, 4)
+x = tl.load(x_ptr + offs)
+read x[0], x[1], x[2], x[3]
+```
+
+-   Load safely with mask
+
+```python
+offs = tl.arange(0, 4)
+x = tl.load(x_ptr + offs, mask=offs < N, other=0.0)
+read x[i] if i < N
+otherwise use 0.0
+```
+
+-   Load a 2D tile ==(2D tile = a small block of rows and columns)==
+
+```python
+block_ptr = tl.make_block_ptr(...)
+x = tl.load(block_ptr, boundary_check=(0, 1))
+read a 2D block from x
+```
+
+
+
 <br>
 
 ## 4. `tl.advance`
 
-`tl.advance(block_ptr, offsets)` moves a block pointer (块指针) by a given offset (偏移), commonly used inside loops (循环) over tiles in matmul (矩阵乘) kernels.
+==`tl.advance(block_ptr, offsets)` moves a block pointer (块指针) by a given offset (偏移),== commonly used inside loops (循环) over tiles in matmul (矩阵乘) kernels.
 
 ```python
 import torch

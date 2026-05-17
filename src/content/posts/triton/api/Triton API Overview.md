@@ -36,20 +36,46 @@ Triton's API is intentionally minimal (极简) — roughly **50–70 core functi
 The `@triton.jit` decorator (装饰器) compiles a Python function into a GPU kernel (内核), and `triton.cdiv` computes the grid size (网格大小).
 
 ```python
+import torch
 import triton
 import triton.language as tl
+
 
 @triton.jit
 def add_kernel(x_ptr, y_ptr, out_ptr, n, BLOCK: tl.constexpr):
     pid = tl.program_id(0)
+
     offs = pid * BLOCK + tl.arange(0, BLOCK)
+
     mask = offs < n
+
     x = tl.load(x_ptr + offs, mask=mask)
     y = tl.load(y_ptr + offs, mask=mask)
+
     tl.store(out_ptr + offs, x + y, mask=mask)
 
-# triton.cdiv(n, BLOCK) = ceil division (向上取整)
-# Grid launch: add_kernel[(triton.cdiv(n, BLOCK),)](x, y, out, n, BLOCK=1024)
+
+def add(x, y):
+    out = torch.empty_like(x) # apply for memory as large as x, Automatically inherit the attributes of x (device, dtype, shape, layout)
+    n = x.numel()
+    BLOCK = 1024
+    grid = (triton.cdiv(n, BLOCK),)  # grid must be a iterable object(tuple or list) (x axis)
+    add_kernel[grid](x, y, out, n, BLOCK=BLOCK)
+    return out
+
+
+def main():
+    n = 10000
+    x = torch.randn(n, device="cuda")
+    y = torch.randn(n, device="cuda")
+    out = add(x, y)
+    torch_out = x + y
+    print(out)
+    print(torch.allclose(out, torch_out)) # 
+
+
+if __name__ == "__main__":
+    main()
 ```
 
 <br>
@@ -58,11 +84,11 @@ def add_kernel(x_ptr, y_ptr, out_ptr, n, BLOCK: tl.constexpr):
 
 These three functions identify the current program (当前程序) in the launch grid (启动网格), used in every Triton kernel.
 
-| API                     | Purpose                                |
-| ----------------------- | -------------------------------------- |
-| `tl.program_id(axis)`   | Current block ID along axis (当前块ID) |
-| `tl.num_programs(axis)` | Total programs along axis (总程序数)   |
-| `tl.arange(start, end)` | Generate index vector (生成索引向量)   |
+| API                     | Purpose                                     |
+| ----------------------- | ------------------------------------------- |
+| `tl.program_id(axis)`   | Current block ID along axis (当前块ID)      |
+| `tl.num_programs(axis)` | Total programs/blocks along axis (总程序数) |
+| `tl.arange(start, end)` | Generate index vector (生成索引向量)        |
 
 ```python
 import triton.language as tl
