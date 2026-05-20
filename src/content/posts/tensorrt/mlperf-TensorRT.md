@@ -552,6 +552,8 @@ ls -lh build/bin/harness_default
 ```bash
 cd /work
 
+rm /build/engines/H100-NVL-94GBx1/Offline/resnet50/gpu-resnet50-int8-b256.cp990.plan
+
 RN50_DISABLE_FUSIONS=1 SYSTEM_NAME=H100-NVL-94GBx1 \
 make generate_engines RUN_ARGS="--benchmarks=resnet50 --scenarios=Offline --force"
 ```

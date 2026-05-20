@@ -14,7 +14,9 @@ createdAt: "2026-05-13T17:02:12.705.478178485Z"
 
 # Qwen2-7B Learning Notes
 
-This note walks through the **6-step learning path** for **Qwen2-7B**, the representative model of the second-generation Qwen series, released in June 2024.
+This note walks through the **6-step learning path** for **Qwen2-7B**, the representative model of the second-generation Qwen series, released in June 2024. https://huggingface.co/Qwen/Qwen2-7B
+
+https://github.com/huggingface/transformers/blob/main/src/transformers/models/qwen2/modeling_qwen2.py?utm_source=chatgpt.com
 
 <br>
 
@@ -58,7 +60,7 @@ The interview-ready summary: **Qwen2-7B is a 7B decoder-only causal LM with Grou
 
 ## 2. Minimal Inference Code (最小推理代码)
 
-The goal: connect tokenizer, model, and `generate` together — Qwen2 is **natively integrated (原生集成)** in Transformers, no `trust_remote_code` needed.
+The goal: connect tokenizer, model, and `generate` together — Qwen2 is **natively integrated (原生集成)** in Transformers, ==no `trust_remote_code` needed.==
 
 ### 1) End-to-end inference sequence diagram
 

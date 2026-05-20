@@ -113,9 +113,9 @@ def exp_kernel(x_ptr, out_ptr, BLOCK: tl.constexpr):
 
 BLOCK = 4
 x = torch.tensor([0.0, 1.0, 2.0, 3.0], device='cuda')
-out = torch.empty(BLOCK, device='cuda')
+out = torch.empty(BLOCK, device='cuda') exp
 
-exp_kernel[(1,)](x, out, BLOCK=BLOCK)
+exp_kernel[(1,)](x, out, BLOCK=BLOCK) 
 print(out)
 # tensor([ 1.0000,  2.7183,  7.3891, 20.0855], device='cuda:0')
 ```
