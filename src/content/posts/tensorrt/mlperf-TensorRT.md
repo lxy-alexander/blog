@@ -590,45 +590,106 @@ SYSTEM_NAME=H100-NVL-94GBx1 \
 make run_harness RUN_ARGS="--benchmarks=resnet50 --scenarios=Offline --test_mode=AccuracyOnly"
 ```
 
-
-
 ---
 
 
 
+<br>
 
+<br>
 
+# MLPerf Inference v6.0 — Llama3.1-8B on H100-NVL-94GBx1
 
+## 1.Start the MLPerf Container
 
+### 1.1 Set Host Paths and Enter the NVIDIA Repository
 
+```bash
+export HOST_HOME=/data/home/xli49
+export MLPERF_SCRATCH_PATH=$HOST_HOME/mlperf_scratch
+export NVIDIA_HOME="$HOST_HOME/inference_results_v6.0/closed/NVIDIA"
 
-
-
-
-
-
-
-
-
-
-Llama3.1-8b
-
+cd $NVIDIA_HOME
 ```
+
+### 1.2 Start the Writable Sandbox Container
+
+```bash
+export SANDBOX="$MLPERF_SCRATCH_PATH/containers/mlperf-inference-v6-sandbox"
+
+apptainer shell --nv --writable \
+  --bind "$(pwd)":/work \
+  --bind "$MLPERF_SCRATCH_PATH:$MLPERF_SCRATCH_PATH" \
+  --env MLPERF_SCRATCH_PATH="$MLPERF_SCRATCH_PATH" \
+  --pwd /work \
+  "$SANDBOX"
+```
+
+This command mounts the current MLPerf repository to `/work` inside the container and keeps the scratch directory available at the same path.
+
+the alternative is temporary writable overlay. This method uses a temporary writable filesystem. It is ==not recommended for== persistent changes because modifications are lost after the container exits.
+
+```bash
+apptainer shell --nv --writable-tmpfs \
+  --bind "$(pwd)":/work \
+  --bind "$MLPERF_SCRATCH_PATH:$MLPERF_SCRATCH_PATH" \
+  "$MLPERF_SCRATCH_PATH/containers/mlperf-inference-v6.sif"
+```
+
+------
+
+<br>
+
+## 2. Download the Llama3.1-8B Model
+
+Clone the Original Hugging Face Model Inside the container, use `/work` as the MLPerf repository root.
+
+```bash
 cd /work
 
-python3 -m pip install --user mlc-scripts
+export CHECKPOINT_PATH=build/models/Llama3.1-8B/Meta-Llama-3.1-8B-Instruct
 
-export PATH=$HOME/.local/bin:$PATH
+git lfs install
+git clone https://huggingface.co/meta-llama/Llama-3.1-8B-Instruct ${CHECKPOINT_PATH}
 
-which mlcr
-
-```
-
-
-
-```
+cd ${CHECKPOINT_PATH}
+git checkout 0e9e39f249a16976918f6564b8830bc894c89659
 cd /work
-mkdir -p build/data/llama3.1-8b
+```
+
+The model repository uses Git LFS, so `git-lfs` must be available inside the container.
+
+------
+
+<br>
+
+## 3. Download Quantized Checkpoints
+
+==H100 does not support FP4 execution for this workflow, so download both NVFP4 for the future and FP8 checkpoints==, but use FP8 for H100 runs.
+
+```bash
+cd /work
+
+git clone https://huggingface.co/nvidia/Llama-3.1-8B-Instruct-NVFP4 \
+  build/models/Llama3.1-8B/fp4-quantized-modelopt
+
+git clone https://huggingface.co/nvidia/Llama-3.1-8B-Instruct-FP8 \
+  build/models/Llama3.1-8B/fp8-quantized-modelopt/llama3_1-8b-instruct-hf-torch-fp8
+```
+
+------
+
+<br>
+
+## 4. Download the Dataset
+
+The required MLPerf benchmark data files are downloaded from the official MLCommons object storage.
+
+-   `cnn_eval.json` is the official evaluation dataset. The MLPerf harness uses the articles in this file as inputs for Llama3.1-8B summarization. It is used for ==benchmark accuracy and performance evaluation==.
+-   `cnn_dailymail_calibration.json` is the calibration dataset. It is used when generating the TensorRT-LLM engine or quantized model, so the runtime can observe representative input distributions.
+
+```bash
+cd /work
 
 curl -L -o /tmp/mlc-r2-downloader.sh \
   https://raw.githubusercontent.com/mlcommons/r2-downloader/refs/heads/main/mlc-r2-downloader.sh
@@ -640,170 +701,77 @@ bash /tmp/mlc-r2-downloader.sh \
 bash /tmp/mlc-r2-downloader.sh \
   -d build/data/llama3.1-8b \
   https://inference.mlcommons-storage.org/metadata/llama3-1-8b-cnn-dailymail-calibration.uri
-
 ```
 
+You can use the command below to check the structure of data:
 
+```bash
+python3 - <<'PY'
+import json
+from pathlib import Path
 
-git clone https://huggingface.co/nvidia/Llama-3.1-8B-Instruct-FP8 \
+for p in [
+    Path("build/data/llama3.1-8b/cnn_eval.json"),
+    Path("build/data/llama3.1-8b/cnn_dailymail_calibration.json"),
+]:
+    data = json.load(open(p))
+    x = data[0]
+    print("\n==", p, "==")
+    print("total:", len(data))
+    print("fields:", list(x.keys()))
+    print("\n--- instruction ---")
+    print(x.get("instruction"))
+    print("\n--- input ---")
+    print(x.get("input"))
+    print("\n--- output ---")
+    print(x.get("output"))
+    print("\n--- tok_input length ---")
+    print(len(x.get("tok_input", [])))
+    print("\n--- tok_input first 50 ---")
+    print(x.get("tok_input", [])[:50])
+PY
+```
 
- build/models/Llama3.1-8B/llama3_1-8b-instruct-hf-torch-fp8
+------
 
-git clone https://huggingface.co/nvidia/Llama-3.1-8B-Instruct-NVFP4 \
+<br>
 
- build/models/Llama3.1-8B/fp4-quantized-modelopt
+## 5. Preprocess the Dataset
 
+Run Dataset Preprocessing
 
-
-
-
-export MLPERF_SCRATCH_PATH=/data/home/xli49/mlperf_scratch
-
+```bash
 cd /work
-export PYTHONPATH=/work/3rdparty/trtllm:$PYTHONPATH
-make generate_engines RUN_ARGS="--benchmarks=llama3.1-8b --scenarios=Offline"
 
+python3 code/llama3_1-8b/tensorrt/preprocess_data.py \
+  --data_dir build/data/ \
+  --preprocessed_data_dir build/preprocessed-data
+```
 
+This step converts the raw CNN/DailyMail JSON files into the format expected by the MLPerf Llama3.1-8B benchmark pipeline.
 
+------
 
+<br>
 
-git remote -v
-git fetch origin b5ddff4bdaa786168c0390c1575f0ac6a4e30777
-git checkout b5ddff4bdaa786168c0390c1575f0ac6a4e30777
+## 6. Start the TensorRT-LLM Server
 
+MPI Spawn is not supported properly inside this Apptainer setup. For a single-GPU run, the workaround is to bypass MPI Spawn and force TensorRT-LLM to use the local IPC executor.
 
+### 6.1 Fix OpenMPI and Stop Old Processes
 
-
-
-
-
-
-
-# Llama3.1-8B
-
-export MLPERF_SCRATCH_PATH=/data/home/xli49/mlperf_scratch
-
-cd /data/home/xli49/mlperf-h100/inference_results_v6.0/closed/NVIDIA
-
-export SANDBOX=/data/home/xli49/mlperf_scratch/containers/mlperf-inference-v6-sandbox
-
-apptainer shell --nv --writable-tmpfs \
-  --bind $(pwd):/work \
-  --bind /data/home/xli49/mlperf_scratch:/data/home/xli49/mlperf_scratch \
-  /data/home/xli49/mlperf_scratch/containers/mlperf-inference-v6.sif
-
-
-
-
-
-
-
-mpirun = /usr/local/mpi/bin/mpirun
-mpi4py.MPI = /usr/local/lib/python3.12/dist-packages/mpi4py/MPI.cpython-312-x86_64-linux-gnu.so
-下一步看 mpi4py 链到哪个 MPI 库：
-
-ldd /usr/local/lib/python3.12/dist-packages/mpi4py/MPI.cpython-312-x86_64-linux-gnu.so | egrep 'mpi|open-rte|open-pal|pmix|ucx'
-另外你这个 mpirun 很奇怪，-V 和 --help 都不认。看一下它到底是什么：
-
-bash
-
-ls -l /usr/local/mpi/bin/mpirun
-file /usr/local/mpi/bin/mpirun
-/usr/local/mpi/bin/mpirun
-最后一条可能会打印用法或报错，贴出来。
-
-还有，测一下 MPI runtime 本身能不能跑普通命令：
-
-bash
-
-/usr/local/mpi/bin/mpirun -n 1 hostname
-如果这个都失败，那就完全是 MPI runtime 问题。
-如果 mpirun -n 1 hostname 能过，但 from mpi4py import MPI 失败，那就是 mpi4py 和 MPI 库不匹配。
-
-
-
-
-
-2:08 AM
-Apptainer> ldd /usr/local/lib/python3.12/dist-packages/mpi4py/MPI.cpython-312-x86_64-linux-gnu.so | egrep 'mpi|open-rte|open-pal|pmix|ucx'
-	libmpi.so.40 => /opt/hpcx/ompi/lib/libmpi.so.40 (0x00007fc32572d000)
-	libopen-rte.so.40 => /opt/hpcx/ompi/lib/./libopen-rte.so.40 (0x00007fc325665000)
-	libopen-pal.so.40 => /opt/hpcx/ompi/lib/./libopen-pal.so.40 (0x00007fc3252e4000)
-Apptainer> 
-2:08 AM
-
-关键找到了：
-
-text
-
-
-mpi4py 链到的是 /opt/hpcx/ompi/lib/libmpi.so.40
-也就是 HPC-X OpenMPI。但它报错时在找这个路径：
-
-text
-
-
-/build-result/hpcx-v2.25.1-gcc-inbox-ubuntu24.04-cuda13-x86_64/ompi/share/openmpi/help-*.txt
-这说明这个 OpenMPI 是按 /build-result/.../ompi 这个 prefix 编译的，但容器实际运行时在 /opt/hpcx/ompi。OpenMPI 找 runtime 数据文件找错位置，所以 MPI 初始化失败。
-
-修法：设置 OPAL_PREFIX 指到真实安装路径。
-
-在 Apptainer> 里试：
-
-bash
-
+```bash
 export OPAL_PREFIX=/opt/hpcx/ompi
 export PATH=/opt/hpcx/ompi/bin:$PATH
 export LD_LIBRARY_PATH=/opt/hpcx/ompi/lib:$LD_LIBRARY_PATH
 
-python3 -c "from mpi4py import MPI; print(MPI.COMM_WORLD.Get_rank(), MPI.COMM_WORLD.Get_size())"
-如果输出：
-
-text
-
-
-0 1
-就成功了。
-
-然后再跑：
-
-bash
-
-cd /work
-pkill -f trtllm-serve || true
-make run_llm_server RUN_ARGS="--core_type=trtllm_endpoint --benchmarks=llama3.1-8b --scenarios=Offline"
-再测：
-
-bash
-
-curl http://127.0.0.1:30000/v1/models
-
-
-
-
-
-
-
-确认了两件事：
-
-```text
-MPI 初始化能好
-但 MPI.COMM_SELF.Spawn 不能用
+pkill -9 -f "trtllm-serve|python3 -m code.main.*run_harness|make run_harness"
+ps -ef | grep -E "trtllm|run_harness|30000" | grep -v grep
 ```
 
-而且：
+### 6.2 Patch TensorRT-LLM Executor for Single-GPU Execution
 
 ```bash
-grep -n "model_world_size == 1" /usr/local/lib/python3.12/dist-packages/tensorrt_llm/executor/executor.py
-```
-
-没输出，说明**单卡 patch 现在没有生效**。
-
-现在就打单卡绕过 MPI spawn 的 patch。复制执行：
-
-```bash
-pkill -f trtllm-serve || true
-
 SITE=/usr/local/lib/python3.12/dist-packages/tensorrt_llm/executor/executor.py
 cp $SITE ${SITE}.bak.single_gpu
 
@@ -834,106 +802,67 @@ print("patched" if "if model_world_size == 1:" in p.read_text() else "patch fail
 PY
 ```
 
-确认 patch 在：
+This patch makes TensorRT-LLM use the local IPC executor when `model_world_size == 1`, avoiding the MPI Spawn path.
+
+### 6.3 Start the TensorRT-LLM Endpoint Server
 
 ```bash
-grep -n "model_world_size == 1" /usr/local/lib/python3.12/dist-packages/tensorrt_llm/executor/executor.py
-```
-
-然后保留 MPI prefix，重新跑：
-
-```bash
-export OPAL_PREFIX=/opt/hpcx/ompi
-export PATH=/opt/hpcx/ompi/bin:$PATH
-export LD_LIBRARY_PATH=/opt/hpcx/ompi/lib:$LD_LIBRARY_PATH
-
 cd /work
+
 make run_llm_server RUN_ARGS="--core_type=trtllm_endpoint --benchmarks=llama3.1-8b --scenarios=Offline"
 ```
 
-这次日志里应该**不能再出现**：
+Use the command below to inspect the latest log file:
 
-```text
-rank 0 using MpiPoolSession to spawn MPI processes
-MPI_ERR_SPAWN
+```
+latest=$(find /work/build/logs -type f -printf "%T@ %p\n" | sort -n | tail -1 | cut -d' ' -f2-)
+echo "$latest"
+
+grep -niC 5 -E "error|exception|traceback|failed|fatal|abort|oom|cuda|cublas|nccl|mpi|spawn|connection refused" -- "$latest"
 ```
 
-如果后面变成 `CUBLAS_STATUS_NOT_SUPPORTED`，那说明单卡绕过 MPI 生效了，剩下是另一个 CUDA/cuBLASLt autotune 问题。
+A healthy server startup should include messages similar to:
 
+```tex
+_config=None enable_sleep=False disable_flashinfer_sampling=False max_stats_len=1000
+456-[05/21/2026-19:40:24] [TRT-LLM] [I] PROMETHEUS_MULTIPROC_DIR: /tmp/tmplkaz118m
+457-INFO:     Started server process [73089]
+458-INFO:     Waiting for application startup.
+459-INFO:     Application startup complete.
+```
 
+This indicates that the TensorRT-LLM server is running successfully.
 
+------
 
+<br>
 
+## 7. Run the Benchmark
 
-
-pkill -f trtllm-serve || true
-
-export OPAL_PREFIX=/opt/hpcx/ompi
-export PATH=/opt/hpcx/ompi/bin:$PATH
-export LD_LIBRARY_PATH=/opt/hpcx/ompi/lib:$LD_LIBRARY_PATH
-
-export TRTLLM_DISABLE_PDL=1
-export CUBLASLT_LOG_LEVEL=1
-
+```bash
 cd /work
-make run_llm_server RUN_ARGS="--core_type=trtllm_endpoint --benchmarks=llama3.1-8b --scenarios=Offline"
 
-
-
-
-H100不支持FP4
-
-Apptainer> cd /work
-
-cp configs/H100-NVL-94GBx1/Offline/llama3_1-8b.py configs/H100-NVL-94GBx1/Offline/llama3_1-8b.py.bak
-
-sed -i "s/model_fields.precision: 'fp4'/model_fields.precision: 'fp8'/" configs/H100-NVL-94GBx1/Offline/llama3_1-8b.py
-
-Apptainer> find /work/build/models/Llama3.1-8B -maxdepth 2 -type d | grep -Ei 'fp8|bf16|int8|quant'
-
-/work/build/models/Llama3.1-8B/llama3_1-8b-instruct-hf-torch-fp8
-
-/work/build/models/Llama3.1-8B/llama3_1-8b-instruct-hf-torch-fp8/.git
-
-/work/build/models/Llama3.1-8B/fp8-quantized-modelopt
-
-/work/build/models/Llama3.1-8B/fp8-quantized-modelopt/llama3_1-8b-instruct-hf-tp1pp1-fp8
-
-/work/build/models/Llama3.1-8B/fp4-quantized-modelopt
-
-/work/build/models/Llama3.1-8B/fp4-quantized-modelopt/llama3_1-8b-instruct-hf-torch-fp4
-
-/work/build/models/Llama3.1-8B/fp4-quantized-modelopt/.git
-
-
-
-
-
-pkill -f trtllm-serve || true
-
-export OPAL_PREFIX=/opt/hpcx/ompi
-export PATH=/opt/hpcx/ompi/bin:$PATH
-export LD_LIBRARY_PATH=/opt/hpcx/ompi/lib:$LD_LIBRARY_PATH
-
-
-
-
-
-mkdir -p /work/build/models/Llama3.1-8B/fp8-quantized-modelopt/llama3_1-8b-instruct-hf-torch-fp8
-
-cp -a /work/build/models/Llama3.1-8B/llama3_1-8b-instruct-hf-torch-fp8/. \
-      /work/build/models/Llama3.1-8B/fp8-quantized-modelopt/llama3_1-8b-instruct-hf-torch-fp8/
-
-
-
-
-
-cd /work
 make run_harness RUN_ARGS="--core_type=trtllm_endpoint --benchmarks=llama3.1-8b --scenarios=Offline"
+```
+
+The harness connects to the TensorRT-LLM endpoint server and runs the Offline scenario for the Llama3.1-8B benchmark.
 
 
 
-Apptainer> curl http://127.0.0.1:30000/v1/models
+![image-20260521161033676](/Users/alexanderlee/Library/Application%20Support/typora-user-images/image-20260521161033676.png)
 
-{"object":"list","data":[{"id":"llama3_1-8b-instruct-hf-torch-fp8","object":"model","created":1778826334,"owned_by":"tensorrt_llm"}]}Apptainer> 
+<br>
+
+
+
+
+
+
+
+
+
+
+
+
+
 
