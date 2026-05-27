@@ -31,7 +31,7 @@ Ways to contribute include:
 
 ---
 
-## 2. Developing
+## 2. Docker/Container
 
 ### 1) Step 1: Clone the Repository
 
@@ -40,11 +40,47 @@ git clone https://github.com/vllm-project/vllm.git
 cd vllm
 ```
 
+### 2) Use Container
+
+```bash
+cd container
+apptainer pull vllm-openai.sif docker://vllm/vllm-openai:latest
+
+export HF_TOKEN="$(cat ~/.cache/huggingface/token)"
+VLLM_PROJECT_PATH="/data/home/xli49/vllm"
+cd "$VLLM_PROJECT_PATH"
+
+
+apptainer shell --nv \
+  --bind "${VLLM_PROJECT_PATH}:${VLLM_PROJECT_PATH}" \
+  --bind "${HOME}/.cache/huggingface:${HOME}/.cache/huggingface" \
+  --pwd "${VLLM_PROJECT_PATH}" \
+  --env HF_TOKEN="${HF_TOKEN}" \
+  ../container/vllm-openai.sif
+```
+
+
+
+## 3.UV
+
+### 1) Step 1: Clone the Repository
+
+```bash
+git clone https://github.com/vllm-project/vllm.git
+cd vllm
+
+srun -p highmem32   --cpus-per-task=8   --mem=64G   --time=12:00:00   --pty /bin/bash
+```
+
 ### 2) Step 2: Create a Python Environment (Recommended: uv)
 
 ```bash
-uv venv --python 3.12 --seed
+uv venv --python 3.12 --seed --managed-python
 source .venv/bin/activate
+export CCACHE_DIR="${HOME}/.cache/ccache"
+export CCACHE_NOHASHDIR=true
+export MAX_JOBS=32
+uv pip install -e . --torch-backend=auto -v
 ```
 
 If you don't have uv, install it first:
@@ -60,6 +96,8 @@ To delete the virtual environment:
 ```bash
 rm -rf .venv
 uv cache clean
+
+
 ```
 
 ---
@@ -126,7 +164,9 @@ The cause is a mismatch between the torch ABI used at compile time and the torch
 uv pip install -e . --no-build-isolation
 ```
 
-#### Why Does vLLM Require `--no-build-isolation`?
+#### Why Does vLLM Require `--no-b`
+
+#### `uild-isolation`?
 
 Because compiling vLLM's C++/CUDA extensions depends heavily on:
 

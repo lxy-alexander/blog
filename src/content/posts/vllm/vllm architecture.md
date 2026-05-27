@@ -100,15 +100,132 @@ sequenceDiagram
     LLM-->>Main: engine = AsyncLLM 已就绪
 ```
 
-要点说明：
 
--   `Executor.get_class` 会根据 `parallel_config.distributed_executor_backend` 选出要实例化的执行器类：若传入的是 类对象，则必须是 `Executor` 的子类，否则抛 `TypeError`；若是字符串 `"ray"`，则看 `VLLM_USE_RAY_V2_EXECUTOR_BACKEND` 选 `RayExecutorV2` 或 `RayDistributedExecutor`；`"mp"` / `"uni"` / `"external_launcher"` 分别对应多进程、单进程和外部启动器封装；若是 其它字符串，则当作全限定类名用 `resolve_obj_by_qualname` 解析，并再次校验是否为 `Executor` 子类；其它情况抛 `ValueError`。
--   `InputProcessor` 在 `AsyncLLM` 里负责「请求进引擎」：构造时把 `VllmConfig` 和共用的 `renderer` 存好，并挂一个 `InputPreprocessor`。真正干活在后面的 `process_inputs`：校验采样/池化参数、必要时用预处理器把原始 prompt 变成带 token id 的引擎输入，再结合多模态、LoRA、数据并行等，最终打包成发给 `EngineCore` 的 `EngineCoreRequest`。
--   `OutputProcessor` 负责「引擎结果回到调用方」：用与 `renderer` 相同的 `tokenizer`（以及 `log_stats`、流式间隔、是否 tracing）初始化。之后 `EngineCore` 返回的 `EngineCoreOutputs` 由它解码、整理成上层看到的 `RequestOutput`（含流式增量），保证输出侧和输入侧用同一套分词约定。
 
-- `from_engine_args` 在 `vllm/engine/arg_utils.py` 中把 CLI/参数转为 `VllmConfig`；其中 `model` 会拉起 HF tokenizer / config（meta-llama/Llama-3.2-1B-Instruct）。
-- `AsyncMPClient` 通过 ZMQ 的 ROUTER/PULL socket 与子进程 `EngineCoreProc` 解耦，`launch_core_engines` 负责真正 `fork/spawn`。
-- `MultiprocExecutor` 用 SHM `MessageQueue` 广播 `collective_rpc`，每个 `WorkerProc` 内的 `Worker` 完成 `init_device → load_model → profile → compile/CUDAGraph → KV cache 分配`。
+- `main -> AsyncEngineArgs`：创建 `AsyncEngineArgs(model="meta-llama/Llama-3.2-1B-Instruct")`。
+- `main -> AsyncLLM`：调用 `AsyncLLM.from_engine_args(engine_args)` 启动异步引擎。
+- `AsyncLLM -> AsyncEngineArgs`：调用 `create_engine_config(usage_context)` 生成配置。
+- `AsyncEngineArgs -> AsyncLLM`：返回 `VllmConfig`。
+
+- `AsyncLLM -> AsyncLLM`：初始化 `AsyncLLM(vllm_config, executor_class=MultiprocExecutor)`
+
+AsyncLLM is an asynchronous wrapper for the vLLM engine.，继承自 EngineClient 的类: 负责接收请求、处理输入输出，并把请求转发给后面的 EngineCore. EngineClient：定义“客户端应该有哪些能力”的基类/接口。
+
+
+
+-   LLM -> InProc：创建 InputProcessor，负责把用户输入转成 vLLM 内部请求格式。
+-   LLM -> OutProc：创建 OutputProcessor，负责把模型输出整理成流式或最终结果。
+-   LLM -> Client：创建异步多进程 EngineCore 客户端。
+
+AsyncLLM -> InputProcessor：初始化请求转换器`InputProcessor(vllm_config, renderer)`，保存 model/cache/lora/scheduler/speculative/structured_outputs 等配置，并准备 InputPreprocessor；后续 add_request() 时，它会校验 SamplingParams/PoolingParams、LoRA、DP rank，把 raw prompt 或 renderer 输出转成 EngineCoreRequest，里面包含 prompt_token_ids、prompt_embeds、mm_features、采样参数、到达时间、优先级等。
+
+#### EngineCoreRequest - 纯文本请求
+
+```
+EngineCoreRequest(
+    request_id="req-1",
+    prompt_token_ids=[9906, 11, 889, 527, 499, 30],
+    prompt_embeds=None,
+    prompt_is_token_ids=False,
+    mm_features=None,
+    sampling_params=SamplingParams(
+        max_tokens=8,
+        temperature=0.7,
+        top_p=0.9,
+    ),
+    pooling_params=None,
+    arrival_time=1710000000.123,
+    lora_request=None,
+    cache_salt=None,
+    priority=3,
+    data_parallel_rank=None,
+    trace_headers=None,
+    resumable=False,
+)
+```
+
+-   request_id="req-1"：这个请求叫 req-1，后端返回结果也带这个 ID。
+-   prompt_token_ids=[9906, ...]："Hello, who are you?" 被 tokenizer 后的 token。
+-   prompt_embeds=None：用户没有直接传 embedding。
+-   prompt_is_token_ids=False：用户传的是字符串，不是 token id 列表。
+-   mm_features=None：这是纯文本请求，没有图片、音频等多模态输入。
+-   sampling_params=...：最多生成 8 个 token，温度 0.7，top_p 0.9。
+-   pooling_params=None：这不是 embedding / pooling 请求，而是生成请求。
+-   arrival_time=...：请求进入系统的时间，用来统计排队和延迟。
+-   lora_request=None：没有指定 LoRA adapter。
+-   cache_salt=None：没有额外隔离 prefix cache。
+-   priority=3：调度优先级是 3。
+-   data_parallel_rank=None：不手动指定 DP rank，让 vLLM 自己分配。
+-   trace_headers=None：没有传链路追踪 header。
+-   resumable=False：这个请求不支持暂停恢复。
+
+#### EngineCoreRequest - Lora
+
+```
+EngineCoreRequest(
+    request_id="req-2",
+    prompt_token_ids=[...],
+    sampling_params=SamplingParams(max_tokens=16),
+    lora_request=LoRARequest("fr-adapter", 1, "/path/to/lora"),
+    mm_features=None,
+    pooling_params=None,
+)
+```
+
+
+
+AsyncLLM -> OutputProcessor：初始化结果状态管理器`OutputProcessor(tokenizer, log_stats, stream_interval)`，保存 tokenizer、stream_interval 和每个请求的 RequestState；==后续 EngineCore 每吐出一批 EngineCoreOutput，它会按 request id 找状态，统计日志，detokenize 新 token，处理 stop string / logprobs / finish reason，然后生成 RequestOutput 放进该请求的 async queue。== 
+
+AsyncLLM -> EngineCoreClient：调用 `EngineCoreClient.make_async_mp_client(...)`,初始化真正和后端 EngineCore 通信的客户端；在普通 AsyncLLM 多进程模式下会返回 AsyncMPClient，它负责启动/连接 EngineCore 后台进程，把 EngineCoreRequest 异步发过去，再从后端异步拉取 EngineCoreOutputs。
+
+
+
+
+
+
+
+
+
+
+
+- `EngineCoreClient -> MPClient`：创建异步模式的 `MPClient(asyncio_mode=True, ...)`。
+- `MPClient -> MPClient`：创建 ZMQ `Context`、`ROUTER` 输入 socket 和 `PULL` 输出 socket。
+- `MPClient -> utils.py`：调用 `launch_core_engines(...)` 启动 EngineCore。
+- `utils.py -> CoreEngineActorManager`：Ray 后端创建 `CoreEngineActorManager`。
+- `CoreEngineActorManager -> EngineCoreActor`：通过 `ray.remote(EngineCoreActor).remote(...)` 启动 Ray actor。
+- `utils.py -> CoreEngineProcManager`：本地多进程后端创建 `CoreEngineProcManager`。
+- `CoreEngineProcManager -> EngineCoreProc`：启动 `mp.Process(target=EngineCoreProc.run_engine_core)`。
+- `EngineCoreProc -> EngineCoreProc`：子进程创建 `EngineCoreProc(...)`。
+- `EngineCoreProc -> EngineCoreProc`：执行 `_perform_handshakes(...)` 建立 ZMQ 通信。
+- `EngineCoreProc -> EngineCore`：调用父类初始化 `EngineCore`。
+- `EngineCore -> MultiprocExecutor`：创建 `MultiprocExecutor(vllm_config)`。
+- `MultiprocExecutor -> MultiprocExecutor`：初始化共享内存 `MessageQueue`。
+- `MultiprocExecutor -> WorkerProc`：按 `world_size` 创建多个 `WorkerProc`。
+- `WorkerProc -> Worker`：通过 `WorkerWrapperBase.init_worker(...)` 初始化 `Worker`。
+- `Worker -> torch.cuda / NCCL`：设置 GPU 设备并初始化 NCCL 通信组。
+- `Worker -> GPUModelRunner`：创建 `GPUModelRunner(vllm_config, device)`。
+- `Worker -> Worker`：调用 `load_model()` 开始加载模型。
+- `Worker -> GPUModelRunner`：调用 `model_runner.load_model()`。
+- `GPUModelRunner -> DefaultModelLoader`：通过 `get_model_loader(load_config).load_model(...)` 加载模型。
+- `DefaultModelLoader -> LlamaForCausalLM`：实例化 `LlamaForCausalLM(vllm_config, prefix="")`。
+- `LlamaForCausalLM -> LlamaModel`：创建 `LlamaModel(vllm_config)` 主干网络。
+- `DefaultModelLoader -> GPUModelRunner`：读取 HF safetensors，按 TP rank 切分后加载到 CUDA。
+- `GPUModelRunner -> Worker`：返回加载完成的模型。
+- `WorkerProc -> MultiprocExecutor`：通过 `ready_pipe` 发送 `READY`。
+- `EngineCore -> EngineCore`：调用 `_initialize_kv_caches(vllm_config)`。
+- `EngineCore -> MultiprocExecutor`：查询 KV cache 规格和可用显存。
+- `MultiprocExecutor -> Worker`：广播 `get_kv_cache_spec` 和 `determine_available_memory` RPC。
+- `Worker -> GPUModelRunner`：执行 `profile_run()` 测算 KV cache 可用显存。
+- `Worker -> torch.cuda / NCCL`：执行 CUDA 同步并读取显存信息。
+- `EngineCore -> MultiprocExecutor`：调用 `initialize_from_config(kv_cache_configs)`。
+- `MultiprocExecutor -> Worker`：广播 `initialize_from_config` 和 `compile_or_warm_up_model` RPC。
+- `Worker -> GPUModelRunner`：分配 KV cache blocks，并执行模型预热和 CUDA Graph 捕获。
+- `EngineCore -> Scheduler`：创建 `Scheduler(vllm_config, kv_cache_config, ...)`。
+- `EngineCoreProc -> MPClient`：通过 ZMQ handshake socket 发送 `HELLO / READY`。
+- `MPClient -> EngineCoreClient`：收齐所有 EngineCore 的 READY 信号。
+- `EngineCoreClient -> AsyncLLM`：返回就绪的 `AsyncMPClient` 实例。
+- `AsyncLLM -> AsyncLLM`：如果已有事件循环，启动 `_run_output_handler()`。
+- `AsyncLLM -> main`：返回已就绪的 `AsyncLLM` engine。
 
 
 

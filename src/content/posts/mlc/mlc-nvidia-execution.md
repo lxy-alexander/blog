@@ -1,154 +1,14 @@
 ---
-title: "mlc-nvidia-workflow"
+title: "mlc-nvidia-execution"
 published: 2026-05-21
-description: "mlc-nvidia-workflow"
+description: "mlc-nvidia-execution"
 image: ""
-tags: ["mlc","mlc-nvidia-workflow"]
+tags: ["mlc","mlc-nvidia-execution"]
 category: mlc
 draft: false
 lang: ""
 createdAt: "2026-05-21T20:39:14.557.599780749Z"
 ---
-
-```mermaid
-sequenceDiagram
-    autonumber
-
-    actor User as 用户/命令行
-    participant Make as make
-    participant Main as code.main
-    participant Prep as preprocess_data.py
-    participant Builder as ResNet50EngineBuilder
-    participant GS as RN50GraphSurgeon
-    participant Calib as RN50Calibrator
-    participant TRT as TensorRT
-    participant LGConf as LoadgenConfFilesOp
-    participant HarnessOp as LWISExecutableHarness
-    participant H as harness_default
-    participant LoadGen as MLPerf LoadGen
-    participant QSL as qsl::SampleLibrary
-    participant SUT as lwis::Server
-    participant GPU as GPU/DLA TensorRT Engine
-    participant Logs as build/logs
-
-    rect rgb(245,245,245)
-    Note over User,Prep: 阶段 1：数据和模型准备
-
-    User->>Make: make download_model / make download_data
-    Make->>Main: python3 -m code.main 或脚本入口
-    Main->>Prep: 准备 ImageNet 数据
-    Prep->>Prep: 读取图片
-    Prep->>Prep: resize + center crop + RGB + mean subtraction
-    Prep->>Prep: HWC 转 NCHW
-    Prep->>Prep: 保存 fp32 / int8_linear / int8_chw4 .npy
-    Prep-->>User: 预处理数据位于 build/preprocessed_data/imagenet/ResNet50
-    end
-
-    rect rgb(235,248,255)
-    Note over User,TRT: 阶段 2：构建 TensorRT engine
-
-    User->>Make: make generate_engines RUN_ARGS="--benchmarks=resnet50 --scenarios=..."
-    Make->>Main: python3 -m code.main --action=generate_engines
-    Main->>Builder: 创建 ResNet50EngineBuilder
-    Builder->>GS: 读取 resnet50_v1.onnx 并改写图
-    GS->>GS: 移除 softmax
-    GS->>GS: 添加 TopK
-    GS->>GS: 融合/替换部分 ResNet 层
-    GS-->>Builder: 返回优化后的 ONNX model
-
-    alt INT8 需要校准且无 cache
-        Builder->>Calib: 创建 RN50Calibrator
-        Calib->>Calib: 读取 data_maps/imagenet/cal_map.txt
-        Calib->>Calib: 加载 fp32 calibration .npy
-        Calib->>TRT: 提供 calibration batches
-        TRT->>TRT: 统计 activation range
-        TRT-->>Calib: 写入 calibration cache
-    else 已有 calibrator.cache
-        Builder->>Calib: 读取 calibrator.cache
-        Calib-->>Builder: 返回 calibration scales
-    end
-
-    Builder->>TRT: trt.OnnxParser 解析优化后 ONNX
-    Builder->>TRT: 设置 INT8 / tensor format / plugin / tactic
-    TRT->>TRT: build serialized engine
-    TRT-->>Builder: TensorRT engine file
-    Builder-->>Main: engine_index
-    Main-->>User: engine 生成完成
-    end
-
-    rect rgb(240,255,240)
-    Note over User,Logs: 阶段 3：正式 MLPerf LoadGen 推理
-
-    User->>Make: make run_harness RUN_ARGS="--benchmarks=resnet50 --scenarios=... --test_mode=..."
-    Make->>Main: python3 -m code.main --action=run_harness
-
-    Main->>Builder: 确认/生成 TensorRT engine
-    Builder-->>Main: engine_index
-
-    Main->>LGConf: LoadgenConfFilesOp.run()
-    LGConf->>LGConf: 生成/导出 mlperf.conf 和 user.conf
-    LGConf-->>Main: mlperf_conf_path, user_conf_path, lg_settings
-
-    Main->>HarnessOp: BenchmarkHarnessOp / LWISExecutableHarness
-    HarnessOp->>HarnessOp: 组织 harness_default 启动参数
-    HarnessOp->>H: ./build/bin/harness_default --gpu_engines=... --tensor_path=... --map_path=...
-
-    H->>H: 读取 gflags
-    H->>TRT: 加载 TensorRT plugin libraries
-    H->>LoadGen: 创建 TestSettings
-    H->>LoadGen: FromConfig(mlperf.conf)
-    H->>LoadGen: FromConfig(user.conf)
-
-    H->>SUT: 创建 lwis::Server
-    H->>QSL: 创建 qsl::SampleLibrary
-    QSL->>QSL: 读取 val_map.txt
-    QSL->>QSL: 确定 sample count / performance sample count
-    QSL->>QSL: 分配 pinned host memory 或 device memory
-
-    H->>SUT: AddSampleLibrary(QSL)
-    H->>SUT: Setup(settings, params)
-    SUT->>TRT: deserializeCudaEngine(engine file)
-    TRT-->>SUT: ICudaEngine
-    SUT->>GPU: 创建 execution context / CUDA streams / buffers
-    SUT-->>H: setup 完成
-
-    H->>SUT: Warmup()
-    SUT->>GPU: 运行短暂 warmup inference
-    GPU-->>SUT: warmup 完成
-
-    H->>LoadGen: mlperf::StartTest(SUT, QSL, settings, log_settings)
-
-    LoadGen->>QSL: LoadSamplesToRam(sample indices)
-    QSL->>QSL: 从 .npy 加载样本到内存
-    QSL-->>LoadGen: samples ready
-
-    loop MLPerf 测试期间，按 Scenario 发请求
-        LoadGen->>SUT: IssueQuery(vector<QuerySample>)
-        SUT->>SUT: 放入 WorkQueue
-        SUT->>SUT: batcher 线程组成 batch
-        SUT->>QSL: GetSampleAddress(sample.index)
-        QSL-->>SUT: 输入 tensor 地址
-        SUT->>GPU: cudaMemcpyAsync 输入到 device buffer
-        SUT->>GPU: TensorRT enqueueV3()
-        GPU->>GPU: ResNet50 INT8 inference
-        GPU-->>SUT: topk_layer_output_index
-        SUT->>GPU: cudaMemcpyAsync 输出到 host buffer
-        SUT->>SUT: completion thread 等待 CUDA event
-        SUT->>LoadGen: QuerySamplesComplete(responses)
-    end
-
-    LoadGen->>QSL: UnloadSamplesFromRam(sample indices)
-    LoadGen->>Logs: 写 mlperf_log_summary.txt
-    LoadGen->>Logs: 写 mlperf_log_detail.txt
-    LoadGen->>Logs: AccuracyOnly 时写 accuracy log
-
-    H-->>HarnessOp: harness 进程结束
-    HarnessOp->>Main: load_run_results()
-    Main->>Logs: ResultSummaryOp 汇总结果
-    Main-->>User: 输出性能/准确率结果
-    end
-
-```
 
 
 # MLPerf Inference v6.0 — ResNet50 on H100-NVL-94GBx1
@@ -849,6 +709,6 @@ The harness connects to the TensorRT-LLM endpoint server and runs the Offline sc
 
 
 
-![image-20260521161033676](/Users/alexanderlee/Library/Application%20Support/typora-user-images/image-20260521161033676.png)
+![image-20260521161033676](https://pub-c69d652d2a0747fab9aad1fab48ff742.r2.dev/images/image-20260521161033676)
 
 <br>
