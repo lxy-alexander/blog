@@ -100,28 +100,56 @@ sequenceDiagram
     LLM-->>Main: engine = AsyncLLM 已就绪
 ```
 
+#### `main -> AsyncEngineArgs`：
 
+创建 `AsyncEngineArgs(model="meta-llama/Llama-3.2-1B-Instruct")`。
 
-- `main -> AsyncEngineArgs`：创建 `AsyncEngineArgs(model="meta-llama/Llama-3.2-1B-Instruct")`。
-- `main -> AsyncLLM`：调用 `AsyncLLM.from_engine_args(engine_args)` 启动异步引擎。
-- `AsyncLLM -> AsyncEngineArgs`：调用 `create_engine_config(usage_context)` 生成配置。
-- `AsyncEngineArgs -> AsyncLLM`：返回 `VllmConfig`。
+#### `main -> AsyncLLM`：
 
-- `AsyncLLM -> AsyncLLM`：初始化 `AsyncLLM(vllm_config, executor_class=MultiprocExecutor)`
+调用 `AsyncLLM.from_engine_args(engine_args)` 启动异步引擎, AsyncLLM is an asynchronous wrapper for the vLLM engine.。
 
-AsyncLLM is an asynchronous wrapper for the vLLM engine.，继承自 EngineClient 的类: 负责接收请求、处理输入输出，并把请求转发给后面的 EngineCore. EngineClient：定义“客户端应该有哪些能力”的基类/接口。
+#### `AsyncLLM -> AsyncEngineArgs`：
 
+调用 `create_engine_config(usage_context)` 生成配置。
 
+#### `AsyncEngineArgs -> AsyncLLM`：
 
--   LLM -> InProc：创建 InputProcessor，负责把用户输入转成 vLLM 内部请求格式。
--   LLM -> OutProc：创建 OutputProcessor，负责把模型输出整理成流式或最终结果。
--   LLM -> Client：创建异步多进程 EngineCore 客户端。
+返回 `VllmConfig`。
 
-AsyncLLM -> InputProcessor：初始化请求转换器`InputProcessor(vllm_config, renderer)`，保存 model/cache/lora/scheduler/speculative/structured_outputs 等配置，并准备 InputPreprocessor；后续 add_request() 时，它会校验 SamplingParams/PoolingParams、LoRA、DP rank，把 raw prompt 或 renderer 输出转成 EngineCoreRequest，里面包含 prompt_token_ids、prompt_embeds、mm_features、采样参数、到达时间、优先级等。
+#### `AsyncLLM -> AsyncLLM`：
 
-#### EngineCoreRequest - 纯文本请求
+初始化 `AsyncLLM(vllm_config, executor_class=MultiprocExecutor)`
+
+#### AsyncLLM -> InputProcessor：
+
+创建 InputProcessor，负责把用户输入转成 vLLM 内部请求格式。初始化请求转换器`InputProcessor(vllm_config, renderer)`，==保存 model/cache/lora/scheduler/speculative/structured_outputs 等配置==，并准备 InputPreprocessor；后续 add_request() 时，它会校验 SamplingParams/PoolingParams、LoRA、DP rank，把 raw prompt 或 renderer 输出转成 EngineCoreRequest，里面包含 prompt_token_ids、prompt_embeds、mm_features、采样参数、到达时间、优先级等。
 
 ```
+self.input_preprocessor = InputPreprocessor(
+    vllm_config,
+    renderer=renderer,
+    mm_registry=mm_registry,
+)
+```
+
+**EngineCoreRequest - 纯文本请求**
+
+```
+def process_inputs(
+    self,
+    request_id: str,
+    prompt: PromptType | EngineInput,
+    params: SamplingParams | PoolingParams,
+    supported_tasks: tuple[SupportedTask, ...],
+    arrival_time: float | None = None,
+    lora_request: LoRARequest | None = None,
+    tokenization_kwargs: dict[str, Any] | None = None,
+    trace_headers: Mapping[str, str] | None = None,
+    priority: int = 0,
+    data_parallel_rank: int | None = None,
+    resumable: bool = False,
+) -> EngineCoreRequest:
+.....
 EngineCoreRequest(
     request_id="req-1",
     prompt_token_ids=[9906, 11, 889, 527, 499, 30],
@@ -159,7 +187,7 @@ EngineCoreRequest(
 -   trace_headers=None：没有传链路追踪 header。
 -   resumable=False：这个请求不支持暂停恢复。
 
-#### EngineCoreRequest - Lora
+**EngineCoreRequest - Lora**
 
 ```
 EngineCoreRequest(
@@ -174,9 +202,13 @@ EngineCoreRequest(
 
 
 
-AsyncLLM -> OutputProcessor：初始化结果状态管理器`OutputProcessor(tokenizer, log_stats, stream_interval)`，保存 tokenizer、stream_interval 和每个请求的 RequestState；==后续 EngineCore 每吐出一批 EngineCoreOutput，它会按 request id 找状态，统计日志，detokenize 新 token，处理 stop string / logprobs / finish reason，然后生成 RequestOutput 放进该请求的 async queue。== 
+#### AsyncLLM -> OutputProcessor：
 
-AsyncLLM -> EngineCoreClient：调用 `EngineCoreClient.make_async_mp_client(...)`,初始化真正和后端 EngineCore 通信的客户端；在普通 AsyncLLM 多进程模式下会返回 AsyncMPClient，它负责启动/连接 EngineCore 后台进程，把 EngineCoreRequest 异步发过去，再从后端异步拉取 EngineCoreOutputs。
+创建 OutputProcessor，负责把模型输出整理成流式或最终结果. 初始化结果状态管理器`OutputProcessor(tokenizer, log_stats, stream_interval)`，保存 tokenizer、stream_interval 和每个请求的 RequestState；==后续 EngineCore 每吐出一批 EngineCoreOutput，它会按 request id 找状态，统计日志，detokenize 新 token，处理 stop string / logprobs / finish reason，然后生成 RequestOutput 放进该请求的 async queue。== 
+
+#### AsyncLLM -> EngineCoreClient：
+
+创建异步多进程 EngineCore 客户端。调用 `EngineCoreClient.make_async_mp_client(...)`,初始化真正和后端 EngineCore 通信的客户端；在普通 AsyncLLM 多进程模式下会返回 AsyncMPClient，它负责启动/连接 EngineCore 后台进程，把 EngineCoreRequest 异步发过去，再从后端异步拉取 EngineCoreOutputs。
 
 
 
