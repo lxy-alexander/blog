@@ -12,147 +12,293 @@ createdAt: "2026-05-23T14:29:42.639.760153809Z"
 
 
 
-Use conda to install git lfs in base conda
+# TensorRT-LLM Development Workflow Notes
 
+Use the official TensorRT-LLM version that matches the container version. 1. Install Git LFS in Conda Base
+
+Git LFS (Large File Storage，大文件存储) is required for downloading model and dependency files.
+
+```bash
 conda install -c conda-forge git git-lfs -y
+
 git lfs install
+```
 
+Example:
+
+```bash
+$ git lfs install
+Git LFS initialized.
+```
+
+## 2. Clone TensorRT-LLM Repository
+
+Always pull submodules (子模块) and LFS files after cloning.
+
+```bash
 git clone https://github.com/NVIDIA/TensorRT-LLM.git
+
 cd TensorRT-LLM
+
 git submodule update --init --recursive
+
 git lfs pull
+```
 
+Example:
 
+```bash
+$ git lfs pull
+Downloading LFS objects: 100% (xxx/xxx), done.
+```
 
+## 3. Pull TensorRT-LLM Development Container
 
+Use the official development container (开发容器) to avoid dependency issues.
 
-Pull
+```bash
+apptainer pull tensorrt_llm_devel_1.3.0rc15.sif \
+docker://nvcr.io/nvidia/tensorrt-llm/devel:1.3.0rc15
+```
 
-apptainer pull tensorrt_llm_devel_1.3.0rc15.sif docker://nvcr.io/nvidia/tensorrt-llm/devel:1.3.0rc15
+Example:
 
+```bash
+$ apptainer pull tensorrt_llm_devel_1.3.0rc15.sif
+INFO: Download complete
+```
 
+## 4. Enter the Container
 
+Bind (挂载) the TensorRT-LLM source directory into the container.
 
-
-进入容器
+```bash
 PROJECT_PATH="/data/home/xli49/trt/TensorRT-LLM"
 
 apptainer shell --nv \
-  --bind "${PROJECT_PATH}:${PROJECT_PATH}" \
-  --pwd "${PROJECT_PATH}" \
-  ../container/tensorrt_llm_devel_1.3.0rc15.sif
+--bind "${PROJECT_PATH}:${PROJECT_PATH}" \
+--pwd "${PROJECT_PATH}" \
+../container/tensorrt_llm_devel_1.3.0rc15.sif
+```
 
+Verify the working directory.
 
-
+```bash
 pwd
+```
+
+Output:
+
+```bash
 /data/home/xli49/trt/TensorRT-LLM
+```
 
+## 5. Install TensorRT-LLM
 
+Use precompiled binaries (预编译二进制文件) whenever possible.
 
-
-
-
-
+```bash
 TRTLLM_USE_PRECOMPILED=1 pip install -e .
+```
 
--> No matching distribution found for tensorrt_llm==1.3.0rc16
+Example error:
 
-但可用版本列表里最高只有：1.3.0rc15
+```bash
+No matching distribution found for tensorrt_llm==1.3.0rc16
+```
 
-Apptainer> git checkout v1.3.0rc15
-error: pathspec 'v1.3.0rc15' did not match any file(s) known to git
-Apptainer> 
-Apptainer> git remote -v
-origin  https://github.com/lxy-alexander/TensorRT-LLM.git (fetch)
-origin  https://github.com/lxy-alexander/TensorRT-LLM.git (push)
-Apptainer> 
-Apptainer> git remote add upstream https://github.com/NVIDIA/TensorRT-LLM.git
-Apptainer> git remote -v
-origin  https://github.com/lxy-alexander/TensorRT-LLM.git (fetch)
-origin  https://github.com/lxy-alexander/TensorRT-LLM.git (push)
-upstream        https://github.com/NVIDIA/TensorRT-LLM.git (fetch)
-upstream        https://github.com/NVIDIA/TensorRT-LLM.git (push)
-Apptainer> git fetch upstream --tags
+Reason:
 
-Apptainer> git tag | grep 1.3
+The container is based on `1.3.0rc15`, but pip tries to install `1.3.0rc16`.
+
+## 6. Fix Version Mismatch
+
+The forked repository may not contain official tags (标签).
+
+Check current remote:
+
+```bash
+git remote -v
+```
+
+Output:
+
+```bash
+origin https://github.com/lxy-alexander/TensorRT-LLM.git
+```
+
+Add NVIDIA upstream repository:
+
+```bash
+git remote add upstream \
+https://github.com/NVIDIA/TensorRT-LLM.git
+```
+
+Fetch tags:
+
+```bash
+git fetch upstream --tags
+```
+
+List available tags:
+
+```bash
+git tag | grep 1.3
+```
+
+Output:
+
+```bash
 v1.3.0rc0
 v1.3.0rc1
-v1.3.0rc10
-v1.3.0rc11
-v1.3.0rc12
-v1.3.0rc12.post1
-v1.3.0rc13
-v1.3.0rc14
+...
 v1.3.0rc15
-
-Apptainer> grep __version__ tensorrt_llm/version.py
-__version__ = "1.3.0rc15"
-
-
-
-
-
-编译
-
-1）只改 Python 代码
- 不需要重新 `build_wheel.py`。继续用：
-
 ```
+
+Verify package version:
+
+```bash
+grep version tensorrt_llm/version.py
+```
+
+Output:
+
+```bash
+version = "1.3.0rc15"
+```
+
+The repository version must match the container version. (仓库版本必须与容器版本一致)
+
+## 7. Rebuild Rules
+
+Only rebuild when native code (本地代码) changes.
+
+### 1) Python-Only Changes
+
+Do not rebuild C++ code when only Python files are modified.
+
+```bash
 TRTLLM_USE_PRECOMPILED=1 pip install -e .
 ```
 
-或已经装过就直接改代码运行。
+Or simply rerun the Python program if TensorRT-LLM is already installed.
 
-2）改了 C++ / CUDA / plugin / kernel
- 需要重新编译：
+### 2) C++ / CUDA Changes
 
-```
+Rebuild when modifying kernels (计算核心), plugins (插件), or C++ source files.
+
+```bash
 python3 scripts/build_wheel.py \
   --use_ccache \
   -a "90-real" \
   --skip_building_wheel \
   --linking_install_binary
+```
 
+Install again:
+
+```bash
 pip install -e .
 ```
 
+Example:
 
+```bash
+$ python3 scripts/build_wheel.py ...
+Build finished successfully.
+```
 
+## 8. Run Inference
 
+Use the LLM API example for testing.
 
-运行
-
+```bash
 python3 examples/llm-api/llm_inference.py
+```
 
--》mpi4py.MPI.Exception: MPI_ERR_SPAWN: could not spawn processes
+Example error:
 
+```bash
+mpi4py.MPI.Exception: MPI_ERR_SPAWN:
+could not spawn processes
+```
 
+Reason:
 
+MPI (Message Passing Interface，消息传递接口) cannot create worker processes.
 
+## 9. Fix MPI_ERR_SPAWN
 
-fix :
+### 1) Single GPU
 
-单卡：export TLLM_WORKER_USE_SINGLE_PROCESS=1 : TP=1 时，不要 spawn worker，直接在当前 Python 进程里跑。
+Use a single process instead of spawning workers.
 
-export TLLM_WORKER_USE_SINGLE_PROCESS=1 或者 mpirun -n 1 trtllm-serve ...
+```bash
+export TLLM_WORKER_USE_SINGLE_PROCESS=1
+```
 
-多卡/4 worker：不要用它，要用 mpirun/srun 静态启动. 
+Run inference:
+
+```bash
+python3 examples/llm-api/llm_inference.py
+```
+
+Or:
+
+```bash
+mpirun -n 1 trtllm-serve ...
+```
+
+### 2) Multi-GPU
+
+Use static MPI startup instead of dynamic spawning.
+
+```bash
 mpirun -n 4 trtllm-serve ...
+```
 
+The number of MPI processes should match the number of workers. (MPI 进程数应与 worker 数一致)
 
+## 10. Enable Debug Logs
 
-日志
+Verbose logging (详细日志) helps diagnose runtime issues.
+
+```bash
 export TLLM_LOG_LEVEL=verbose
+
 export TLLM_LOG_LEVEL_BY_MODULE="debug:_torch"
-mpirun -n 1 python3 examples/llm-api/llm_inference.py 2>&1 | grep "alexander lee"
+```
 
+Run with logging:
 
+```bash
+mpirun -n 1 \
+python3 examples/llm-api/llm_inference.py \
+2>&1 | grep "alexander lee"
+```
 
-查看环境变量
-Apptainer> env | grep -E '^(TLLM|TRTLLM)_'
+Example:
+
+```bash
+[DEBUG] Loading checkpoint ...
+[DEBUG] Creating executor ...
+```
+
+## 11. Check Environment Variables
+
+Verify all TensorRT-LLM related variables.
+
+```bash
+env | grep -E '^(TLLM|TRTLLM)_'
+```
+
+Output:
+
+```bash
 TLLM_LOG_LEVEL=verbose
 TLLM_WORKER_USE_SINGLE_PROCESS=1
 TLLM_LOG_LEVEL_BY_MODULE=debug:_torch
+```
 
-
+Environment variables control runtime behavior. (环境变量控制运行时行为)
 

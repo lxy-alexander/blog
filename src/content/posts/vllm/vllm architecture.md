@@ -204,60 +204,790 @@ EngineCoreRequest(
 
 #### AsyncLLM -> OutputProcessor：
 
-创建 OutputProcessor，负责把模型输出整理成流式或最终结果. 初始化结果状态管理器`OutputProcessor(tokenizer, log_stats, stream_interval)`，保存 tokenizer、stream_interval 和每个请求的 RequestState；==后续 EngineCore 每吐出一批 EngineCoreOutput，它会按 request id 找状态，统计日志，detokenize 新 token，处理 stop string / logprobs / finish reason，然后生成 RequestOutput 放进该请求的 async queue。== 
+创建 OutputProcessor，负责把后端 EngineCore 返回的 EngineCoreOutput 转成用户可见的 RequestOutput。初始化时保存 tokenizer、log_stats、stream_interval 等配置，并维护 request_id -> RequestState 的状态表；后续每个请求加入时创建对应的 RequestState 和输出收集器。
+
+EngineCore 每返回一批输出后，OutputProcessor.process_outputs() 会按 request_id 找到请求状态，更新统计信息，对新 token 做增量 detokenize，处理 stop string、logprobs、finish reason，最后生成流式或最终 RequestOutput；
+
+在 AsyncLLM 场景下会放入该请求的 RequestOutputCollector，由用户侧异步消费。
+
+
 
 #### AsyncLLM -> EngineCoreClient：
 
-创建异步多进程 EngineCore 客户端。调用 `EngineCoreClient.make_async_mp_client(...)`,初始化真正和后端 EngineCore 通信的客户端；在普通 AsyncLLM 多进程模式下会返回 AsyncMPClient，它负责启动/连接 EngineCore 后台进程，把 EngineCoreRequest 异步发过去，再从后端异步拉取 EngineCoreOutputs。
+按 data_parallel_size 和负载均衡模式选择 client 类型：无 DP 用 AsyncMPClient；DP + 外部 LB 用 DPAsyncMPClient；DP + 内部 LB 用 DPLBAsyncMPClient，让前端 client 自己负责跨 DP rank 的请求分发。
+
+
+
+#### EngineCoreClient -> MPClient`：创建异步模式的 `MPClient(asyncio_mode=True, ...)`。`
+
+#### MPClient -> MPClient`：创建 ZMQ `Context`、`ROUTER` 输入 socket 和 `PULL` 输出 socket。`
+
+#### MPClient -> utils.py`：调用 `launch_core_engines(...)` 启动 EngineCore。
+
+EngineCoreClient -> AsyncMPClient/MPClient: 初始化异步多进程 client，asyncio_mode=True 表示输出接收走 asyncio。
+
+MPClient -> ZMQ: 创建通信通道：
+  - ROUTER input socket：前端把 EngineCoreRequest 发给后端 EngineCore
+  - PULL output socket：前端接收后端返回的 EngineCoreOutputs
+
+MPClient -> Utils: 调 launch_core_engines(...) 启动后台 EngineCore 进程。
+
+#### `utils.py -> CoreEngineActorManager`：Ray 后端创建 `CoreEngineActorManager`。
+
+#### `CoreEngineActorManager -> EngineCoreActor`：通过 `ray.remote(EngineCoreActor).remote(...)` 启动 Ray actor。
+
+#### `utils.py -> CoreEngineProcManager`：本地多进程后端创建 `CoreEngineProcManager`。
+
+
+
+```mermaid
+sequenceDiagram
+    participant API as API / AsyncLLM
+    participant C as Client Factory
+    participant AMP as AsyncMPClient
+    participant DP as DPAsyncMPClient
+    participant LB as DPLBAsyncMPClient
+    participant LC as launch_core_engines
+    participant PM as CoreEngineProcManager
+    participant AM as CoreEngineActorManager
+    participant EC as EngineCore
+    participant CO as DPCoordinator
+
+    API->>C: make_async_mp_client(vllm_config)
+
+    alt data_parallel_size == 1
+        C->>AMP: create AsyncMPClient
+    else data_parallel_size > 1 and data_parallel_external_lb == true
+        C->>DP: create DPAsyncMPClient
+    else data_parallel_size > 1 and internal/hybrid LB
+        C->>LB: create DPLBAsyncMPClient
+    end
+
+    AMP->>LC: launch_core_engines(...)
+    DP->>LC: launch_core_engines(...)
+    LB->>LC: launch_core_engines(...)
+
+    alt needs_dp_coordinator
+        LC->>CO: DPCoordinator(...)
+        CO-->>LC: coordinator_input / coordinator_output
+        CO-->>LC: frontend_stats_publish_address
+    end
+
+    alt data_parallel_backend == "mp"
+        LC->>PM: CoreEngineProcManager(...)
+        PM->>EC: multiprocessing.Process(...)
+
+        EC->>LC: HELLO via handshake_address
+        LC-->>EC: EngineHandshakeMetadata(addresses)
+
+    else data_parallel_backend == "ray"
+        LC->>AM: CoreEngineActorManager(addresses)
+        AM->>EC: ray.remote(actor_class).remote(addresses=addresses)
+
+        Note over EC: Ray actor already has addresses
+        EC->>EC: _perform_handshakes() yields self.addresses
+    end
+
+    EC->>EC: start process_input_sockets(...)
+    EC->>EC: start process_output_sockets(...)
+
+    alt coordinator exists
+        EC->>CO: subscribe coordinator_input
+        CO-->>EC: READY
+    end
+
+    alt client is DPAsyncMPClient or DPLBAsyncMPClient
+        DP->>CO: subscribe frontend_stats_publish_address
+        LB->>CO: subscribe frontend_stats_publish_address
+        CO-->>DP: publish (counts, wave, running)
+        CO-->>LB: publish (counts, wave, running)
+    end
+
+    API->>AMP: add_request_async(request)
+    API->>DP: add_request_async(request)
+    API->>LB: add_request_async(request)
+
+    alt AsyncMPClient
+        AMP->>EC: ADD request to self.core_engine
+
+    else DPAsyncMPClient external LB
+        DP->>DP: chosen_engine = self.core_engine
+        DP->>EC: ADD request to chosen_engine
+
+        alt engines_running == false
+            DP->>CO: FIRST_REQ(chosen_engine, current_wave)
+            CO-->>EC: START_DP_WAVE
+        end
+
+    else DPLBAsyncMPClient internal/hybrid LB
+        LB->>LB: choose engine by lb_engines
+        LB->>EC: ADD request to chosen_engine
+
+        alt engines_running == false
+            LB->>CO: FIRST_REQ(chosen_engine, current_wave)
+            CO-->>EC: START_DP_WAVE
+        end
+    end
+
+    EC->>CO: scheduler_stats / wave_complete
+    CO-->>DP: updated counts / wave / running
+    CO-->>LB: updated counts / wave / running
+    EC-->>AMP: EngineCoreOutputs
+    EC-->>DP: EngineCoreOutputs
+    EC-->>LB: EngineCoreOutputs
+```
+
+- client 类型选择发生在 `EngineCoreClient.make_async_mp_client()`。
+
+```python
+if parallel_config.data_parallel_size > 1:
+    if parallel_config.data_parallel_external_lb:
+        return DPAsyncMPClient(*client_args)
+    return DPLBAsyncMPClient(*client_args)
+
+return AsyncMPClient(*client_args)
+```
+
+- `AsyncMPClient` 用于 `DP=1`。它只需要把请求发给唯一的 `self.core_engine`，不需要订阅 coordinator stats，也不需要做 DP wave 唤醒。
+
+```python
+async def add_request_async(self, request):
+    request.client_index = self.client_index
+    await self._send_input(EngineCoreRequestType.ADD, request)
+```
+
+- `DPAsyncMPClient` 用于 `DP>1 + external LB`。external LB 表示外部系统已经决定请求进哪个 vLLM 实例，所以 vLLM 内部默认不再按负载挑全局 engine。
+
+```python
+def get_core_engine_for_request(self, request):
+    return self.core_engine
+```
+
+- 但 `DPAsyncMPClient` 仍然会维护 DP wave 状态，并订阅 coordinator stats。
+
+```python
+self.current_wave = 0
+self._ensure_stats_update_task()
+```
+
+- 它收到 coordinator 发布的状态后，会更新本地状态。
+
+```python
+counts, wave, running = msgspec.msgpack.decode(buf)
+self.current_wave = wave
+self.engines_running = running
+self.lb_engines = sliced_counts
+```
+
+- 请求进来时，`DPAsyncMPClient.add_request_async()` 会带上当前 wave，然后把请求发给默认 engine。
+
+```python
+request.current_wave = self.current_wave
+request.client_index = self.client_index
+
+chosen_engine = self.get_core_engine_for_request(request)
+to_await = self._send_input(EngineCoreRequestType.ADD, request, chosen_engine)
+```
+
+- 如果 engines 当前是 paused，它会发送 `FIRST_REQ`，让 coordinator 唤醒其他 engines。
+
+```python
+if not self.engines_running:
+    req_msg = msgspec.msgpack.encode(("FIRST_REQ", chosen_engine))
+    await self.first_req_send_socket.send(req_msg)
+```
+
+- `DPLBAsyncMPClient` 用于 `DP>1 + internal/hybrid LB`。它继承 `DPAsyncMPClient`，所以 wave 维护、stats 订阅、`FIRST_REQ` 逻辑都复用；区别是它会重写 engine 选择逻辑。
+
+```python
+def get_core_engine_for_request(self, request):
+    ...
+    score = waiting * 4 + running
+    ...
+    return chosen_engine
+```
+
+- 所以三者关系是：
+
+```text
+AsyncMPClient:
+  DP=1，不需要 coordinator stats，不需要 DP LB。
+
+DPAsyncMPClient:
+  DP>1，external LB。
+  订阅 coordinator，维护 wave，但默认不选最空 engine。
+
+DPLBAsyncMPClient:
+  DP>1，internal/hybrid LB。
+  继承 DPAsyncMPClient，并根据 lb_engines 选择最空 engine。
+```
+
+- 本地进程 MP 路径下，frontend 会通过 `launch_core_engines()` 创建 `CoreEngineProcManager`，然后用 `multiprocessing.Process` 启动多个 `EngineCore`。
+
+```python
+context.Process(
+    target=EngineCoreProc.run_engine_core,
+    kwargs=common_kwargs | {
+        "dp_rank": global_index,
+        "local_dp_rank": local_index,
+    },
+)
+```
+
+- 本地 EngineCore 启动时只知道 `handshake_address`。它会通过 ZMQ handshake 向 frontend 发送 `HELLO`，frontend 再把完整的 `addresses` 回给它。
+
+```python
+handshake_socket.send(msgspec.msgpack.encode({
+    "status": "HELLO",
+    "local": local_client,
+    "headless": headless,
+}))
+```
+
+- EngineCore 收到的 `addresses` 里包含：
+
+```python
+addresses.inputs
+addresses.outputs
+addresses.coordinator_input
+addresses.coordinator_output
+addresses.frontend_stats_publish_address
+```
+
+- Ray 路径下，frontend 不用本地 `Process` 启动 EngineCore，而是创建 `CoreEngineActorManager`。
+
+```python
+engine_actor_manager = CoreEngineActorManager(
+    vllm_config=vllm_config,
+    addresses=addresses,
+    executor_class=executor_class,
+    log_stats=log_stats,
+)
+```
+
+- `CoreEngineActorManager` 会为每个 DP rank 创建一个 Ray actor。
+
+```python
+actor = (
+    ray.remote(actor_class)
+    .options(...)
+    .remote(
+        vllm_config=dp_vllm_config,
+        executor_class=executor_class,
+        log_stats=log_stats,
+        local_client=local_client,
+        addresses=addresses,
+        dp_rank=index,
+        local_dp_rank=local_index,
+    )
+)
+```
+
+- Ray actor 创建时已经直接拿到了 `addresses`，所以它不需要像本地进程那样做真实 handshake。
+
+```python
+def _perform_handshakes(...):
+    yield self.addresses
+```
+
+- 但不管是本地进程还是 Ray actor，拿到 `addresses` 之后，EngineCore 内部都会建立同样的 input/output socket 线程。
+
+```python
+input_thread = threading.Thread(
+    target=self.process_input_sockets,
+    args=(
+        addresses.inputs,
+        addresses.coordinator_input,
+        identity,
+        ready_event,
+    ),
+)
+```
+
+```python
+self.output_thread = threading.Thread(
+    target=self.process_output_sockets,
+    args=(
+        addresses.outputs,
+        addresses.coordinator_output,
+        self.engine_index,
+    ),
+)
+```
+
+- 所以本地进程和 Ray 的区别是启动方式、地址传递方式不同；运行时和 coordinator 的通信方式相同。
+
+```text
+本地 MP:
+  multiprocessing.Process 启动 EngineCore
+  EngineCore 通过 handshake 拿 addresses
+
+Ray:
+  ray.remote(...).remote(...) 创建 EngineCoreActor
+  actor 创建时直接拿 addresses
+
+共同点:
+  EngineCore 内部通过 ZMQ socket 和 frontend/coordinator 通信
+  EngineCore 上报 scheduler_stats / wave_complete 给 coordinator
+  coordinator 发布 counts/wave/running 给 frontend
+  frontend 根据 client 类型决定是否选择最空 engine
+```
+
+
+
+#### `CoreEngineProcManager -> EngineCoreProc`：启动 `mp.Process(target=EngineCoreProc.run_engine_core)`。
+
+#### `EngineCoreProc -> EngineCoreProc`：子进程创建 `EngineCoreProc(...)`。
+
+#### `EngineCoreProc -> EngineCoreProc`：执行 `_perform_handshakes(...)` 建立 ZMQ 通信。
+
+#### `EngineCoreProc -> EngineCore`：调用父类初始化 `EngineCore`。
+
+`run_engine_core()` 是 **EngineCore 子进程的入口函数**。
+
+本地 MP 启动 worker 时会这样用它：
+
+```python
+context.Process(
+    target=EngineCoreProc.run_engine_core,
+    kwargs={
+        "vllm_config": vllm_config,
+        "dp_rank": global_index,
+        "local_dp_rank": local_index,
+        ...
+    },
+)
+```
+
+所以这个函数做的事情就是：**在新进程里创建正确类型的 EngineCore，然后进入主循环。**
+
+- 先拿配置：
+
+```python
+vllm_config = kwargs["vllm_config"]
+parallel_config = vllm_config.parallel_config
+```
+
+- 判断当前是不是 data parallel：
+
+```python
+data_parallel = parallel_config.data_parallel_size > 1 or dp_rank > 0
+```
+
+如果是 DP，就设置本地 DP rank：
+
+```python
+parallel_config.data_parallel_rank_local = local_dp_rank
+process_title = f"EngineCore_DP{dp_rank}"
+```
+
+比如：
+
+```python
+dp_rank = 2
+local_dp_rank = 0
+```
+
+进程名就是：
+
+```text
+EngineCore_DP2
+```
+
+- 设置日志、tracing、NUMA 信息：
+
+```python
+set_process_title(process_title)
+maybe_init_worker_tracer(...)
+decorate_logs()
+```
+
+- 如果有 KV transfer 配置，会给每个 DP rank 改一个唯一 `engine_id`：
+
+```python
+vllm_config.kv_transfer_config.engine_id = (
+    f"{vllm_config.kv_transfer_config.engine_id}_dp{local_dp_rank}"
+)
+```
+
+避免多个 DP engine 注册时 ID 冲突。
+
+- 保存当前 engine 的全局 DP index：
+
+```python
+parallel_config.data_parallel_index = dp_rank
+```
+
+- 根据是否是 `MoE + DP` 选择不同 EngineCore 类：
+
+```python
+if data_parallel and vllm_config.model_config.is_moe:
+    parallel_config.data_parallel_rank = dp_rank
+    engine_core = DPEngineCoreProc(*args, **kwargs)
+else:
+    parallel_config.data_parallel_size = 1
+    parallel_config.data_parallel_size_local = 1
+    parallel_config.data_parallel_rank = 0
+    engine_core = EngineCoreProc(*args, engine_index=dp_rank, **kwargs)
+```
+
+这里很关键：
+
+```text
+MoE + DP:
+  用 DPEngineCoreProc
+  保留真实 data_parallel_rank
+  需要 DP wave / all-reduce 协调
+
+非 MoE:
+  用普通 EngineCoreProc
+  把 data_parallel_size 改成 1
+  每个 DP rank 当成独立副本跑
+```
+
+- 注册 SIGTERM / SIGINT 处理。收到退出信号时，把 engine 唤醒，让它能干净退出：
+
+```python
+engine_core.shutdown_state = EngineShutdownState.REQUESTED
+signal_callback.trigger()
+```
+
+- 最后进入 EngineCore 主循环：
+
+```python
+engine_core.run_busy_loop()
+```
+
+这个 busy loop 会不断：
+
+```text
+处理 input queue
+调 scheduler
+调用 executor 执行模型
+发送 outputs
+检查 shutdown
+```
+
+- 如果启动失败或运行中崩了，会记录日志；如果 engine 已经创建出来，还会通知 frontend：
+
+```python
+engine_core._send_engine_dead()
+```
+
+- 最后做清理：
+
+```python
+signal_callback.stop()
+engine_core.shutdown()
+```
+
+一句话：
+
+```text
+run_engine_core() 是每个 EngineCore 子进程的 main 函数：
+设置 rank 和进程环境，选择 EngineCoreProc 或 DPEngineCoreProc，注册信号处理，然后运行 EngineCore 的 busy loop。
+```
+
+
+
+它其实就是“当场启动”了，启动点就是这里：
+
+```python
+proc.start()
+```
+
+只是它没有在创建 `Process` 对象时立刻启动，而是分成了两步：
+
+```python
+# 第一步：先把所有 Process 对象创建好
+self.processes.append(
+    context.Process(...)
+)
+
+# 第二步：再逐个设置环境并 start
+for proc, local_dp_rank in zip(self.processes, local_dp_ranks):
+    ...
+    proc.start()
+```
+
+你问的“为什么不当场启动”，应该是指：为什么不在前面 `context.Process(...)` 那个循环里直接 `proc.start()`？
+
+主要原因是：**启动每个 EngineCore 子进程前，需要给它设置临时的进程环境上下文**。
+
+这里启动前包了两个 context：
+
+```python
+with (
+    device_control_context,
+    numa_utils.configure_subprocess(...),
+):
+    proc.start()
+```
+
+这两个 context 会在 `proc.start()` 发生的那一刻影响子进程继承到的环境。
+
+**1. 设置 GPU 可见范围**
+
+```python
+device_control_context = set_device_control_env_var(
+    vllm_config, local_dp_rank
+)
+```
+
+它可能会调整类似：
+
+```text
+CUDA_VISIBLE_DEVICES
+```
+
+让当前要启动的 EngineCore 只看到自己这个 DP shard 对应的 GPU。
+
+比如：
+
+```text
+DP rank 0 -> CUDA_VISIBLE_DEVICES=0,1
+DP rank 1 -> CUDA_VISIBLE_DEVICES=2,3
+```
+
+所以必须在：
+
+```python
+proc.start()
+```
+
+之前设置好。
+
+**2. 设置 NUMA / CPU 亲和性**
+
+```python
+numa_utils.configure_subprocess(
+    vllm_config,
+    local_rank=0,
+    dp_local_rank=local_dp_rank,
+    process_kind="EngineCore",
+)
+```
+
+它会给这个子进程配置 CPU/NUMA 亲和性，让进程尽量靠近对应 GPU 的 CPU/NUMA 节点。
+
+这也必须包住：
+
+```python
+proc.start()
+```
+
+因为子进程启动时会继承这些设置。
+
+**3. 为什么先创建所有 Process，再统一 start**
+
+这样可以把两类逻辑分开：
+
+```text
+创建进程对象：
+  只是描述要启动什么 target、叫什么名字、传什么 kwargs
+
+启动进程：
+  在正确的 GPU/NUMA 环境下调用 proc.start()
+```
+
+尤其是每个进程的：
+
+```python
+local_dp_rank
+```
+
+不同，所以启动前的环境也可能不同。
+
+比如：
+
+```text
+proc EngineCore_DP0 -> local_dp_rank=0 -> 绑定 GPU group 0
+proc EngineCore_DP1 -> local_dp_rank=1 -> 绑定 GPU group 1
+```
+
+它必须逐个包环境后再 start。
+
+**4. finally 是保护逻辑**
+
+```python
+finally:
+    if self.finished_procs():
+        self.shutdown()
+```
+
+意思是：如果启动过程中有某个进程很快退出了，说明启动失败，就把其他已经启动的进程也关掉，避免留下半残状态。
+
+一句话：
+
+```text
+Process 对象先创建只是准备；
+真正启动就在 proc.start()；
+之所以不在创建时立刻启动，是因为每个 EngineCore 启动前要临时设置 GPU 可见性和 NUMA 环境，确保子进程继承正确的运行环境。
+```
+
+这三行是在给 `CoreEngineProcManager` 准备 **进程清理和状态监控**。
+
+```python
+self._finalizer = weakref.finalize(self, shutdown, self.processes)
+```
+
+意思是：给当前 manager 注册一个 finalizer。
+
+当 `CoreEngineProcManager` 对象被垃圾回收时，如果还没有手动清理，就自动调用：
+
+```python
+shutdown(self.processes)
+```
+
+也就是把它管理的 EngineCore 子进程关掉。
+
+它的作用是防止：
+
+```text
+manager 对象没了
+但 EngineCore 子进程还留在后台跑
+```
+
+类似一个兜底清理机制。
+
+---
+
+```python
+self.manager_stopped = threading.Event()
+```
+
+这是一个线程同步标记，用来表示：
+
+```text
+这个 manager 是否已经主动停止
+```
+
+后面 `shutdown()` 里会设置：
+
+```python
+self.manager_stopped.set()
+```
+
+监控线程里会看它：
+
+```python
+while sentinels and not self.manager_stopped.is_set():
+```
+
+意思是：
+
+```text
+如果 manager 已经主动 shutdown，就不要再把进程退出当成异常失败。
+```
+
+否则，监控线程可能误以为：
+
+```text
+worker 死了！
+```
+
+但其实是正常 shutdown。
+
+---
+
+```python
+self.failed_proc_name: str | None = None
+```
+
+记录失败的 EngineCore 进程名字。
+
+比如某个子进程异常退出：
+
+```python
+EngineCore_DP2
+```
+
+监控逻辑会设置：
+
+```python
+self.failed_proc_name = proc.name
+```
+
+后面上层可以用它判断：
+
+```text
+哪个 EngineCore 进程挂了
+```
+
+---
+
+所以这三行合起来是：
+
+```text
+_finalizer:
+  对象销毁时兜底关闭子进程
+
+manager_stopped:
+  标记 manager 是否正在正常停止，避免误报
+
+failed_proc_name:
+  如果有子进程异常退出，记录名字
+```
 
 
 
 
 
+`EngineCore -> MultiprocExecutor`：创建 `MultiprocExecutor(vllm_config)`。
 
+`MultiprocExecutor -> MultiprocExecutor`：初始化共享内存 `MessageQueue`。
 
+`MultiprocExecutor -> WorkerProc`：按 `world_size` 创建多个 `WorkerProc`。
 
+`WorkerProc -> Worker`：通过 `WorkerWrapperBase.init_worker(...)` 初始化 `Worker`。
 
+`Worker -> torch.cuda / NCCL`：设置 GPU 设备并初始化 NCCL 通信组。
 
+`Worker -> GPUModelRunner`：创建 `GPUModelRunner(vllm_config, device)`。
 
-- `EngineCoreClient -> MPClient`：创建异步模式的 `MPClient(asyncio_mode=True, ...)`。
-- `MPClient -> MPClient`：创建 ZMQ `Context`、`ROUTER` 输入 socket 和 `PULL` 输出 socket。
-- `MPClient -> utils.py`：调用 `launch_core_engines(...)` 启动 EngineCore。
-- `utils.py -> CoreEngineActorManager`：Ray 后端创建 `CoreEngineActorManager`。
-- `CoreEngineActorManager -> EngineCoreActor`：通过 `ray.remote(EngineCoreActor).remote(...)` 启动 Ray actor。
-- `utils.py -> CoreEngineProcManager`：本地多进程后端创建 `CoreEngineProcManager`。
-- `CoreEngineProcManager -> EngineCoreProc`：启动 `mp.Process(target=EngineCoreProc.run_engine_core)`。
-- `EngineCoreProc -> EngineCoreProc`：子进程创建 `EngineCoreProc(...)`。
-- `EngineCoreProc -> EngineCoreProc`：执行 `_perform_handshakes(...)` 建立 ZMQ 通信。
-- `EngineCoreProc -> EngineCore`：调用父类初始化 `EngineCore`。
-- `EngineCore -> MultiprocExecutor`：创建 `MultiprocExecutor(vllm_config)`。
-- `MultiprocExecutor -> MultiprocExecutor`：初始化共享内存 `MessageQueue`。
-- `MultiprocExecutor -> WorkerProc`：按 `world_size` 创建多个 `WorkerProc`。
-- `WorkerProc -> Worker`：通过 `WorkerWrapperBase.init_worker(...)` 初始化 `Worker`。
-- `Worker -> torch.cuda / NCCL`：设置 GPU 设备并初始化 NCCL 通信组。
-- `Worker -> GPUModelRunner`：创建 `GPUModelRunner(vllm_config, device)`。
-- `Worker -> Worker`：调用 `load_model()` 开始加载模型。
-- `Worker -> GPUModelRunner`：调用 `model_runner.load_model()`。
-- `GPUModelRunner -> DefaultModelLoader`：通过 `get_model_loader(load_config).load_model(...)` 加载模型。
-- `DefaultModelLoader -> LlamaForCausalLM`：实例化 `LlamaForCausalLM(vllm_config, prefix="")`。
-- `LlamaForCausalLM -> LlamaModel`：创建 `LlamaModel(vllm_config)` 主干网络。
-- `DefaultModelLoader -> GPUModelRunner`：读取 HF safetensors，按 TP rank 切分后加载到 CUDA。
-- `GPUModelRunner -> Worker`：返回加载完成的模型。
-- `WorkerProc -> MultiprocExecutor`：通过 `ready_pipe` 发送 `READY`。
-- `EngineCore -> EngineCore`：调用 `_initialize_kv_caches(vllm_config)`。
-- `EngineCore -> MultiprocExecutor`：查询 KV cache 规格和可用显存。
-- `MultiprocExecutor -> Worker`：广播 `get_kv_cache_spec` 和 `determine_available_memory` RPC。
-- `Worker -> GPUModelRunner`：执行 `profile_run()` 测算 KV cache 可用显存。
-- `Worker -> torch.cuda / NCCL`：执行 CUDA 同步并读取显存信息。
-- `EngineCore -> MultiprocExecutor`：调用 `initialize_from_config(kv_cache_configs)`。
-- `MultiprocExecutor -> Worker`：广播 `initialize_from_config` 和 `compile_or_warm_up_model` RPC。
-- `Worker -> GPUModelRunner`：分配 KV cache blocks，并执行模型预热和 CUDA Graph 捕获。
-- `EngineCore -> Scheduler`：创建 `Scheduler(vllm_config, kv_cache_config, ...)`。
-- `EngineCoreProc -> MPClient`：通过 ZMQ handshake socket 发送 `HELLO / READY`。
-- `MPClient -> EngineCoreClient`：收齐所有 EngineCore 的 READY 信号。
-- `EngineCoreClient -> AsyncLLM`：返回就绪的 `AsyncMPClient` 实例。
-- `AsyncLLM -> AsyncLLM`：如果已有事件循环，启动 `_run_output_handler()`。
-- `AsyncLLM -> main`：返回已就绪的 `AsyncLLM` engine。
+`Worker -> Worker`：调用 `load_model()` 开始加载模型。
+
+`Worker -> GPUModelRunner`：调用 `model_runner.load_model()`。
+
+`GPUModelRunner -> DefaultModelLoader`：通过 `get_model_loader(load_config).load_model(...)` 加载模型。
+
+`DefaultModelLoader -> LlamaForCausalLM`：实例化 `LlamaForCausalLM(vllm_config, prefix="")`。
+
+`LlamaForCausalLM -> LlamaModel`：创建 `LlamaModel(vllm_config)` 主干网络。
+
+`DefaultModelLoader -> GPUModelRunner`：读取 HF safetensors，按 TP rank 切分后加载到 CUDA。
+
+`GPUModelRunner -> Worker`：返回加载完成的模型。
+
+`WorkerProc -> MultiprocExecutor`：通过 `ready_pipe` 发送 `READY`。
+
+`EngineCore -> EngineCore`：调用 `_initialize_kv_caches(vllm_config)`。
+
+`EngineCore -> MultiprocExecutor`：查询 KV cache 规格和可用显存。
+
+`MultiprocExecutor -> Worker`：广播 `get_kv_cache_spec` 和 `determine_available_memory` RPC。
+
+`Worker -> GPUModelRunner`：执行 `profile_run()` 测算 KV cache 可用显存。
+
+`Worker -> torch.cuda / NCCL`：执行 CUDA 同步并读取显存信息。
+
+`EngineCore -> MultiprocExecutor`：调用 `initialize_from_config(kv_cache_configs)`。
+
+`MultiprocExecutor -> Worker`：广播 `initialize_from_config` 和 `compile_or_warm_up_model` RPC。
+
+`Worker -> GPUModelRunner`：分配 KV cache blocks，并执行模型预热和 CUDA Graph 捕获。
+
+`EngineCore -> Scheduler`：创建 `Scheduler(vllm_config, kv_cache_config, ...)`。
+
+`EngineCoreProc -> MPClient`：通过 ZMQ handshake socket 发送 `HELLO / READY`。
+
+`MPClient -> EngineCoreClient`：收齐所有 EngineCore 的 READY 信号。
+
+`EngineCoreClient -> AsyncLLM`：返回就绪的 `AsyncMPClient` 实例。
+
+`AsyncLLM -> AsyncLLM`：如果已有事件循环，启动 `_run_output_handler()`。
+
+`AsyncLLM -> main`：返回已就绪的 `AsyncLLM` engine。
 
 
 

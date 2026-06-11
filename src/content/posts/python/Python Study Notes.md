@@ -10,13 +10,46 @@ lang: ""
 createdAt: "2026-05-26T22:11:20.206.617866164Z"
 ---
 
-# Python Study Notes
+# 1. Python Study Notes
 
-These notes cover all core Python knowledge points in a progressive order. Each point has a one-sentence definition and a self-contained runnable example.
+## Scope
 
-<br> <br>
+A variable has a visible range. The `x` inside the function is different from the `x` outside.
 
-# 1. Basics
+## Shadowing
+
+If a function parameter has the same name as an outside variable, the parameter shadows the outside variable.
+
+## lstrip('0')
+
+ removes leading zeros from the left side of the string.
+
+## or
+
+`or '0'` means return the result if it is not empty; otherwise return `"0"`.
+
+## join
+
+join combines a list of strings into one string.
+
+## ch * cnt
+
+`ch * cnt` means repeat the character `ch` exactly `cnt` times.
+
+## Counter()
+
+Counter counts how many times each element appears.
+
+## `grid[m][n]`
+
+Use list comprehension to create independent rows in a 2D list.
+
+m, n = 3, 4
+grid = [[0] * n for _ in range(m)]
+
+
+
+# 2. Basics
 
 The foundation of writing any Python program.
 
