@@ -47,6 +47,50 @@ Use list comprehension to create independent rows in a 2D list.
 m, n = 3, 4
 grid = [[0] * n for _ in range(m)]
 
+## vals[::-1]
+
+A new inverted list will be returned without changing the original vals.
+
+## vals.reverse()
+
+It will modify orginal vals and return None.
+
+## deque([root])
+
+deque need an iterable object
+
+## set
+
+wordSet = set(wordList)     # 最推荐
+wordSet.add(word)           # 一个一个加
+wordSet.update(wordList)    # 一次加多个
+
+
+
+## arr.sort
+
+arr.sort(key=lambda x: (x[0], -x[1]))
+
+Sort by the first element in ascending order, and if the first elements are equal, sort by the second element in descending order.
+
+```python
+arr = [[1, 3], [2, 1], [1, 5], [2, 4], [1, 2]]
+
+arr.sort(key=lambda x: (x[0], -x[1]))
+
+print(arr)
+```
+
+## Optional[ListNode]
+
+It is equivalent to `ListNode | None`
+
+
+
+
+
+
+
 
 
 # 2. Basics

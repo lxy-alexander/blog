@@ -10,7 +10,7 @@ lang: ""
 createdAt: "2026-06-10T00:32:22.985.734388522Z"
 ---
 
-# [739. Daily Temperatures](https://leetcode.com/problems/daily-temperatures/)
+## [739. Daily Temperatures](https://leetcode.com/problems/daily-temperatures/)
 
 Given an array of integers `temperatures` represents the daily temperatures, return *an array* `answer` *such that* `answer[i]` *is the number of days you have to wait after the* `ith` *day to get a warmer temperature*. If there is no future day for which this is possible, keep `answer[i] == 0` instead.
 
@@ -74,7 +74,7 @@ class Solution:
 
 
 
-# [84. Largest Rectangle in Histogram](https://leetcode.com/problems/largest-rectangle-in-histogram/)
+## [84. Largest Rectangle in Histogram](https://leetcode.com/problems/largest-rectangle-in-histogram/)
 
 Given an array of integers `heights` representing the histogram's bar height where the width of each bar is `1`, return *the area of the largest rectangle in the histogram*.
 
@@ -117,7 +117,7 @@ class Solution:
 
 
 
-# [85. Maximal Rectangle](https://leetcode.com/problems/maximal-rectangle/)
+## [85. Maximal Rectangle](https://leetcode.com/problems/maximal-rectangle/)
 
 Given a `rows x cols` binary `matrix` filled with `0`'s and `1`'s, find the largest rectangle containing only `1`'s and return *its area*.
 
@@ -200,7 +200,7 @@ class Solution:
 
 
 
-# [316. Remove Duplicate Letters](https://leetcode.com/problems/remove-duplicate-letters/)
+## [316. Remove Duplicate Letters](https://leetcode.com/problems/remove-duplicate-letters/)
 
 Given a string `s`, remove duplicate letters so that every letter appears once and only once. You must make sure your result is **the smallest in lexicographical order** among all possible results.
 
@@ -272,7 +272,7 @@ class Solution:
 
 
 
-# [402. Remove K Digits](https://leetcode.com/problems/remove-k-digits/)
+## [402. Remove K Digits](https://leetcode.com/problems/remove-k-digits/)
 
 Given string num representing a non-negative integer `num`, and an integer `k`, return *the smallest possible integer after removing* `k` *digits from* `num`.
 
@@ -346,7 +346,7 @@ class Solution:
 
 
 
-# [20. Valid Parentheses](https://leetcode.com/problems/valid-parentheses/)
+## [20. Valid Parentheses](https://leetcode.com/problems/valid-parentheses/)
 
 Given a string `s` containing just the characters `'('`, `')'`, `'{'`, `'}'`, `'['` and `']'`, determine if the input string is valid.
 
@@ -411,7 +411,7 @@ class Solution:
 
 
 
-# [1047. Remove All Adjacent Duplicates In String](https://leetcode.com/problems/remove-all-adjacent-duplicates-in-string/)
+## [1047. Remove All Adjacent Duplicates In String](https://leetcode.com/problems/remove-all-adjacent-duplicates-in-string/)
 
 You are given a string `s` consisting of lowercase English letters. A **duplicate removal** consists of choosing two **adjacent** and **equal** letters and removing them.
 
@@ -464,7 +464,7 @@ class Solution:
 
 
 
-# [1944. Number of Visible People in a Queue](https://leetcode.com/problems/number-of-visible-people-in-a-queue/)
+## [1944. Number of Visible People in a Queue](https://leetcode.com/problems/number-of-visible-people-in-a-queue/)
 
 There are `n` people standing in a queue, and they numbered from `0` to `n - 1` in **left to right** order. You are given an array `heights` of **distinct** integers where `heights[i]` represents the height of the `ith` person.
 
@@ -527,7 +527,7 @@ class Solution:
 
 
 
-# [42. Trapping Rain Water](https://leetcode.com/problems/trapping-rain-water/)
+## [42. Trapping Rain Water](https://leetcode.com/problems/trapping-rain-water/)
 
 Given `n` non-negative integers representing an elevation map where the width of each bar is `1`, compute how much water it can trap after raining.
 

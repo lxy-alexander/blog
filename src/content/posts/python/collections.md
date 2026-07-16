@@ -12,7 +12,48 @@ createdAt: "2026-06-10T00:08:23.826.468115170Z"
 
 # Python List
 
-A Python list is an ordered and changeable container (容器) that can store multiple values. list is built in type, List is typing hint. 实际工作中新 Python 项目，更推荐
+A Python list is an ordered and changeable container (容器) that can store multiple values. list is built in type, List is typing hint. 
+
+An ordered and changeable collection. It allows duplicate elements.
+列表是一种有顺序、可修改、允许重复元素的集合。
+
+| Operation          | API                   | Example               | Time Complexity  |
+| ------------------ | --------------------- | --------------------- | ---------------- |
+| Create             | `[]`, `list()`        | `nums = [1, 2, 3]`    | `O(n)`           |
+| Access by index    | `list[index]`         | `nums[0]`             | `O(1)`           |
+| Modify by index    | `list[index] = value` | `nums[0] = 100`       | `O(1)`           |
+| Add to end         | `append(x)`           | `nums.append(4)`      | `O(1)` amortized |
+| Add multiple items | `extend(iterable)`    | `nums.extend([5, 6])` | `O(k)`           |
+| Insert at index    | `insert(index, x)`    | `nums.insert(0, 99)`  | `O(n)`           |
+| Remove by value    | `remove(x)`           | `nums.remove(2)`      | `O(n)`           |
+| Remove by index    | `pop(index)`          | `nums.pop(0)`         | `O(n)`           |
+| Remove last item   | `pop()`               | `nums.pop()`          | `O(1)`           |
+| Check existence    | `x in list`           | `3 in nums`           | `O(n)`           |
+| Get length         | `len(list)`           | `len(nums)`           | `O(1)`           |
+| Sort               | `sort()`              | `nums.sort()`         | `O(n log n)`     |
+| Reverse            | `reverse()`           | `nums.reverse()`      | `O(n)`           |
+
+```python
+nums = [1, 2, 3]
+
+nums.append(4)
+print(nums)
+# Output: [1, 2, 3, 4]
+
+nums[0] = 100
+print(nums)
+# Output: [100, 2, 3, 4]
+
+nums.remove(2)
+print(nums)
+# Output: [100, 3, 4]
+
+nums.pop()
+print(nums)
+# Output: [100, 3]
+```
+
+
 
 ## 1. Create a List
 

@@ -79,7 +79,7 @@ uv venv --python 3.12 --seed --managed-python
 source .venv/bin/activate
 export CCACHE_DIR="${HOME}/.cache/ccache"
 export CCACHE_NOHASHDIR=true
-export MAX_JOBS=32
+export MAX_JOBS=16
 uv pip install -e . --torch-backend=auto -v
 ```
 

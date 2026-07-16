@@ -214,7 +214,33 @@ EngineCore 每返回一批输出后，OutputProcessor.process_outputs() 会按 r
 
 #### AsyncLLM -> EngineCoreClient：
 
+`EngineCoreClient` 定义一套统一接口，但自己不直接干活
+
+```
+ABC 
+└── EngineCoreClient
+    ├── InprocClient
+    └── MPClient
+        ├── SyncMPClient
+        └── AsyncMPClient
+            ├── DPAsyncMPClient
+            └── DPLBAsyncMPClient
+```
+
 按 data_parallel_size 和负载均衡模式选择 client 类型：无 DP 用 AsyncMPClient；DP + 外部 LB 用 DPAsyncMPClient；DP + 内部 LB 用 DPLBAsyncMPClient，让前端 client 自己负责跨 DP rank 的请求分发。
+
+```
+if multiprocess_mode and asyncio_mode:
+    return AsyncMPClient / DPLBAsyncMPClient / DPAsyncMPClient
+
+if multiprocess_mode and not asyncio_mode:
+    return SyncMPClient
+
+else:
+    return InprocClient
+```
+
+
 
 
 
@@ -546,6 +572,11 @@ Ray:
 `run_engine_core()` 是 **EngineCore 子进程的入口函数**。
 
 本地 MP 启动 worker 时会这样用它：
+
+-   dp_rank: 当前进程/worker 在 **全局 data parallel 组**里的编号
+    也就是跨所有节点、所有机器一起算的 DP rank。值来自 global_index。
+-   local_dp_rank: 当前进程/worker 在 **本机节点内部**的 data parallel 编号
+    也就是只看当前机器上的 DP rank。值来自 local_index。
 
 ```python
 context.Process(
@@ -933,11 +964,64 @@ failed_proc_name:
 
 
 
-`EngineCore -> MultiprocExecutor`：创建 `MultiprocExecutor(vllm_config)`。
+#### `EngineCore -> MultiprocExecutor`：创建 `MultiprocExecutor(vllm_config)`。
 
-`MultiprocExecutor -> MultiprocExecutor`：初始化共享内存 `MessageQueue`。
+```
+EngineCore
+  |
+  |-- Scheduler
+  |     维护请求队列
+  |     分配 KV blocks
+  |     生成 SchedulerOutput
+  |
+  |-- Executor
+        管 worker
+        跑模型
+        消费 SchedulerOutput
+        返回 ModelRunnerOutput
+        
+1. EngineCore 收到请求
+2. Scheduler 把请求加入 waiting/running 队列
+3. Scheduler 决定这一轮哪些 token 要算
+4. Scheduler 生成 SchedulerOutput
+5. Executor 把 SchedulerOutput 发给 worker
+6. Worker 执行模型 forward
+7. Executor 返回 ModelRunnerOutput
+8. EngineCore 处理输出 token，更新请求状态
+```
+
+#### `MultiprocExecutor -> MultiprocExecutor`：初始化共享内存 `MessageQueue`。
+
+Executor 负责 **模型执行侧**：
+
+```
+创建 worker
+初始化 device
+加载模型权重
+收集 KV cache spec
+初始化 KV cache
+执行模型 forward
+返回 ModelRunnerOutput
+```
+
+
 
 `MultiprocExecutor -> WorkerProc`：按 `world_size` 创建多个 `WorkerProc`。
+
+```
+Tensor Parallel, TP:
+  切模型权重/矩阵维度
+
+Pipeline Parallel, PP:
+  切模型层
+
+Prefill Context Parallel, PCP:
+  切 prefill 阶段的上下文 token
+
+world_size = tensor_parallel_size * pipeline_parallel_size * prefill_context_parallel_size
+```
+
+
 
 `WorkerProc -> Worker`：通过 `WorkerWrapperBase.init_worker(...)` 初始化 `Worker`。
 
@@ -977,7 +1061,34 @@ failed_proc_name:
 
 `Worker -> GPUModelRunner`：分配 KV cache blocks，并执行模型预热和 CUDA Graph 捕获。
 
-`EngineCore -> Scheduler`：创建 `Scheduler(vllm_config, kv_cache_config, ...)`。
+
+
+#### `EngineCore -> Scheduler`：创建 `Scheduler(vllm_config, kv_cache_config, ...)`。
+
+Scheduler 负责 **请求调度侧**：
+
+```
+维护 waiting/running 请求队列
+决定本 step 执行哪些请求
+决定 prefill / decode token 数
+分配和释放 KV cache block
+处理抢占、优先级、chunked prefill
+生成 SchedulerOutput
+```
+
+EngineCore 每一轮 loop 大概是：
+
+```
+scheduler.schedule()
+  -> SchedulerOutput
+
+model_executor.execute_model(SchedulerOutput)
+  -> ModelRunnerOutput
+
+scheduler / EngineCore 更新请求状态
+```
+
+
 
 `EngineCoreProc -> MPClient`：通过 ZMQ handshake socket 发送 `HELLO / READY`。
 
