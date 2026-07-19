@@ -84,6 +84,25 @@ sim = F.cosine_similarity(a, b, dim=-1)  # shape [8], range [-1, 1]
 
 # Similarity matrix for contrastive learning
 mat = a @ b.T  # [8, 8]
+
+
+
+import torch
+import torch.nn.functional as F
+
+a = torch.randn(8, 128)
+b = torch.randn(8, 128)
+
+# 1. 归一化 p=2 指的是 $L_2$ 范数 (L2 Norm)，在几何上它对应的是向量的 欧几里得长度 (Euclidean length)。
+a_norm = F.normalize(a, p=2, dim=-1)
+b_norm = F.normalize(b, p=2, dim=-1)
+
+# 2. 此时，矩阵乘法的结果就是余弦相似度矩阵
+sim_matrix = a_norm @ b_norm.T  # shape [8, 8]
+
+# 验证：矩阵对角线元素等于 F.cosine_similarity(a, b, dim=-1)
+print(torch.allclose(sim_matrix.diag(), F.cosine_similarity(a, b, dim=-1)))
+# 输出: True
 ```
 
 <div style="background:#F5F5F5;border-left:4px solid #E8600A;border-radius:0 6px 6px 0;padding:12px 16px;margin:14px 0;font-size:14px;line-height:1.85"><span style="color:#E8600A;font-weight:700">Note: </span> Equivalent to (a/||a||) · (b/||b||). In contrastive learning, L2-normalize first then use dot product.</div>

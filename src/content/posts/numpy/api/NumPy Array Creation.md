@@ -38,6 +38,29 @@ c = np.array([1, 2, 3], dtype=np.float32)
 print(c)          # [1. 2. 3.]
 ```
 
+```python
+import numpy as np
+
+# 假设输入已经是一个 array / Imagine the input is already an array
+original = np.array([1, 0, 1])
+
+# np.array 会复制 / np.array makes a copy
+copy_arr = np.array(original)
+print(copy_arr is original)  # False (不同的内存地址 / Different memory)
+
+# np.asarray 不会复制 / np.asarray reuse the memory
+reuse_arr = np.asarray(original)
+print(reuse_arr is original)  # True (相同的内存地址 / Same memory)
+```
+
+`np.array` always creates a **brand new copy** of the object in memory by default.
+
+`np.asarray` **avoids copying** if the input is already a NumPy array, reusing the same memory to save time and RAM.
+
+
+
+
+
 ### 2) `np.zeros()` / `np.ones()` / `np.full()` — Constant Arrays (常量数组)
 
 These functions create arrays filled with a Constant Value (常量值).
