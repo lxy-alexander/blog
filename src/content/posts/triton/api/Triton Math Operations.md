@@ -401,6 +401,17 @@ print(out)
 
 `tl.dot(a, b)` is the core matrix multiplication (矩阵乘法) primitive, mapped to Tensor Cores (张量核心) on modern GPUs for peak performance (峰值性能).
 
+`tl.dot` 的硬性约束（使用注意）
+
+要让 `tl.dot` 顺利编译并发挥 peak performance（峰值性能），必须满足以下硬件与编译约束：
+
+1.  **维度限制（至少为 16）**：
+    -   M,N,K 维度大小通常**必须大于等于 16**（如示例注释中提示 `# tl.dot needs >=16`）。
+2.  **2 的幂次对齐**：
+    -   M,N,K 的大小必须是 **2 的幂（Power of Two）**，例如 16, 32, 64, 128 等，以便精确映射到 Tensor Core 的 Hardware Tile Layout 上。
+3.  **数据类型匹配**：
+    -   输入矩阵 A 和 B 的数据类型通常需要是精度较低的类型（如 `fp16`、`bf16` 或 `int8`），累加器 C 可以是 `fp32`（混合精度计算）。
+
 ```python
 import torch
 import triton

@@ -116,20 +116,42 @@ import torch
 import triton
 import triton.language as tl
 
+
 @triton.jit
-def atomic_xchg_kernel(out_ptr, BLOCK: tl.constexpr):
+def atomic_xchg_kernel(out_ptr, old_values_ptr):
     pid = tl.program_id(0)
-    # only program 0 swaps; demonstrates atomic_xchg on a scalar
-    if pid == 0:
-        old = tl.atomic_xchg(out_ptr, 999)
-        tl.store(out_ptr + 1, old)
 
-BLOCK = 1
-out = torch.tensor([42, 0], dtype=torch.int32, device='cuda')
+    # 每个 program 写入不同的值
+    new_value = 100 + pid
 
-atomic_xchg_kernel[(1,)](out, BLOCK=BLOCK)
-print(out)                                             # out[0]=999 (new), out[1]=42 (old)
-# tensor([999,  42], device='cuda:0', dtype=torch.int32)
+    # 所有 program 同时交换同一个 out_ptr
+    old = tl.atomic_xchg(out_ptr, new_value)
+
+    # 保存每个 program 抢到的旧值
+    tl.store(old_values_ptr + pid, old)
+
+
+num_programs = 4
+
+out = torch.tensor(
+    [-1],
+    dtype=torch.int32,
+    device="cuda",
+)
+
+old_values = torch.empty(
+    (num_programs,),
+    dtype=torch.int32,
+    device="cuda",
+)
+
+atomic_xchg_kernel[(num_programs,)](
+    out,
+    old_values,
+)
+
+print("最终 out:", out)
+print("每个 program 得到的旧值:", old_values)
 ```
 
 <br>

@@ -93,39 +93,46 @@ print(out)
 -   `x = tl.load(x_block_ptr, boundary_check=(0, 1))`, Load one tile from x, and check both row and column boundaries.
 
 ```python
-import torch
 import triton
 import triton.language as tl
+import torch
 
 @triton.jit
-def block_ptr_kernel(x_ptr, out_ptr, M, N,
-                     stride_m, stride_n,
-                     BM: tl.constexpr, BN: tl.constexpr):
-    x_block_ptr = tl.make_block_ptr(
-        base=x_ptr,
-        shape=(M, N),
-        strides=(stride_m, stride_n),
-        offsets=(0, 0),
-        block_shape=(BM, BN),
-        order=(1, 0), 
-    )
-    x = tl.load(x_block_ptr, boundary_check=(0, 1))
-    out_block_ptr = tl.make_block_ptr(
-        base=out_ptr, shape=(M, N), strides=(stride_m, stride_n),
-        offsets=(0, 0), block_shape=(BM, BN), order=(1, 0),
-    )
-    tl.store(out_block_ptr, x * 2.0, boundary_check=(0, 1))
+def kernel(x_ptr, out_ptr, M, N, stride_m, stride_n, BM: tl.constexpr, BN: tl.constexpr):
+    pid_m = tl.program_id(0)
+    pid_n = tl.program_id(1)
 
-M, N = 4, 4
+    offset_m = pid_m * BM
+    offset_n = pid_n * BN
+
+    x_block_ptr = tl.make_block_ptr(
+        base = x_ptr,
+        shape = (M, N),
+        strides = (stride_m, stride_n),
+        offsets = (offset_m, offset_n),
+        block_shape = (BM, BN),
+        order = (1, 0),
+    )
+    x = tl.load(x_block_ptr)
+    out_block_ptr = tl.make_block_ptr(
+        base = out_ptr,
+        shape = (M, N),
+        strides = (stride_m, stride_n),
+        offsets = (offset_m, offset_n),
+        block_shape = (BM, BN),
+        order = (1, 0),
+    )
+    tl.store(out_block_ptr, x * 2.0)
+
+M, N = 2, 4
 x = torch.arange(M * N, dtype=torch.float32, device='cuda').reshape(M, N)
 out = torch.empty_like(x)
 
-block_ptr_kernel[(1,)](x, out, M, N, x.stride(0), x.stride(1), BM=4, BN=4)
+grid = (triton.cdiv(M, 2), triton.cdiv(N, 2))
+kernel[grid](x, out, M, N, x.stride(0), x.stride(1), 2, 2)
+
 print(out)
-# tensor([[ 0.,  2.,  4.,  6.],
-#         [ 8., 10., 12., 14.],
-#         [16., 18., 20., 22.],
-#         [24., 26., 28., 30.]], device='cuda:0')
+
 ```
 
 ### 1) Common ways to use `tl.load` in Triton:
