@@ -3,8 +3,8 @@ title: "vLLM Architecture"
 published: 2026-05-04
 description: "vLLM Architecture"
 image: ""
-tags: ["vllm","vLLM Architecture"]
-category: vllm
+tags: ["llm_inference","vLLM Architecture"]
+category: llm_inference
 draft: false
 lang: ""
 createdAt: "2026-05-04T20:20:38.379.993101357Z"

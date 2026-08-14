@@ -3,8 +3,8 @@ title: "vLLM Quant"
 published: 2026-08-09
 description: "vLLM Quant"
 image: ""
-tags: ["vllm","vLLM Quant"]
-category: vllm
+tags: ["llm_inference","vLLM Quant"]
+category: llm_inference
 draft: false
 lang: ""
 createdAt: "2026-08-09T17:11:11.897.915222564Z"

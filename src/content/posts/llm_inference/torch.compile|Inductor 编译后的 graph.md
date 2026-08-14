@@ -3,8 +3,8 @@ title: "torch.compile|Inductor 编译后的 graph"
 published: 2026-07-22
 description: "torch.compile|Inductor 编译后的 graph"
 image: ""
-tags: ["vllm","torch.compile|Inductor 编译后的 graph"]
-category: vllm
+tags: ["llm_inference","torch.compile|Inductor 编译后的 graph"]
+category: llm_inference
 draft: false
 lang: ""
 createdAt: "2026-07-23T01:57:34.576.437495689Z"

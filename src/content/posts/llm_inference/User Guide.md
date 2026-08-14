@@ -3,8 +3,8 @@ title: "User Guide"
 published: 2026-06-08
 description: "User Guide"
 image: ""
-tags: ["vllm","User Guide"]
-category: vllm
+tags: ["llm_inference","User Guide"]
+category: llm_inference
 draft: false
 lang: ""
 createdAt: "2026-06-08T18:59:47.848.078811869Z"

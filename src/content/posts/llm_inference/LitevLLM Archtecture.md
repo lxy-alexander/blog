@@ -3,8 +3,8 @@ title: "LitevLLM archtecture"
 published: 2026-05-05
 description: "LitevLLM archtecture"
 image: ""
-tags: ["vllm","LitevLLM archtecture"]
-category: vllm
+tags: ["llm_inference","LitevLLM archtecture"]
+category: llm_inference
 draft: false
 lang: ""
 createdAt: "2026-05-06T00:12:00.684.455338904Z"

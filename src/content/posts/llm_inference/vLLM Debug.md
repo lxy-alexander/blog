@@ -3,8 +3,8 @@ title: "vLLM Debug"
 published: 2026-07-24
 description: "vLLM Debug"
 image: ""
-tags: ["vllm","vLLM Debug"]
-category: vllm
+tags: ["llm_inference","vLLM Debug"]
+category: llm_inference
 draft: false
 lang: ""
 createdAt: "2026-07-24T22:29:24.703.450257070Z"

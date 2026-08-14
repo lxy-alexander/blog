@@ -3,8 +3,8 @@ title: "vLLM Backend"
 published: 2026-08-09
 description: "vLLM Backend"
 image: ""
-tags: ["vllm","vLLM Backend"]
-category: vllm
+tags: ["llm_inference","vLLM Backend"]
+category: llm_inference
 draft: false
 lang: ""
 createdAt: "2026-08-09T19:20:42.495.975400607Z"

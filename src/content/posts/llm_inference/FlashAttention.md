@@ -3,8 +3,8 @@ title: "FlashAttention"
 published: 2026-08-09
 description: "FlashAttention"
 image: ""
-tags: ["vllm","FlashAttention"]
-category: vllm
+tags: ["llm_inference","FlashAttention"]
+category: llm_inference
 draft: false
 lang: ""
 createdAt: "2026-08-09T21:40:04.328.815708170Z"

@@ -3,8 +3,8 @@ title: "llm-d"
 published: 2026-08-10
 description: "llm-d"
 image: ""
-tags: ["vllm","llm-d"]
-category: vllm
+tags: ["llm_inference","llm-d"]
+category: llm_inference
 draft: false
 lang: ""
 createdAt: "2026-08-11T00:23:03.744.899495957Z"

@@ -3,8 +3,8 @@ title: "vllm serve CLI"
 published: 2026-06-08
 description: "vllm serve CLI"
 image: ""
-tags: ["vllm","vllm serve CLI"]
-category: vllm
+tags: ["llm_inference","vllm serve CLI"]
+category: llm_inference
 draft: false
 lang: ""
 createdAt: "2026-06-08T20:07:05.385.059990919Z"

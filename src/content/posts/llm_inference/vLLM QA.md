@@ -3,8 +3,8 @@ title: "vLLM QA"
 published: 2026-08-05
 description: "vLLM QA"
 image: ""
-tags: ["vllm","vLLM QA"]
-category: vllm
+tags: ["llm_inference","vLLM QA"]
+category: llm_inference
 draft: false
 lang: ""
 createdAt: "2026-08-05T13:54:42.821.801932051Z"

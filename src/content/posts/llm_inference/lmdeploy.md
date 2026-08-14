@@ -3,8 +3,8 @@ title: "lmdeploy"
 published: 2026-08-03
 description: "lmdeploy"
 image: ""
-tags: ["vllm","lmdeploy"]
-category: vllm
+tags: ["llm_inference","lmdeploy"]
+category: llm_inference
 draft: false
 lang: ""
 createdAt: "2026-08-03T19:57:05.356.119615907Z"

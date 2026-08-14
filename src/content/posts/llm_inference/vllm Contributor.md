@@ -3,8 +3,8 @@ title: "vllm Contributor"
 published: 2026-04-27
 description: "vllm Contributor"
 image: ""
-tags: ["vllm","vllm Contributor"]
-category: vllm
+tags: ["llm_inference","vllm Contributor"]
+category: llm_inference
 draft: false
 lang: ""
 createdAt: "2026-04-27T17:06:30.677.574426455Z"
