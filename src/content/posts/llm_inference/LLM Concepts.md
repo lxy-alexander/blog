@@ -1,14 +1,16 @@
 ---
-title: "questions"
+title: "LLM Concepts"
 published: 2026-08-10
-description: "questions"
+description: "LLM Concepts"
 image: ""
-tags: ["llm_inference","questions"]
+tags: ["llm_inference","LLM Concepts"]
 category: llm_inference
 draft: false
 lang: ""
 createdAt: "2026-08-10T22:10:34.234.410929590Z"
 ---
+
+## MHA | MQA | GQA
 
 1）**MHA — Multi-Head Attention**
 
@@ -24,9 +26,7 @@ Query heads are divided into groups, and the Query heads within each group share
 
 
 
-
-
-
+## Slice Runtime
 
 ```python
 VLLM_ENABLE_V1_MULTIPROCESSING=0 \
@@ -47,9 +47,15 @@ vllm serve repro/kimi-k3-slice \
   --spec-model repro/kimi-k3-dspark-slice \
   --spec-tokens 3 \
   --port 8000
-    
-    
 ```
+
+
+
+
+
+## emplace_back
+
+vector `push_back` copies or moves an existing object into the vector, while `emplace_back` constructs the object directly in place. `push_back` 将已有对象拷贝或移动进 vector，而 `emplace_back` 直接在 vector 尾部原地构造对象。
 
 
 

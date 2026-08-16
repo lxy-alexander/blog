@@ -10,11 +10,165 @@ lang: ""
 createdAt: "2026-04-27T17:06:30.677.574426455Z"
 ---
 
-# **Contributing to vLLM — Development Guide**
+# Contributing to vLLM 
 
-<div style="background:#EBF0FF;border-left:4px solid #3B5BDB;border-radius:0 6px 6px 0;padding:14px 18px;margin:16px 0;line-height:1.9">
-<strong>Overview:</strong> This document covers the complete workflow for contributing to vLLM, including environment setup, two installation paths (Python-only vs. CUDA/C++ compilation), linting, documentation preview, test execution, and PR submission guidelines. Whether you are contributing for the first time or working on daily development, this guide serves as a handy reference.
-</div>
+## 1. 整体思路
+
+-   **conda**（外层）：管 Python 版本、编译器（gcc/g++）、cmake/ninja、CUDA toolkit
+-   **uv**（内层）：管所有 Python 包安装，包括 torch、vllm 本身的编译触发
+
+------
+
+## 2. 创建 conda 工具链环境
+
+```bash
+conda create -n vllm-toolchain -y \
+    python=3.12 \
+    cmake ninja \
+    gcc_linux-64=12 gxx_linux-64=12 \
+    -c conda-forge
+
+conda activate vllm-toolchain
+```
+
+安装 CUDA toolkit（若集群没有对应 module）：
+
+```bash
+conda install -n vllm-toolchain -c nvidia cuda-toolkit=12.9 -y
+```
+
+>   ⚠️ 先用 `nvidia-smi` 确认驱动支持的最高 CUDA 版本 ≥ 12.9，否则会不兼容。
+
+------
+
+## 3. 关键坑：gcc/g++ 符号链接缺失
+
+`gcc_linux-64` / `gxx_linux-64` 这两个 conda-forge 包只会生成**带平台前缀**的可执行文件：
+
+```
+x86_64-conda-linux-gnu-gcc
+x86_64-conda-linux-gnu-g++
+```
+
+**不会**自动生成简化名 `gcc` / `g++`，导致 `which gcc` 会误命中系统里其它路径（比如集群自带的 `conda-compiler-shim`）。
+
+**修复：手动建符号链接**
+
+```bash
+cd ~/miniconda3/envs/vllm-toolchain/bin/
+ln -s x86_64-conda-linux-gnu-gcc gcc
+ln -s x86_64-conda-linux-gnu-g++ g++
+```
+
+------
+
+## 4. 让 activate 自动生效环境变量（不污染 .bashrc）
+
+利用 conda 的环境激活钩子机制，只在 activate 这个环境时生效：
+
+```bash
+mkdir -p ~/miniconda3/envs/vllm-toolchain/etc/conda/activate.d
+mkdir -p ~/miniconda3/envs/vllm-toolchain/etc/conda/deactivate.d
+
+cat > ~/miniconda3/envs/vllm-toolchain/etc/conda/activate.d/env_vars.sh << 'EOF'
+export CC=${CONDA_PREFIX}/bin/gcc
+export CXX=${CONDA_PREFIX}/bin/g++
+export PATH=${CONDA_PREFIX}/bin:$PATH
+hash -r
+EOF
+
+cat > ~/miniconda3/envs/vllm-toolchain/etc/conda/deactivate.d/env_vars.sh << 'EOF'
+unset CC
+unset CXX
+EOF
+```
+
+**验证：**
+
+```bash
+conda deactivate
+conda activate vllm-toolchain
+which gcc && which g++
+gcc --version && g++ --version
+```
+
+>   `hash -r` 用于清除 bash 命令路径缓存，避免 PATH 顺序正确但仍命中旧缓存路径的问题。
+
+------
+
+## 5. Git 工作流（自己的 fork）
+
+```bash
+# 添加官方仓库为 upstream（只需一次）
+git remote add upstream https://github.com/vllm-project/vllm.git
+
+# 同步官方最新代码
+git fetch upstream
+git rebase upstream/main        # 无自己提交时，等价于 reset --hard upstream/main
+
+# 推回自己的 fork（rebase 后需要强推）
+git push origin main --force-with-lease
+```
+
+**merge vs rebase 选择：**
+
+-   只有自己用这个 fork → 用 `rebase`，历史干净
+-   有协作者/别人依赖你的分支 → 用 `merge`，避免强推覆盖他人历史
+-   只是 `fetch` 没有自己的提交 → 两者结果一样，无影响
+
+------
+
+## 6. 编译 vLLM
+
+```bash
+cd vllm
+
+uv venv --python 3.12 --seed --managed-python
+source .venv/bin/activate
+export CCACHE_DIR="${HOME}/.cache/ccache"
+export CCACHE_NOHASHDIR=true
+export MAX_JOBS=16
+uv pip install -e . --torch-backend=auto -v
+
+# 指定多架构，兼容集群内不同 GPU 型号（按需调整）
+export TORCH_CUDA_ARCH_LIST="6.0;8.6;9.0"   # P100=6.0, A40=8.6, H100=9.0
+
+uv pip install -r requirements/cuda.txt
+```
+
+------
+
+## 7. 版本参考（截至 2026-08）
+
+| 项目             | 版本              |
+| ---------------- | ----------------- |
+| vLLM 最新版      | v0.27.1           |
+| 主线默认 CUDA    | 12.9（备选 13.0） |
+| 对应 PyTorch     | ~2.9.0            |
+| Python 推荐      | 3.10 – 3.12       |
+| cmake 要求       | ≥ 3.26.1          |
+| gcc/g++ 验证版本 | 12.x              |
+
+>   ⚠️ P100（Compute Capability 6.0）较老，需确认目标 vLLM/CUDA 版本是否仍支持，必要时可能需要退回较早版本组合。
+
+------
+
+## 8. 常见排查命令速查
+
+```bash
+nvidia-smi              # 驱动支持的最高 CUDA 版本
+nvcc --version           # 当前环境 CUDA toolkit 实际版本
+gcc --version / g++ --version
+cmake --version
+which gcc / which g++ / which cmake
+type -a gcc              # 排查是否有 alias/shim 干扰
+echo $PATH | tr ':' '\n' | nl   # 查看 PATH 优先级顺序
+```
+
+
+
+
+
 
 ---
 
