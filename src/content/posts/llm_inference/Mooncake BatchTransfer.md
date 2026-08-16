@@ -10,9 +10,87 @@ lang: ""
 createdAt: "2026-08-16T21:24:16.974.902555693Z"
 ---
 
+## BatchTransfer
+
+`BatchTransfer` 就是：**把多个 READ/WRITE 请求打包成一批异步提交，底层再切片、选 transport、选 NIC 并行传输，最后用 BatchID 统一查询状态。**
+
+`BatchTransfer` 是 Transfer Engine 里的 **批量异步传输任务**（Batch asynchronous transmission tasks.）。
+
+它不是一个单独的服务，也不是一个独立进程，而是一种 API/抽象：
+
+```
+一次提交多个 READ / WRITE 请求
+然后异步执行
+最后通过 batch id 查询完成状态
+```
+
+核心接口是：
+
+```
+BatchID batch = engine.allocateBatchID(batch_size);
+engine.submitTransfer(batch, requests);
+engine.getTransferStatus(batch, task_id, status);
+engine.getBatchTransferStatus(batch, status);
+engine.freeBatchID(batch);
+```
+
+**一个 TransferRequest 表示一次传输**
+
+```
+TransferRequest req;
+req.opcode = TransferRequest::WRITE;
+req.source = local_ptr;
+req.target_id = remote_segment;
+req.target_offset = remote_addr;
+req.length = size;
+```
+
+比如：
+
+```
+把本地 0x60000000 的 64KB
+写到远端 segment B 的 0x7f0000000000
+```
+
+这就是一个 request。
+
+**BatchTransfer 就是一组 request**
+
+比如你有 4 段 KV cache：
+
+```
+slice0: 64KB
+slice1: 64KB
+slice2: 64KB
+slice3: 64KB
+```
+
+可以组成一个 batch：
+
+```
+std::vector<TransferRequest> requests = {
+    req0,
+    req1,
+    req2,
+    req3,
+};
+
+BatchID batch = engine.allocateBatchID(4);
+engine.submitTransfer(batch, requests);
+```
+
+含义是：
+
+```
+一次提交 4 个传输请求
+底层可以并行调度
+可以分发到不同 NIC / transport
+可以统一查询状态
+```
 
 
-## 为什么要 BatchTransfer
+
+## 为什么需要 BatchTransfer
 
 因为 KV cache / tensor 通常不是一个小块，而是很多块：
 
@@ -128,6 +206,3 @@ BatchDesc
 `TransferRequest` 是用户提交的逻辑请求。
 `Slice` 是 transport 内部进一步拆出来的物理传输片段。
 
-**一句话**
-
-`BatchTransfer` 就是：**把多个 READ/WRITE 请求打包成一批异步提交，底层再切片、选 transport、选 NIC 并行传输，最后用 BatchID 统一查询状态。**
