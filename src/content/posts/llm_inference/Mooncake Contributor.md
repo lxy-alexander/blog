@@ -140,10 +140,11 @@ cmake --install extern/yalantinglibs/build
 cd /data/home/xli49/lxy/Mooncake
 rm -rf build
 
-cmake -S . -B build \
+cmake --fresh -S . -B build \
   -DCMAKE_PREFIX_PATH="$CONDA_PREFIX" \
   -DPython3_EXECUTABLE="$VIRTUAL_ENV/bin/python" \
-  -DUSE_CUDA=ON
+  -DUSE_CUDA=ON \
+  -DCUDAToolkit_ROOT="$CUDA_HOME"
 
 cmake --build build -j"$(nproc)"
 ```

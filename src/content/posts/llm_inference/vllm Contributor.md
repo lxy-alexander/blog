@@ -167,6 +167,29 @@ echo $PATH | tr ':' '\n' | nl   # 查看 PATH 优先级顺序
 
 
 
+```python
+现在逻辑是动态的：
+if [ -n "${CONDA_PREFIX-}" ] && [ -d "$CONDA_PREFIX/lib" ] ; then
+    _OLD_VIRTUAL_LD_LIBRARY_PATH="${LD_LIBRARY_PATH-}"
+    LD_LIBRARY_PATH="$CONDA_PREFIX/lib:${LD_LIBRARY_PATH-}"
+    export LD_LIBRARY_PATH
+fi
+我也验证了：激活后会把
+/data/home/xli49/miniconda3/envs/lmcache-toolchain/lib
+自动放到 LD_LIBRARY_PATH 最前面，并且：
+hasattr(lmcache, "device_ops") == True
+你以后只要在 (lmcache-toolchain) 里执行：
+source .venv/bin/activate
+```
+
+
+
+
+
+
+
+
+
 
 
 
@@ -212,6 +235,198 @@ apptainer shell --nv \
   --env HF_TOKEN="${HF_TOKEN}" \
   ../container/vllm-openai.sif
 ```
+
+````python
+# lmcache conda toolchain setup
+
+This config makes a conda environment prefer its own GCC/G++ toolchain while
+it is active. `conda deactivate` restores the overridden compiler variables.
+
+Only edit `CONDA_ENV_NAME` in the first line, then run the whole command:
+
+```bash
+CONDA_ENV_NAME=lmcache-toolchain bash <<'SETUP'
+set -euo pipefail
+
+CONDA_BASE=$(conda info --base)
+CONDA_ENV_PREFIX="$CONDA_BASE/envs/$CONDA_ENV_NAME"
+
+if [ ! -d "$CONDA_ENV_PREFIX" ]; then
+    echo "Conda environment not found: $CONDA_ENV_NAME" >&2
+    echo "Expected path: $CONDA_ENV_PREFIX" >&2
+    exit 1
+fi
+
+for compiler in \
+    x86_64-conda-linux-gnu-gcc \
+    x86_64-conda-linux-gnu-g++ \
+    x86_64-conda-linux-gnu-cc \
+    x86_64-conda-linux-gnu-c++
+do
+    if [ ! -x "$CONDA_ENV_PREFIX/bin/$compiler" ]; then
+        echo "Missing compiler: $CONDA_ENV_PREFIX/bin/$compiler" >&2
+        exit 1
+    fi
+done
+
+ln -sf x86_64-conda-linux-gnu-gcc "$CONDA_ENV_PREFIX/bin/gcc"
+ln -sf x86_64-conda-linux-gnu-g++ "$CONDA_ENV_PREFIX/bin/g++"
+ln -sf x86_64-conda-linux-gnu-cc "$CONDA_ENV_PREFIX/bin/cc"
+ln -sf x86_64-conda-linux-gnu-c++ "$CONDA_ENV_PREFIX/bin/c++"
+
+mkdir -p "$CONDA_ENV_PREFIX/etc/conda/activate.d"
+mkdir -p "$CONDA_ENV_PREFIX/etc/conda/deactivate.d"
+
+cat > "$CONDA_ENV_PREFIX/etc/conda/activate.d/lmcache.sh" <<'ACTIVATE'
+#!/usr/bin/env sh
+
+_lmcache_backup_var() {
+    var_name="$1"
+    backup_var_name="lmcache_BACKUP_${var_name}"
+    eval "current_value=\${$var_name+x}"
+    if [ -n "$current_value" ]; then
+        eval "export $backup_var_name=\"\${$var_name}\""
+    else
+        eval "unset $backup_var_name"
+    fi
+}
+
+for var_name in \
+    CC \
+    CXX \
+    CPP \
+    LD \
+    AR \
+    AS \
+    NM \
+    RANLIB \
+    STRIP \
+    OBJCOPY \
+    OBJDUMP \
+    READELF \
+    CUDAHOSTCXX \
+    CMAKE_C_COMPILER \
+    CMAKE_CXX_COMPILER \
+    CMAKE_LINKER \
+    CMAKE_AR \
+    CMAKE_RANLIB \
+    CMAKE_OBJCOPY \
+    CMAKE_OBJDUMP \
+    CMAKE_READELF \
+    CMAKE_STRIP
+do
+    _lmcache_backup_var "$var_name"
+done
+unset _lmcache_backup_var var_name backup_var_name current_value
+
+export CC="$CONDA_PREFIX/bin/x86_64-conda-linux-gnu-gcc"
+export CXX="$CONDA_PREFIX/bin/x86_64-conda-linux-gnu-g++"
+export CPP="$CONDA_PREFIX/bin/x86_64-conda-linux-gnu-cpp"
+export LD="$CONDA_PREFIX/bin/x86_64-conda-linux-gnu-ld"
+export AR="$CONDA_PREFIX/bin/x86_64-conda-linux-gnu-ar"
+export AS="$CONDA_PREFIX/bin/x86_64-conda-linux-gnu-as"
+export NM="$CONDA_PREFIX/bin/x86_64-conda-linux-gnu-nm"
+export RANLIB="$CONDA_PREFIX/bin/x86_64-conda-linux-gnu-ranlib"
+export STRIP="$CONDA_PREFIX/bin/x86_64-conda-linux-gnu-strip"
+export OBJCOPY="$CONDA_PREFIX/bin/x86_64-conda-linux-gnu-objcopy"
+export OBJDUMP="$CONDA_PREFIX/bin/x86_64-conda-linux-gnu-objdump"
+export READELF="$CONDA_PREFIX/bin/x86_64-conda-linux-gnu-readelf"
+
+export CUDAHOSTCXX="$CXX"
+export CMAKE_C_COMPILER="$CC"
+export CMAKE_CXX_COMPILER="$CXX"
+export CMAKE_LINKER="$LD"
+export CMAKE_AR="$AR"
+export CMAKE_RANLIB="$RANLIB"
+export CMAKE_OBJCOPY="$OBJCOPY"
+export CMAKE_OBJDUMP="$OBJDUMP"
+export CMAKE_READELF="$READELF"
+export CMAKE_STRIP="$STRIP"
+ACTIVATE
+
+cat > "$CONDA_ENV_PREFIX/etc/conda/deactivate.d/lmcache.sh" <<'DEACTIVATE'
+#!/usr/bin/env sh
+
+case ":$PATH:" in
+    *":$CONDA_PREFIX/bin:"*)
+        PATH=$(printf '%s' "$PATH" \
+            | sed "s#^$CONDA_PREFIX/bin:##;s#:$CONDA_PREFIX/bin:#:#;s#:$CONDA_PREFIX/bin\$##")
+        export PATH
+        ;;
+esac
+
+_lmcache_restore_var() {
+    var_name="$1"
+    backup_var_name="lmcache_BACKUP_${var_name}"
+    eval "backup_is_set=\${$backup_var_name+x}"
+    if [ -n "$backup_is_set" ]; then
+        eval "export $var_name=\"\${$backup_var_name}\""
+    else
+        eval "unset $var_name"
+    fi
+    eval "unset $backup_var_name"
+}
+
+for var_name in \
+    CC \
+    CXX \
+    CPP \
+    LD \
+    AR \
+    AS \
+    NM \
+    RANLIB \
+    STRIP \
+    OBJCOPY \
+    OBJDUMP \
+    READELF \
+    CUDAHOSTCXX \
+    CMAKE_C_COMPILER \
+    CMAKE_CXX_COMPILER \
+    CMAKE_LINKER \
+    CMAKE_AR \
+    CMAKE_RANLIB \
+    CMAKE_OBJCOPY \
+    CMAKE_OBJDUMP \
+    CMAKE_READELF \
+    CMAKE_STRIP
+do
+    _lmcache_restore_var "$var_name"
+done
+unset _lmcache_restore_var var_name backup_var_name backup_is_set
+DEACTIVATE
+
+echo "Configured conda toolchain for: $CONDA_ENV_NAME"
+echo
+echo "Verify with:"
+echo "  conda activate $CONDA_ENV_NAME"
+echo "  hash -r"
+echo "  which gcc"
+echo "  which g++"
+echo "  echo \\$CC"
+echo "  echo \\$CXX"
+SETUP
+```
+
+Expected after activation:
+
+```text
+.../envs/lmcache-toolchain/bin/gcc
+.../envs/lmcache-toolchain/bin/g++
+```
+
+Exit with:
+
+```bash
+conda deactivate
+hash -r
+```
+
+````
+
+
+
+
 
 
 
