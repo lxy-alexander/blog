@@ -125,13 +125,20 @@ cd vllm
 
 uv venv --python 3.12 --seed --managed-python
 source .venv/bin/activate
+
 export CCACHE_DIR="${HOME}/.cache/ccache"
 export CCACHE_NOHASHDIR=true
 export MAX_JOBS=16
-uv pip install -e . --torch-backend=auto -v
+export TORCH_CUDA_ARCH_LIST="8.6;9.0;9.0a"
+
+unset VLLM_USE_PRECOMPILED
+
+uv pip install -e . \
+  --torch-backend=auto \
+  -v
 
 # 指定多架构，兼容集群内不同 GPU 型号（按需调整）
-export TORCH_CUDA_ARCH_LIST="6.0;8.6;9.0"   # P100=6.0, A40=8.6, H100=9.0
+export TORCH_CUDA_ARCH_LIST="8.6;9.0"   # P100=6.0, A40=8.6, H100=9.0
 
 uv pip install -r requirements/cuda.txt
 ```

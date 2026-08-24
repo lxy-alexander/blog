@@ -149,6 +149,22 @@ cmake --fresh -S . -B build \
 cmake --build build -j"$(nproc)"
 ```
 
+```bash
+
+cmake -S . -B build \
+  -DUSE_TENT=ON \
+  -DBUILD_UNIT_TESTS=ON \
+  -DWITH_STORE=OFF \
+  -DWITH_STORE_RUST=OFF
+
+cmake --build build \
+  --target tent_rail_monitor_test \
+  -j4
+
+./build/mooncake-transfer-engine/tent/tests/tent_rail_monitor_test
+```
+
+
 日志里应看到：
 
 - 编译器：`.../envs/mooncake-toolchain/bin/x86_64-conda-linux-gnu-c++`
