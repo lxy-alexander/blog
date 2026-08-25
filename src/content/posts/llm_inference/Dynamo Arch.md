@@ -14,377 +14,449 @@ createdAt: "2026-08-24T23:01:30.717.875836006Z"
 
 
 
-flowchart TB
-
 ```mermaid
 flowchart TB
 
     %% ============================================================
-    %% Client
+    %% 1. Clients and external entry
     %% ============================================================
-    subgraph CLIENT["Client / Application"]
-        APP["Application"]
-        API["Dynamo API<br/><br/>GET(key)<br/>PUT(key, context, value)"]
+    subgraph CLIENT["1. Client and External Entry"]
+        APP["Client Application<br/>OpenAI SDK / curl / Service"]
+        OAI["OpenAI-compatible API<br/>POST /v1/chat/completions<br/>POST /v1/completions<br/>POST /v1/embeddings"]
+        KSERVE["KServe gRPC API"]
+        GATEWAY["Optional Kubernetes Gateway API<br/>Auth / Rate Limit / Traffic Policy"]
+        EPP["Optional Endpoint Picker Plugin<br/>Select Frontend sidecar or worker"]
 
-        APP --> API
+        APP --> OAI
+        APP --> KSERVE
+        APP --> GATEWAY
+        GATEWAY --> EPP
     end
 
-
     %% ============================================================
-    %% Dynamo Request Processing
+    %% 2. Frontend
     %% ============================================================
-    subgraph REQUEST["Request Processing"]
-        ENTRY["Dynamo Node<br/>接收客户端请求"]
+    subgraph FRONTEND["2. Dynamo Frontend"]
+        HTTP["HTTP / SSE Server<br/>OpenAI-compatible endpoints<br/><br/>components/src/dynamo/frontend/main.py"]
+        GRPC["KServe gRPC Server<br/><br/>lib/llm runtime entrypoint"]
+        VALIDATE["Request Validation<br/>model / sampling / limits / tools"]
+        TEMPLATE["Chat Template<br/>messages to prompt"]
+        TOKENIZER["Tokenizer<br/>prompt to token_ids"]
+        PREPROCESS["Preprocessor<br/>PreprocessedRequest<br/><br/>model<br/>token_ids<br/>sampling_options<br/>stop_conditions<br/>routing metadata"]
+        ENGINE["Dynamic LLM Engine<br/>make_engine<br/><br/>lib/llm<br/>lib/bindings/python"]
+        POSTPROCESS["Postprocessor<br/>detokenization<br/>tool calls<br/>reasoning fields<br/>usage aggregation"]
+        STREAM["HTTP SSE / JSON Response"]
 
-        COORD["Coordinator<br/><br/>当前请求的协调者<br/>并非固定 Master"]
+        OAI --> HTTP
+        KSERVE --> GRPC
+        EPP -->|"direct mode"| HTTP
 
-        HASH["Hash(key)<br/><br/>计算 key 在 token space 中的位置"]
+        HTTP --> VALIDATE
+        GRPC --> VALIDATE
+        VALIDATE --> TEMPLATE
+        TEMPLATE --> TOKENIZER
+        TOKENIZER --> PREPROCESS
+        PREPROCESS --> ENGINE
 
-        ENTRY --> COORD
-        COORD --> HASH
+        ENGINE --> POSTPROCESS
+        POSTPROCESS --> STREAM
+        STREAM --> APP
     end
 
-    API --> ENTRY
-
-
     %% ============================================================
-    %% Cluster Metadata
+    %% 3. Distributed runtime
     %% ============================================================
-    subgraph CLUSTER["Cluster Membership & Metadata"]
-        MEMBERS["Membership State<br/><br/>Node List<br/>Token Ownership<br/>Node State"]
+    subgraph RUNTIME["3. Dynamo Distributed Runtime"]
+        DR["DistributedRuntime<br/><br/>lib/runtime<br/>components communicate through endpoints"]
+        NS["Namespace<br/>isolates one model deployment"]
+        COMP["Component<br/>frontend / router / prefill / decode / backend"]
+        ENDPOINT["Endpoint<br/>namespace.component.endpoint<br/><br/>examples:<br/>model.prefill.generate<br/>model.decode.generate"]
+        CLIENTWATCH["Runtime Client<br/>watches endpoint membership"]
+        REQUESTPLANE["Request Plane<br/>TCP default / HTTP / NATS legacy"]
+        INHIBIT["Local Worker Inhibition<br/>temporarily avoids failed worker"]
 
-        GOSSIP["Gossip Protocol<br/><br/>传播节点状态和 membership"]
-
-        FAILURE["Failure Detection<br/><br/>本地判断节点<br/>Alive / Suspected"]
-
-        JOIN["Node Join"]
-        LEAVE["Node Leave / Failure"]
-
-        JOIN --> MEMBERS
-        LEAVE --> MEMBERS
-
-        MEMBERS <--> GOSSIP
-
-        GOSSIP --> FAILURE
+        DR --> NS
+        NS --> COMP
+        COMP --> ENDPOINT
+        CLIENTWATCH --> ENDPOINT
+        ENDPOINT --> REQUESTPLANE
+        REQUESTPLANE --> INHIBIT
     end
 
+    ENGINE --> DR
 
     %% ============================================================
-    %% Partitioning
+    %% 4. Service discovery
     %% ============================================================
-    subgraph PARTITION["Partitioning — Consistent Hashing"]
-        TOKENSPACE["Token Space<br/><br/>0 ... 2^m - 1"]
+    subgraph DISCOVERY["4. Service Discovery and Membership"]
+        DISCOVERYMODE{"Discovery backend"}
+        K8SDISC["Kubernetes-native Discovery<br/>DynamoWorkerMetadata CRD<br/>EndpointSlice / API watch"]
+        ETCD["etcd Discovery<br/>lease and keepalive<br/>/services/namespace/component/endpoint"]
+        REGISTRY["Live Endpoint Registry<br/>instance ID<br/>address<br/>worker role<br/>runtime configuration"]
+        HEALTH["Health and Membership Update<br/>register / drain / deregister / lease expiry"]
+        WORKERCONFIG["Worker RuntimeConfig<br/>worker ID<br/>DP rank / TP size<br/>KV capacity<br/>backend metadata<br/>taints"]
 
-        V1["VNode / Token A"]
-        V2["VNode / Token B"]
-        V3["VNode / Token C"]
-        V4["VNode / Token D"]
-        V5["VNode / Token E"]
-        V6["VNode / Token F"]
-
-        PN1["Physical Node A"]
-        PN2["Physical Node B"]
-        PN3["Physical Node C"]
-
-        TOKENSPACE --> V1
-        TOKENSPACE --> V2
-        TOKENSPACE --> V3
-        TOKENSPACE --> V4
-        TOKENSPACE --> V5
-        TOKENSPACE --> V6
-
-        V1 --> PN1
-        V4 --> PN1
-
-        V2 --> PN2
-        V5 --> PN2
-
-        V3 --> PN3
-        V6 --> PN3
+        DISCOVERYMODE --> K8SDISC
+        DISCOVERYMODE --> ETCD
+        K8SDISC --> REGISTRY
+        ETCD --> REGISTRY
+        HEALTH --> REGISTRY
+        WORKERCONFIG --> REGISTRY
     end
 
-    HASH --> TOKENSPACE
-
-    MEMBERS -. "token ownership" .-> TOKENSPACE
-
+    REGISTRY -. "watch updates" .-> CLIENTWATCH
+    INHIBIT -. "request failure" .-> REGISTRY
 
     %% ============================================================
-    %% Preference List
+    %% 5. Routing layer
     %% ============================================================
-    subgraph PL["Preference List"]
-        PREF["Preference List<br/><br/>从 key 所在位置开始<br/>沿 Ring 顺时针选择节点"]
+    subgraph ROUTING["5. Request Routing Layer"]
+        ROUTERMODE{"Router mode"}
+        RR["Round Robin"]
+        RANDOM["Random"]
+        LEAST["Least Loaded"]
+        DIRECT["Direct<br/>upstream-selected worker"]
+        DEVICE["Device-aware Weighted"]
+        KVROUTER["KV-aware Router<br/><br/>lib/kv-router"]
+        ROUTERREQ["SchedulingRequest<br/>request_id<br/>token sequence<br/>routing constraints<br/>config override"]
+        ELIGIBLE["Eligibility Filter<br/>healthy worker<br/>model / LoRA match<br/>role match<br/>taints<br/>optional pinned worker"]
+        HASH["KV Block Hashing<br/>split token_ids by block size<br/>compute chained block hashes<br/><br/>lib/kv-router/src/protocols.rs"]
+        MATCH["KV Prefix Lookup<br/>Radix Tree / Cuckoo Index<br/>find matching blocks per worker"]
+        OVERLAP["Overlap Analysis<br/>GPU blocks<br/>host-pinned blocks<br/>disk blocks<br/>shared-cache hits"]
+        LOAD["Worker Load State<br/>active prefill tokens<br/>decode blocks<br/>active requests<br/>KV utilization"]
+        SCORE["Worker Cost Function<br/><br/>adjusted prefill<br/>= raw prefill - cache credit<br/><br/>cost<br/>= prefill cost + decode cost<br/>+ active request cost"]
+        QUEUE["Scheduling Queue<br/>FCFS / WSPT policy<br/>admission control<br/>optional overlap refresh"]
+        PICK["Worker Selection<br/>minimum cost when temperature=0<br/>softmax selection otherwise"]
+        RESULT["WorkerSelectionResult<br/>worker_id<br/>dp_rank<br/>overlap_blocks"]
 
-        DISTINCT["Skip duplicate physical nodes<br/><br/>保证副本位于不同物理节点"]
+        ROUTERMODE --> RR
+        ROUTERMODE --> RANDOM
+        ROUTERMODE --> LEAST
+        ROUTERMODE --> DIRECT
+        ROUTERMODE --> DEVICE
+        ROUTERMODE --> KVROUTER
 
-        TARGETS["Preferred Replicas<br/><br/>例如：A → B → C"]
+        KVROUTER --> ROUTERREQ
+        ROUTERREQ --> ELIGIBLE
+        ROUTERREQ --> HASH
+        HASH --> MATCH
+        MATCH --> OVERLAP
+        OVERLAP --> SCORE
+        LOAD --> SCORE
+        ELIGIBLE --> SCORE
+        SCORE --> QUEUE
+        QUEUE --> PICK
+        PICK --> RESULT
 
-        PREF --> DISTINCT
-        DISTINCT --> TARGETS
+        RR --> RESULT
+        RANDOM --> RESULT
+        LEAST --> RESULT
+        DIRECT --> RESULT
+        DEVICE --> RESULT
     end
 
-    TOKENSPACE --> PREF
-    MEMBERS --> PREF
-    FAILURE --> PREF
-
+    ENGINE --> ROUTERMODE
+    REGISTRY -. "available workers" .-> ELIGIBLE
+    WORKERCONFIG -. "capacity and topology" .-> ELIGIBLE
 
     %% ============================================================
-    %% Replication
+    %% 6. Aggregated execution
     %% ============================================================
-    subgraph REPLICATION["Replication"]
-        N["Replication Factor N<br/><br/>例如 N = 3"]
+    subgraph AGG["6A. Aggregated Serving - Optional Path"]
+        AGGWORKER["Aggregated Worker<br/>same engine performs prefill and decode"]
+        AGGPREFILL["Prefill Phase<br/>process prompt tokens<br/>build or reuse KV cache"]
+        AGGDECODE["Decode Phase<br/>generate one or more tokens per step"]
+        AGGOUTPUT["Streaming Engine Output<br/>token_ids / text<br/>finish_reason / usage"]
 
-        R1["Replica A"]
-        R2["Replica B"]
-        R3["Replica C"]
-
-        N --> R1
-        N --> R2
-        N --> R3
+        AGGWORKER --> AGGPREFILL
+        AGGPREFILL --> AGGDECODE
+        AGGDECODE --> AGGOUTPUT
     end
 
-    TARGETS --> N
-
+    RESULT -->|"aggregated topology"| AGGWORKER
+    AGGOUTPUT --> ENGINE
 
     %% ============================================================
-    %% Coordinator Logic
+    %% 7. Disaggregated execution
     %% ============================================================
-    subgraph QUORUM["Coordinator Quorum Logic"]
-        WRITE["PUT Request"]
+    subgraph DISAGG["6B. Disaggregated Prefill and Decode - Optional Path"]
+        ORCHESTRATOR["Prefill Router / Disaggregated Orchestrator"]
+        PREFSELECT["Select Prefill Worker<br/>KV overlap plus prefill load"]
+        PREFPOOL["Prefill Worker Pool<br/>independently scalable"]
+        PREF1["Prefill Worker P1"]
+        PREF2["Prefill Worker P2"]
+        PREFEXEC["Compute Missing Prompt KV<br/>reuse cached prefix when available"]
+        META["Return Transfer Metadata<br/><br/>vLLM: kv_transfer_params<br/>SGLang: bootstrap_info<br/>TensorRT-LLM: opaque_state"]
+        DECSELECT["Select Decode Worker<br/>decode load / capacity<br/>conditional cache locality"]
+        DECPOOL["Decode Worker Pool<br/>independently scalable"]
+        DEC1["Decode Worker D1"]
+        DEC2["Decode Worker D2"]
+        KVTRANSFER["Asynchronous KV Transfer<br/>Prefill GPU to Decode GPU"]
+        DECEXEC["Autoregressive Decode<br/>continuous batching<br/>token generation"]
+        DECOUTPUT["Streaming Engine Output"]
 
-        READ["GET Request"]
+        ORCHESTRATOR --> PREFSELECT
+        PREFSELECT --> PREFPOOL
+        PREFPOOL --> PREF1
+        PREFPOOL --> PREF2
+        PREF1 --> PREFEXEC
+        PREF2 --> PREFEXEC
+        PREFEXEC --> META
 
-        WCOND["Write Condition<br/><br/>等待至少 W 个 Replica ACK"]
+        META --> DECSELECT
+        DECSELECT --> DECPOOL
+        DECPOOL --> DEC1
+        DECPOOL --> DEC2
 
-        RCOND["Read Condition<br/><br/>等待至少 R 个 Replica Response"]
-
-        WSUCCESS["PUT Success<br/><br/>ACK ≥ W"]
-
-        RSUCCESS["Continue Read Processing<br/><br/>Responses ≥ R"]
-
-        WRITE --> WCOND
-        WCOND --> WSUCCESS
-
-        READ --> RCOND
-        RCOND --> RSUCCESS
+        META --> KVTRANSFER
+        PREFEXEC --> KVTRANSFER
+        KVTRANSFER --> DECEXEC
+        DEC1 --> DECEXEC
+        DEC2 --> DECEXEC
+        DECEXEC --> DECOUTPUT
     end
 
-    COORD --> WRITE
-    COORD --> READ
-
-    WRITE --> R1
-    WRITE --> R2
-    WRITE --> R3
-
-    R1 -. ACK .-> WCOND
-    R2 -. ACK .-> WCOND
-    R3 -. ACK .-> WCOND
-
-    READ --> R1
-    READ --> R2
-    READ --> R3
-
-    R1 -. Version .-> RCOND
-    R2 -. Version .-> RCOND
-    R3 -. Version .-> RCOND
-
+    RESULT -->|"disaggregated topology"| ORCHESTRATOR
+    DECOUTPUT --> ENGINE
 
     %% ============================================================
-    %% Object Versioning
+    %% 8. Backend engines
     %% ============================================================
-    subgraph VERSION["Object Versioning"]
-        OBJECT["Object Version<br/><br/>Key<br/>Value<br/>Context"]
+    subgraph BACKENDS["7. Inference Backend Integration"]
+        BACKENDAPI["Dynamo Backend Adapter<br/>common generate and streaming contract"]
+        VLLM["vLLM Engine<br/>scheduler / paged attention<br/>KV event publisher"]
+        SGLANG["SGLang Engine<br/>radix cache / HiCache<br/>KV event publisher"]
+        TRTLLM["TensorRT-LLM Engine<br/>optimized kernels<br/>KV event publisher"]
+        MOCKER["Mocker Engine<br/>simulation and testing"]
+        GPU["GPU Execution<br/>CUDA kernels<br/>attention / GEMM / collectives"]
+        PARALLEL["Parallelism<br/>TP / PP / DP / EP"]
+        NCCL["NCCL Collectives<br/>multi-GPU execution"]
 
-        VC["Vector Clock<br/><br/>例如<br/>{A:3, B:2}"]
+        BACKENDAPI --> VLLM
+        BACKENDAPI --> SGLANG
+        BACKENDAPI --> TRTLLM
+        BACKENDAPI --> MOCKER
 
-        COMPARE["Version Comparison"]
+        VLLM --> GPU
+        SGLANG --> GPU
+        TRTLLM --> GPU
 
-        DOMINATE["Causal Ordering<br/><br/>一个版本 dominates 另一个"]
-
-        CONCURRENT["Concurrent Versions<br/><br/>Sibling Versions"]
-
-        WINNER["Latest Causal Version"]
-
-        RECONCILE["Application Reconciliation<br/><br/>客户端 / 业务逻辑合并"]
-
-        MERGED["Merged Version<br/><br/>重新 PUT"]
-
-        OBJECT --> VC
-
-        VC --> COMPARE
-
-        COMPARE -->|"存在 causal ordering"| DOMINATE
-        COMPARE -->|"无法互相 dominate"| CONCURRENT
-
-        DOMINATE --> WINNER
-
-        CONCURRENT --> RECONCILE
-        RECONCILE --> MERGED
+        GPU --> PARALLEL
+        PARALLEL --> NCCL
     end
 
-    RSUCCESS --> OBJECT
-
-    MERGED --> COORD
-
+    AGGWORKER --> BACKENDAPI
+    PREF1 --> BACKENDAPI
+    PREF2 --> BACKENDAPI
+    DEC1 --> BACKENDAPI
+    DEC2 --> BACKENDAPI
 
     %% ============================================================
-    %% Sloppy Quorum
+    %% 9. KV event plane and router index
     %% ============================================================
-    subgraph SLOPPY["Sloppy Quorum"]
-        CHECK["Preferred Replica<br/>Available?"]
+    subgraph KVEVENTS["8. KV Cache Event and Index Plane"]
+        KVEVENT["RouterEvent<br/>Stored / Removed / Cleared<br/>worker_id / event_id / block hashes"]
+        EVENTTRANSPORT{"KV Event Transport"}
+        NATS["NATS / JetStream<br/>event pub-sub"]
+        ZMQ["ZMQ Event Channel"]
+        PREDICT["Prediction-based Tracking<br/>when KV events are disabled"]
+        LISTENER["KV Event Listener"]
+        INDEXER["Global KV Location Index<br/>block prefix to workers"]
+        RADIX["Concurrent Radix Tree<br/>prefix overlap lookup"]
+        CUCKOO["Optional Cuckoo Index<br/>high-throughput lookup"]
+        REPLICASYNC["Router Replica Synchronization<br/>synchronize routing view<br/>not model-data replication"]
+        RECOVERY["Indexer Recovery<br/>rebuild routing state after restart"]
 
-        NORMAL["Use Preferred Replica"]
-
-        FALLBACK["Select Next Healthy Node<br/><br/>Preference List 之外的<br/>临时替代节点"]
-
-        TEMP["Temporary Replica"]
-
-        CHECK -->|"Yes"| NORMAL
-        CHECK -->|"No"| FALLBACK
-
-        FALLBACK --> TEMP
+        KVEVENT --> EVENTTRANSPORT
+        EVENTTRANSPORT --> NATS
+        EVENTTRANSPORT --> ZMQ
+        NATS --> LISTENER
+        ZMQ --> LISTENER
+        PREDICT --> INDEXER
+        LISTENER --> INDEXER
+        INDEXER --> RADIX
+        INDEXER --> CUCKOO
+        INDEXER <--> REPLICASYNC
+        RECOVERY --> INDEXER
     end
 
-    FAILURE --> CHECK
-    TARGETS --> CHECK
+    VLLM -. "KV lifecycle events" .-> KVEVENT
+    SGLANG -. "KV lifecycle events" .-> KVEVENT
+    TRTLLM -. "KV lifecycle events" .-> KVEVENT
 
-    NORMAL --> R1
-    NORMAL --> R2
-    NORMAL --> R3
-
+    RADIX -. "overlap scores" .-> MATCH
+    CUCKOO -. "overlap scores" .-> MATCH
 
     %% ============================================================
-    %% Hinted Handoff
+    %% 10. KV Block Manager and storage tiers
     %% ============================================================
-    subgraph HINTED["Hinted Handoff"]
-        HINT["Hint Metadata<br/><br/>Intended Replica = Node C"]
+    subgraph KVBM["9. KV Block Manager and Cache Hierarchy"]
+        CONNECTOR["Backend KV Connector<br/>vLLM / TensorRT-LLM integration"]
+        LOGICAL["Logical Block Manager<br/>block identity<br/>ownership and lifecycle"]
+        PHYSICAL["Physical Block Manager<br/>allocation / handles / layout"]
+        DEVICECACHE["G1 Device Pool<br/>GPU HBM<br/>fastest tier"]
+        HOSTCACHE["G2 Host Pool<br/>CPU pinned memory"]
+        DISKCACHE["G3 Disk Pool<br/>local NVMe / filesystem"]
+        REMOTECACHE["G4 Remote Storage<br/>remote memory / filesystem<br/>object or cloud storage"]
+        OFFLOAD["Offload and Onboard Scheduler<br/>Device to Host to Disk<br/>Disk or Host to Device"]
+        EVICT["Eviction and Capacity Management"]
+        KVCONSOLIDATE["KV Consolidator<br/>track and publish block state"]
 
-        WAIT["Temporary Storage<br/><br/>数据暂存在 Substitute Node"]
+        CONNECTOR --> LOGICAL
+        LOGICAL --> PHYSICAL
+        PHYSICAL --> DEVICECACHE
+        PHYSICAL --> HOSTCACHE
+        PHYSICAL --> DISKCACHE
+        PHYSICAL --> REMOTECACHE
 
-        RECOVERY["Original Replica Recovers"]
+        DEVICECACHE <--> OFFLOAD
+        HOSTCACHE <--> OFFLOAD
+        DISKCACHE <--> OFFLOAD
+        REMOTECACHE <--> OFFLOAD
 
-        HANDOFF["Transfer Data<br/>to Original Replica"]
-
-        CLEAN["Delete Hint<br/>and Temporary Copy"]
-
-        HINT --> WAIT
-        WAIT --> RECOVERY
-        RECOVERY --> HANDOFF
-        HANDOFF --> CLEAN
+        EVICT --> LOGICAL
+        LOGICAL --> KVCONSOLIDATE
     end
 
-    TEMP --> HINT
-
-    HANDOFF --> R1
-    HANDOFF --> R2
-    HANDOFF --> R3
-
+    VLLM --> CONNECTOR
+    TRTLLM --> CONNECTOR
+    SGLANG -. "HiCache or backend-native integration" .-> HOSTCACHE
+    KVCONSOLIDATE -. "store / remove events" .-> KVEVENT
+    OVERLAP -. "tier-aware cache hits" .-> KVBM
 
     %% ============================================================
-    %% Read Repair
+    %% 11. NIXL data movement
     %% ============================================================
-    subgraph READREPAIR["Read Repair"]
-        MULTI["Versions from Replicas"]
+    subgraph NIXL["10. NIXL Data Movement Layer"]
+        NIXLAPI["NIXL Agent and Transfer API<br/>memory registration<br/>descriptor exchange<br/>async get / put"]
+        NVLINK["NVLink / GPU P2P"]
+        UCX["UCX / InfiniBand / RoCE"]
+        MEMCPY["CUDA or Host memcpy"]
+        GDS["GPUDirect Storage"]
+        FILEIO["POSIX / Remote Filesystem I/O"]
 
-        RCOMPARE["Compare Vector Clocks"]
-
-        CURRENT["Determine Current Version"]
-
-        STALE["Detect Stale Replica"]
-
-        FIX["Write Current Version<br/>to Stale Replica"]
-
-        MULTI --> RCOMPARE
-        RCOMPARE --> CURRENT
-        CURRENT --> STALE
-        STALE --> FIX
+        NIXLAPI --> NVLINK
+        NIXLAPI --> UCX
+        NIXLAPI --> MEMCPY
+        NIXLAPI --> GDS
+        NIXLAPI --> FILEIO
     end
 
-    RSUCCESS --> MULTI
-
-    R1 -. Version .-> MULTI
-    R2 -. Version .-> MULTI
-    R3 -. Version .-> MULTI
-
-    FIX -. Repair .-> R1
-    FIX -. Repair .-> R2
-    FIX -. Repair .-> R3
-
+    KVTRANSFER --> NIXLAPI
+    OFFLOAD --> NIXLAPI
+    NIXLAPI --> DEVICECACHE
+    NIXLAPI --> HOSTCACHE
+    NIXLAPI --> DISKCACHE
+    NIXLAPI --> REMOTECACHE
 
     %% ============================================================
-    %% Anti Entropy
+    %% 12. Fault handling
     %% ============================================================
-    subgraph ENTROPY["Anti-Entropy — Merkle Tree"]
-        MA["Merkle Tree<br/>Replica A"]
+    subgraph FAULT["11. Request Fault Handling"]
+        CANCEL["Request Cancellation<br/>client disconnect propagation"]
+        REJECT["Admission and Request Rejection<br/>load and capacity thresholds"]
+        MIGRATE["Optional In-flight Migration<br/>move eligible request after failure"]
+        RETRY["Reroute New Request<br/>avoid failed or inhibited worker"]
+        RECOMPUTE["KV Cache Miss or Loss<br/>recompute prompt KV"]
 
-        MB["Merkle Tree<br/>Replica B"]
-
-        ROOT["Compare Root Hash"]
-
-        BRANCH["Descend Different Branch"]
-
-        RANGE["Locate Different<br/>Hash Range"]
-
-        DIFF["Exchange Different Keys"]
-
-        SYNC["Replica Synchronization"]
-
-        MA --> ROOT
-        MB --> ROOT
-
-        ROOT -->|"same"| OK["No Sync Needed"]
-
-        ROOT -->|"different"| BRANCH
-
-        BRANCH --> RANGE
-        RANGE --> DIFF
-        DIFF --> SYNC
+        CANCEL --> AGGWORKER
+        CANCEL --> PREFPOOL
+        CANCEL --> DECPOOL
+        REJECT --> ROUTERMODE
+        MIGRATE --> DECPOOL
+        RETRY --> ROUTERMODE
+        RECOMPUTE --> PREFEXEC
     end
 
+    HEALTH -. "worker failure" .-> RETRY
+    INHIBIT -. "temporary suppression" .-> RETRY
+    DECEXEC -. "eligible interrupted request" .-> MIGRATE
 
     %% ============================================================
-    %% Persistent Storage
+    %% 13. Observability and autoscaling
     %% ============================================================
-    subgraph STORAGE["Local Persistent Storage"]
-        SA["Node A Local Store"]
+    subgraph OPS["12. Observability, Planning and Autoscaling"]
+        METRICS["Metrics<br/>request rate<br/>TTFT / ITL / latency<br/>tokens per second<br/>KV usage<br/>queue depth"]
+        TRACES["Distributed Tracing<br/>request_id / trace_id"]
+        LOGS["Structured Logs"]
+        PROM["Prometheus"]
+        GRAFANA["Grafana"]
+        PLANNER["Dynamo Planner<br/>SLA-driven scaling decisions"]
+        PROFILER["Profiler and AIConfigurator<br/>offline deployment configuration"]
+        SCALE["Scale Prefill and Decode Pools<br/>replica counts / GPU allocation"]
 
-        SB["Node B Local Store"]
-
-        SC["Node C Local Store"]
-
-        DATAA["Key<br/>Value<br/>Vector Clock<br/>Replica Metadata"]
-
-        DATAB["Key<br/>Value<br/>Vector Clock<br/>Replica Metadata"]
-
-        DATAC["Key<br/>Value<br/>Vector Clock<br/>Replica Metadata"]
-
-        SA --> DATAA
-        SB --> DATAB
-        SC --> DATAC
+        METRICS --> PROM
+        PROM --> GRAFANA
+        METRICS --> PLANNER
+        PROFILER --> PLANNER
+        PLANNER --> SCALE
     end
 
-    R1 --> SA
-    R2 --> SB
-    R3 --> SC
+    HTTP -. "HTTP metrics" .-> METRICS
+    KVROUTER -. "routing metrics" .-> METRICS
+    PREFPOOL -. "load metrics" .-> METRICS
+    DECPOOL -. "load metrics" .-> METRICS
+    NIXLAPI -. "transfer metrics" .-> METRICS
+    ENGINE -. "request spans" .-> TRACES
+    BACKENDAPI -. "engine logs" .-> LOGS
 
-    SA --> MA
-    SB --> MB
-
-    SYNC -. update .-> SA
-    SYNC -. update .-> SB
-    SYNC -. update .-> SC
-
+    SCALE -. "desired replicas" .-> PREFPOOL
+    SCALE -. "desired replicas" .-> DECPOOL
 
     %% ============================================================
-    %% Client Responses
+    %% 14. Kubernetes control plane
     %% ============================================================
-    WSUCCESS -->|"PUT OK"| API
+    subgraph K8S["13. Kubernetes Deployment Control Plane"]
+        USER["Operator / GitOps / kubectl"]
+        DGDR["DynamoGraphDeploymentRequest<br/>model / hardware / SLA intent"]
+        PROFILERCTRL["Profiler Controller<br/>generate candidate deployment"]
+        DGD["DynamoGraphDeployment<br/>explicit component graph"]
+        OPERATOR["Dynamo Kubernetes Operator<br/>reconcile desired state"]
+        PODS["Pods and Services<br/>Frontend / Prefill / Decode / Backend"]
+        AUTOSCALER["Scaling Adapter / Autoscaler"]
+        GROVE["Optional Grove<br/>gang and topology-aware scheduling"]
+        MODELSTORE["Model Storage / PVC / Object Store"]
+        MODELEXPRESS["Optional ModelExpress<br/>fast GPU-to-GPU weight loading"]
 
-    WINNER -->|"GET value"| API
+        USER --> DGDR
+        USER --> DGD
+        DGDR --> PROFILERCTRL
+        PROFILERCTRL --> DGD
+        DGD --> OPERATOR
+        OPERATOR --> PODS
+        AUTOSCALER --> OPERATOR
+        OPERATOR --> GROVE
+        MODELSTORE --> PODS
+        MODELEXPRESS --> PODS
+    end
 
-    CONCURRENT -->|"GET sibling versions"| API
+    PODS -. "runs components" .-> FRONTEND
+    PODS -. "runs components" .-> PREFPOOL
+    PODS -. "runs components" .-> DECPOOL
+    SCALE -. "scaling recommendation" .-> AUTOSCALER
+    PODS -. "worker registration" .-> HEALTH
+
+    %% ============================================================
+    %% Styling
+    %% ============================================================
+    classDef external fill:#eef4ff,stroke:#3167b1,color:#111;
+    classDef frontend fill:#e8f7ff,stroke:#0783b5,color:#111;
+    classDef runtime fill:#f0ebff,stroke:#6f42c1,color:#111;
+    classDef routing fill:#fff3cd,stroke:#b8860b,color:#111;
+    classDef compute fill:#e9f8e9,stroke:#2e8b57,color:#111;
+    classDef cache fill:#fff0f5,stroke:#c94f7c,color:#111;
+    classDef infra fill:#f2f2f2,stroke:#666,color:#111;
+    classDef control fill:#ffe8df,stroke:#c65d2e,color:#111;
+
+    class APP,OAI,KSERVE,GATEWAY,EPP external;
+    class HTTP,GRPC,VALIDATE,TEMPLATE,TOKENIZER,PREPROCESS,ENGINE,POSTPROCESS,STREAM frontend;
+    class DR,NS,COMP,ENDPOINT,CLIENTWATCH,REQUESTPLANE,INHIBIT runtime;
+    class ROUTERMODE,RR,RANDOM,LEAST,DIRECT,DEVICE,KVROUTER,ROUTERREQ,ELIGIBLE,HASH,MATCH,OVERLAP,LOAD,SCORE,QUEUE,PICK,RESULT routing;
+    class AGGWORKER,AGGPREFILL,AGGDECODE,AGGOUTPUT,ORCHESTRATOR,PREFSELECT,PREFPOOL,PREF1,PREF2,PREFEXEC,META,DECSELECT,DECPOOL,DEC1,DEC2,KVTRANSFER,DECEXEC,DECOUTPUT,BACKENDAPI,VLLM,SGLANG,TRTLLM,MOCKER,GPU,PARALLEL,NCCL compute;
+    class KVEVENT,EVENTTRANSPORT,NATS,ZMQ,PREDICT,LISTENER,INDEXER,RADIX,CUCKOO,REPLICASYNC,RECOVERY,CONNECTOR,LOGICAL,PHYSICAL,DEVICECACHE,HOSTCACHE,DISKCACHE,REMOTECACHE,OFFLOAD,EVICT,KVCONSOLIDATE cache;
+    class DISCOVERYMODE,K8SDISC,ETCD,REGISTRY,HEALTH,WORKERCONFIG,NIXLAPI,NVLINK,UCX,MEMCPY,GDS,FILEIO,METRICS,TRACES,LOGS,PROM,GRAFANA infra;
+    class USER,DGDR,PROFILERCTRL,DGD,OPERATOR,PODS,AUTOSCALER,GROVE,MODELSTORE,MODELEXPRESS,PLANNER,PROFILER,SCALE,CANCEL,REJECT,MIGRATE,RETRY,RECOMPUTE control;
 ```
-
-
 
 ```python
 Dynamo
