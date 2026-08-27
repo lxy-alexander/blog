@@ -111,6 +111,14 @@ Kubernetes 在 llm-d 的底层，主要负责资源编排和容器管理。它�
 
 ## GPTQ 和 AWQ
 
+1）**GPTQ：一种面向 GPT/LLM 的 Post-Training Quantization（PTQ，训练后量化）算法。**
+通常指一种针对 GPT/大语言模型的**训练后量化（Post-Training Quantization, PTQ）**方法。其经典论文名称是 *GPTQ: Accurate Post-Training Quantization for Generative Pre-trained Transformers*。
+
+2）**AWQ**：Activation-aware Weight Quantization
+中文一般译为**激活感知权重量化**，通过激活值识别重要权重，从而降低低比特权重量化带来的精度损失。
+
+简单记忆：**GPTQ = 基于误差优化的 PTQ；AWQ = 根据 Activation 判断哪些 Weight 更重要。**
+
 GPTQ 和 AWQ 都是“大模型权重量化”方法，常见用途是把 FP16 权重压成 INT4，从而减少显存。
 
 1）GPTQ 是什么、怎么做
