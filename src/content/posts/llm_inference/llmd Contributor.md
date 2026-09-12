@@ -80,3 +80,120 @@ InferencePool defines which vLLM Pods belong to the backend pool, EPP selects th
 
 
 
+## 22 个公开仓库
+
+截至 2026-09-10，[llm-d GitHub 组织](https://github.com/orgs/llm-d/repositories)有 22 个公开仓库，其中 19 个活跃、3 个归档，但很多是工具、模板或网站，不属于运行时依赖。
+
+**核心仓库**
+
+| 仓库                                                         | 作用                               | 是否必需       |
+| ------------------------------------------------------------ | ---------------------------------- | -------------- |
+| [`llm-d`](https://github.com/llm-d/llm-d)                    | 集成、Guide、部署配置、文档        | 是             |
+| [`llm-d-router`](https://github.com/llm-d/llm-d-router)      | EPP、请求调度、过滤和评分          | 是             |
+| [`llm-d-latency-predictor`](https://github.com/llm-d/llm-d-latency-predictor) | XGBoost 训练与预测                 | 仅预测延迟模式 |
+| [`llm-d-kv-cache`](https://github.com/llm-d/llm-d-kv-cache)  | 精确 KV Cache 索引和 offloading    | 高级缓存功能   |
+| [`llm-d-pd-utils`](https://github.com/llm-d/llm-d-pd-utils)  | Prefill/Decode 分离辅助能力        | P/D 场景       |
+| [`llm-d-autoscaling`](https://github.com/llm-d/llm-d-autoscaling) | 推理副本和 workload variant 扩缩容 | 自动扩缩容场景 |
+
+**扩展服务**
+
+| 仓库                                                         | 作用                        |
+| ------------------------------------------------------------ | --------------------------- |
+| [`llm-d-async`](https://github.com/llm-d/llm-d-async)        | 异步请求调度                |
+| [`llm-d-batch-gateway`](https://github.com/llm-d/llm-d-batch-gateway) | OpenAI-compatible Batch API |
+| [`llm-d-inference-payload-processor`](https://github.com/llm-d/llm-d-inference-payload-processor) | 根据请求内容做多 Pool 路由  |
+| [`llm-d-api-extensions`](https://github.com/llm-d/llm-d-api-extensions) | llm-d API 扩展定义          |
+
+**开发和性能工具**
+
+| 仓库                                                         | 作用                 |
+| ------------------------------------------------------------ | -------------------- |
+| [`llm-d-benchmark`](https://github.com/llm-d/llm-d-benchmark) | 性能测试             |
+| [`llm-d-inference-sim`](https://github.com/llm-d/llm-d-inference-sim) | 不使用 GPU 模拟 vLLM |
+| [`llm-d-prism`](https://github.com/llm-d/llm-d-prism)        | 分布式推理性能分析   |
+
+其他如 `llm-d-infra`、网站、Go/Python 模板和组织元数据，不是推理运行时组件。`llm-d-deployer`、`llm-d-model-service`、`llm-d-routing-sidecar` 已归档，不建议作为当前入口。
+
+
+
+
+
+
+
+
+
+## 下载更新
+
+你的系统没有安装 GitHub CLI。可以直接使用 `curl + python3 + git`，不需要 `gh` 或 `jq`。
+
+在当前目录执行：
+
+```
+mkdir -p lxy/llm-d-all
+cd lxy/llm-d-all
+
+curl -fsSL \
+  'https://api.github.com/orgs/llm-d/repos?per_page=100&type=all' |
+python3 -c '
+import json
+import sys
+
+for repo in json.load(sys.stdin):
+    print(repo["clone_url"])
+' |
+while IFS= read -r url; do
+  name="${url##*/}"
+  name="${name%.git}"
+
+  if [ -d "$name/.git" ]; then
+    echo "SKIP: $name already exists"
+  else
+    echo "CLONE: $name"
+    git clone --recurse-submodules "$url"
+  fi
+done
+```
+
+下载完成后检查：
+
+```
+cd /data/home/xli49/lxy/llm-d-all
+find . -maxdepth 2 -type d -name .git | sort
+```
+
+查看仓库数量：
+
+```
+find . -maxdepth 2 -type d -name .git | wc -l
+```
+
+以后批量更新：
+
+```
+cd ~/lxy/llm-d-all
+
+for dir in */; do
+  [ -d "$dir/.git" ] || continue
+
+  echo "===== $dir ====="
+
+  if [ -n "$(git -C "$dir" status --porcelain)" ]; then
+    echo "SKIP: 存在未提交修改"
+    continue
+  fi
+
+  git -C "$dir" fetch --all --tags --prune
+  git -C "$dir" pull --ff-only
+  git -C "$dir" submodule update --init --recursive
+done
+```
+
+如果 `curl` 也不存在，可检查：
+
+```
+command -v curl
+command -v python3
+command -v git
+```
+
+当前这套下载方式只需要这三个命令。

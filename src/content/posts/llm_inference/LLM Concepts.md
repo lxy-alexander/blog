@@ -494,3 +494,224 @@ $32768 \rightarrow 576$
 $\boxed{ \text{MLA：压“每个 token”} }$$\boxed{ \text{DCP：拆“token 数量”} }$
 
 如果你刚才的 `dcp` 其实是指源码里的某个变量名而不是 Decode Context Parallelism，把那一行源码贴出来，我可以直接按那一行解释。
+
+
+
+
+
+etcd is a highly available distributed key-value store. It stores all configuration and state data for systems. "Highly available" means the system stays operational even if some nodes fail, ensuring no interruption in service. It uses that distributed consistency algorithm to ensure all nodes stay in sync. Raft 是一种分布式一致性算法，它通过选出一个领导节点来协调所有节点的状态。每个更新都通过日志复制到多数节点，确保大家最终达成一致。这让 etcd 能在节点故障时依然保持数据一致。
+
+
+
+
+
+Node 提供运行资源，Pod 承载模型服务，模型实例处理推理请求。
+
+```python
+Kubernetes 集群
+├── Node A：一台 GPU 机器
+│   ├── Pod 1 → 模型实例 1 ── 处理请求 A、B
+│   └── Pod 2 → 模型实例 2 ── 处理请求 C、D
+└── Node B：另一台 GPU 机器
+    └── Pod 3 → 模型实例 3 ── 处理请求 E、F
+    
+    
+Deployment：replicas = 2
+        │
+        └── ReplicaSet
+              ├── 管理 Pod 1
+              └── 管理 Pod 2
+
+实际运行位置：
+Node A：4 张 GPU
+└── Pod 1
+    └── 模型实例 1，使用这 4 张 GPU
+
+Node B：4 张 GPU
+└── Pod 2
+    └── 模型实例 2，使用这 4 张 GPU
+```
+
+可以用下面的命令查看每个 Pod 被分配到了哪个 Node：
+
+```
+kubectl get pods -A -o wide
+```
+
+输出中的 **`NODE` 列**就是对应的节点名称。
+
+
+
+
+
+## Namespace
+
+你指的是 **Namespace（命名空间）**。它是 Kubernetes 中用来**给资源分组、划分管理范围**的机制。
+
+例如，同一个集群可以这样组织：
+
+```
+Kubernetes 集群
+├── default
+│   └── 没指定命名空间时，通常在这里创建资源
+├── kube-system
+│   └── Kubernetes 系统组件
+└── llm-d-quickstart
+    ├── 模型服务 Pod
+    ├── InferencePool
+    └── Secret：llm-d-hf-token
+```
+
+可以把它理解成资源的“分组目录”。不同命名空间允许存在同名资源，例如：
+
+```
+开发命名空间：dev  → Secret：llm-d-hf-token
+生产命名空间：prod → Secret：llm-d-hf-token
+```
+
+这是两个独立的 Secret，可以保存不同的值。
+
+你之前的命令：
+
+```
+export NAMESPACE=llm-d-quickstart
+```
+
+只是设置变量。真正创建命名空间的是：
+
+```
+kubectl create namespace "$NAMESPACE"
+```
+
+查询其中的 Pod：
+
+```
+kubectl get pods -n "$NAMESPACE"
+```
+
+**Namespace 不是 Node，也不是一台机器。** 同一命名空间的 Pod 可以分布在多个 Node 上；同一 Node 也可以运行不同命名空间的 Pod。
+
+另外，命名空间本身不会自动隔断网络或划分 CPU、GPU，需要通过网络策略、资源配额等配置实现进一步隔离。
+
+
+
+
+
+
+
+## kube-system
+
+**`kube-system` 是 Kubernetes 为系统组件预留的命名空间。** 集群自身需要运行一些程序，这些程序的 Pod 通常放在这里。
+
+例如：
+
+| 组件               | 作用                                        |
+| ------------------ | ------------------------------------------- |
+| `CoreDNS`          | 让 Pod 能通过服务名称找到其他服务           |
+| `kube-proxy`       | 配置 Service 流量转发规则                   |
+| 网络、存储相关组件 | 为 Pod 提供网络或存储支持                   |
+| 控制平面组件的 Pod | 在部分部署方式中，运行 API Server、调度器等 |
+
+具体有哪些组件，取决于集群的安装方式。`kubelet`、容器运行时等通常作为节点上的系统服务运行，不一定是这个命名空间里的 Pod。
+
+**你可以查看和管理它，前提是当前账号有相应权限。** 例如查看里面的 Pod：
+
+```
+kubectl get pods -n kube-system
+```
+
+查看某个 Pod 的详细信息：
+
+```
+kubectl describe pod <Pod名称> -n kube-system
+```
+
+技术上，有权限也可以往里面部署自己的应用，但你的 llm-d 应用应放在自己的命名空间：
+
+```
+kube-system        → 集群运行所需的系统组件
+llm-d-quickstart   → 你部署的 llm-d 组件和模型服务
+```
+
+你平时已经在间接使用这些系统组件，例如 Pod 通过 CoreDNS 解析服务名称。学习时可以查看它们，删除或修改系统组件可能影响整个集群。
+
+
+
+
+
+## 架构
+
+我刚检查了你的环境：**目前只有一个 Node，叫 `minikube`，运行着 7 个系统 Pod；`llm-d` 命名空间已经存在，但还没有应用 Pod。**
+
+先区分两个角度：**Node 是运行位置，Namespace 是资源分组。**
+
+你当前的实际部署结构是：
+
+```
+你的笔记本
+└── Docker 创建的 Minikube 节点环境
+    └── Node：minikube（192.168.49.2）
+        │
+        ├── 节点服务
+        │   ├── kubelet：管理这个节点上的 Pod
+        │   └── 容器运行时：启动、停止容器
+        │
+        └── 当前运行的 Pod，全部属于 kube-system
+            ├── kube-apiserver
+            ├── etcd
+            ├── kube-controller-manager
+            ├── kube-scheduler
+            ├── kube-proxy
+            ├── coredns
+            └── storage-provisioner
+```
+
+其中，前四个 Pod 构成你当前的控制平面。它们与节点服务这样配合：
+
+````
+```mermaid
+flowchart TD
+    U["你：kubectl"] --> A["API Server：资源操作入口"]
+    A <--> E["etcd：保存集群配置和状态"]
+    C["Controller Manager：维持期望状态"] <--> A
+    S["Scheduler：为 Pod 选择 Node"] <--> A
+    K["kubelet：管理本节点的 Pod"] <--> A
+    K --> R["容器运行时"]
+    R --> P["容器中的程序"]
+```
+````
+
+另外三个系统 Pod 提供配套能力：
+
+| 系统 Pod              | 在你集群中的作用                       |
+| --------------------- | -------------------------------------- |
+| `coredns`             | 通过服务名称解析地址                   |
+| `kube-proxy`          | 配置 Service 到后端 Pod 的转发规则     |
+| `storage-provisioner` | 为使用对应存储类的存储申请提供本地存储 |
+
+**Namespace 不在 Node 的“下面”。** 它是另一种逻辑分类。你的集群目前有：
+
+```
+集群的命名空间
+├── kube-system      → 上面的 7 个系统 Pod
+├── llm-d            → 已创建，目前没有 Pod
+├── default
+├── kube-public
+└── kube-node-lease
+```
+
+以后把模型服务部署到 `llm-d`，这个模型 Pod 就会同时具有两个属性：
+
+```
+所属命名空间：llm-d
+运行节点：minikube（或者以后加入的其他 Node）
+```
+
+所以，**`kube-system` 不是一台专门运行系统的机器，而是系统资源的分组名称**。你现在的单个 Node 可以同时运行 `kube-system` 的系统 Pod 和 `llm-d` 的应用 Pod。
+
+
+
+
+
+
+
