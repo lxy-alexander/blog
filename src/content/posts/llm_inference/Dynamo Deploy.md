@@ -14,6 +14,235 @@ createdAt: "2026-08-24T17:36:12.980.320156671Z"
 
 ## Docker运行
 
+不能用 `+` 拼接 `conda` 和 `apt`。如果集群上没有 `sudo`，可以把 Ubuntu 开发包替换成对应的 conda-forge 包：
+
+```
+conda create -n dynamo-toolchain \
+  --override-channels -c conda-forge -y \
+  python=3.12 \
+  cmake ninja make \
+  pkg-config patchelf \
+  gcc_linux-64=12 gxx_linux-64=12 \
+  libhwloc libudev \
+  clangdev protobuf \
+  libprotobuf 
+```
+
+````python
+Conda 的 GCC 使用带前缀的可执行文件，不会自动覆盖系统 `/usr/bin/gcc`。对于编译 Dynamo，推荐设置编译环境变量，不必强行替换系统程序。
+
+先补上 `protoc`：
+
+```bash
+conda activate dynamo-toolchain
+
+conda install --override-channels -c conda-forge -y \
+  libprotobuf
+```
+
+然后永久设置该 Conda 环境的编译器：
+
+```bash
+conda env config vars set \
+  CC="$CONDA_PREFIX/bin/x86_64-conda-linux-gnu-gcc" \
+  CXX="$CONDA_PREFIX/bin/x86_64-conda-linux-gnu-g++" \
+  AR="$CONDA_PREFIX/bin/x86_64-conda-linux-gnu-ar" \
+  RANLIB="$CONDA_PREFIX/bin/x86_64-conda-linux-gnu-ranlib" \
+  NM="$CONDA_PREFIX/bin/x86_64-conda-linux-gnu-nm" \
+  STRIP="$CONDA_PREFIX/bin/x86_64-conda-linux-gnu-strip" \
+  CMAKE_PREFIX_PATH="$CONDA_PREFIX" \
+  PKG_CONFIG_PATH="$CONDA_PREFIX/lib/pkgconfig:$CONDA_PREFIX/share/pkgconfig"
+```
+
+重新激活，让变量生效：
+
+```bash
+conda deactivate
+conda activate dynamo-toolchain
+```
+
+验证时不要再直接检查 `gcc`，而是检查构建系统实际使用的 `$CC/$CXX`：
+
+```bash
+echo "$CC"
+echo "$CXX"
+
+"$CC" --version
+"$CXX" --version
+
+which python
+which cmake
+which ninja
+which pkg-config
+which protoc
+
+protoc --version
+pkg-config --modversion hwloc
+pkg-config --modversion libudev
+```
+
+正常情况下：
+
+- `CC` 指向 `.../envs/dynamo-toolchain/bin/x86_64-conda-linux-gnu-gcc`
+- `CXX` 指向 `.../envs/dynamo-toolchain/bin/x86_64-conda-linux-gnu-g++`
+- `python/cmake/ninja/pkg-config/protoc` 位于 `$CONDA_PREFIX/bin`
+
+如果你确实还想让手动输入的 `gcc`、`g++` 也指向 Conda，可在环境内部创建名称链接：
+
+```bash
+test -e "$CONDA_PREFIX/bin/gcc" ||
+  ln -s "$CONDA_PREFIX/bin/x86_64-conda-linux-gnu-gcc" \
+        "$CONDA_PREFIX/bin/gcc"
+
+test -e "$CONDA_PREFIX/bin/g++" ||
+  ln -s "$CONDA_PREFIX/bin/x86_64-conda-linux-gnu-g++" \
+        "$CONDA_PREFIX/bin/g++"
+```
+
+重新激活后检查：
+
+```bash
+hash -r
+which gcc
+which g++
+gcc --version
+g++ --version
+```
+
+不要设置全局 `/usr/bin/gcc` 链接，也暂时不要全局设置 `LD_LIBRARY_PATH`；它们容易影响 CUDA、驱动和系统程序。
+````
+
+对应关系如下：
+
+| Ubuntu 包           | Conda 包                               |
+| ------------------- | -------------------------------------- |
+| `build-essential`   | `gcc_linux-64`、`gxx_linux-64`、`make` |
+| `libhwloc-dev`      | `libhwloc`                             |
+| `libudev-dev`       | `libudev`                              |
+| `pkg-config`        | `pkg-config`                           |
+| `libclang-dev`      | `clangdev`                             |
+| `protobuf-compiler` | `protobuf`                             |
+| `python3-dev`       | `python=3.12` 已包含头文件             |
+| `cmake`             | `cmake`                                |
+
+```python
+uv venv .venv
+source .venv/bin/activate
+uv pip install pip 'maturin[patchelf]'
+
+
+cd lib/bindings/python
+env -u CONDA_PREFIX maturin develop --uv
+```
+
+
+
+````python
+我检查了当前 `.venv`：
+
+```text
+dynamo：已安装
+dynamo._core：已安装
+vllm：尚未安装
+```
+
+所以先安装 vLLM，再启动 frontend 和 worker。
+
+### 1. 安装 vLLM
+
+在 Dynamo 根目录执行：
+
+```bash
+cd /data/home/xli49/lxy/dynamo
+source .venv/bin/activate
+
+env -u CONDA_PREFIX \
+  uv pip install -e '.[vllm]'
+```
+
+验证：
+
+```bash
+python -c "import vllm; print(vllm.__version__)"
+python -c "import dynamo._core; print('Dynamo OK')"
+```
+
+### 2. 启动 Frontend
+
+打开第一个终端：
+
+```bash
+cd /data/home/xli49/lxy/dynamo
+source .venv/bin/activate
+
+env -u CONDA_PREFIX \
+  python -m dynamo.frontend \
+    --http-port 8000 \
+    --discovery-backend file
+```
+
+保持该终端运行。
+
+### 3. 启动 vLLM Worker
+
+打开第二个终端：
+
+export DYNAMO_TOOLCHAIN_PREFIX=/data/home/xli49/miniconda3/envs/dynamo-toolchain
+export LD_LIBRARY_PATH="$DYNAMO_TOOLCHAIN_PREFIX/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+
+```bash
+cd /data/home/xli49/lxy/dynamo
+source .venv/bin/activate
+
+env -u CONDA_PREFIX \
+  CUDA_VISIBLE_DEVICES=0 \
+  VLLM_USE_FLASHINFER_SAMPLER=0 \
+  python -m dynamo.vllm \
+    --model Qwen/Qwen3-0.6B \
+    --discovery-backend file \
+    --kv-events-config '{"enable_kv_cache_events": false}'
+```
+
+第一次启动会从 Hugging Face 下载模型，需要等待一段时间。以下警告在本地模式可以忽略：
+
+```text
+Cannot connect to ModelExpress server...
+Using direct download
+```
+
+### 4. 测试服务
+
+打开第三个终端：
+
+```bash
+curl -sf http://localhost:8000/health && echo OK
+```
+
+发送推理请求：
+
+```bash
+curl http://localhost:8000/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "Qwen/Qwen3-0.6B",
+    "messages": [
+      {"role": "user", "content": "请用一句话介绍 NVIDIA Dynamo"}
+    ],
+    "max_tokens": 100
+  }'
+```
+
+若返回带有 `choices` 的 JSON，说明 Dynamo frontend + vLLM worker 已成功运行。
+````
+
+
+
+
+
+
+
+
+
 如果你说的是 NVIDIA Dynamo，那么你这台 1× RTX A4000（16GB）完全可以先跑一个单 GPU 的 Dynamo + vLLM 示例。A4000 属于 Ampere，当前 Dynamo 1.4.0 明确支持 Ampere。([NVIDIA Docs](https://docs.nvidia.com/dynamo/dev/reference/compatibility?utm_source=chatgpt.com))
 
 1）先确认驱动

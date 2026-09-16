@@ -121,16 +121,14 @@ git push origin main --force-with-lease
 ## 6. 编译 vLLM
 
 ```python
-cd /data/home/xli49/lxy/vllm
-
 VLLM_USE_PRECOMPILED=1 \
-VLLM_PRECOMPILED_WHEEL_COMMIT=c71f6f8a81d3d3c49a045c8b88eed36366cc7d92 \
-uv pip install \
-  --python .venv/bin/python \
-  --reinstall-package vllm \
-  -U \
-  -e . \
-  --torch-backend=auto
+VLLM_PRECOMPILED_WHEEL_COMMIT="$(
+  curl -fsSL https://wheels.vllm.ai/nightly/cu130/vllm/metadata.json |
+  jq -r '.[] |
+    select(.platform_tag | endswith("x86_64")) |
+    .path | split("/")[3]'
+)" \
+uv pip install -U -e . --torch-backend=auto
 ```
 
 ```bash
@@ -201,339 +199,275 @@ source .venv/bin/activate
 
 
 
+# 提交
 
+可以，不用 worktree，直接切分支即可。
 
-
-
-
-
-
-
-
----
-
-## 1. Contributing to vLLM
-
-Ways to contribute include:
-
-- Reporting bugs / opening issues
-- Adding support for new models
-- Implementing new features
-- Improving documentation
-- Helping others, reviewing PRs
-- Starring the repo, writing articles — these count too
-
----
-
-## 2. Docker/Container
-
-### 1) Step 1: Clone the Repository
-
-```bash
-git clone https://github.com/vllm-project/vllm.git
-cd vllm
-```
-
-### 2) Use Container
-
-```bash
-cd container
-apptainer pull vllm-openai.sif docker://vllm/vllm-openai:latest
-
-export HF_TOKEN="$(cat ~/.cache/huggingface/token)"
-VLLM_PROJECT_PATH="/data/home/xli49/vllm"
-cd "$VLLM_PROJECT_PATH"
-
-
-apptainer shell --nv \
-  --bind "${VLLM_PROJECT_PATH}:${VLLM_PROJECT_PATH}" \
-  --bind "${HOME}/.cache/huggingface:${HOME}/.cache/huggingface" \
-  --pwd "${VLLM_PROJECT_PATH}" \
-  --env HF_TOKEN="${HF_TOKEN}" \
-  ../container/vllm-openai.sif
-```
-
-````python
-
-````
-
-
-
-
-
-
-
-## 3.UV
-
-### 1) Step 1: Clone the Repository
-
-```bash
-git clone https://github.com/vllm-project/vllm.git
-cd vllm
-
-srun -p highmem32   --cpus-per-task=8   --mem=64G   --time=12:00:00   --pty /bin/bash
-```
-
-### 2) Step 2: Create a Python Environment (Recommended: uv)
-
-```bash
-uv venv --python 3.12 --seed --managed-python
-source .venv/bin/activate
-export CCACHE_DIR="${HOME}/.cache/ccache"
-export CCACHE_NOHASHDIR=true
-export MAX_JOBS=16
-uv pip install -e . --torch-backend=auto -v
-```
-
-If you don't have uv, install it first:
-
-```bash
-curl -LsSf https://astral.sh/uv/install.sh | sh
-```
-
-<div style="background:#F5F5F5;border-left:4px solid #E8600A;border-radius:0 6px 6px 0;padding:12px 16px;margin:14px 0;font-size:14px;line-height:1.85"><span style="color:#E8600A;font-weight:700">Note: </span> Why Python 3.12? Because vLLM's CI (official automated tests) primarily uses 3.12. Using the same version prevents situations where tests pass locally but fail in CI.</div>
-
-To delete the virtual environment:
-
-```bash
-rm -rf .venv
-uv cache clean
-
+## 1. 创建并切换分支
 
 ```
+cd /data/home/xli49/lxy/vllm
 
----
+git fetch upstream main
 
-## 3. Installing vLLM (Two Paths)
-
-### 1) Path A: Python-only Changes (Fastest, Recommended)
-
-```bash
-VLLM_USE_PRECOMPILED=1 uv pip install -e .
+git switch -c fix/sparse-nccl-contiguous upstream/main
 ```
 
-What this means:
-
-- Installs in <span style="color:#E8600A;font-weight:700">Editable Mode</span> (`-e`) — changes to source files take effect immediately
-- Does **not** compile C++/CUDA locally
-- Downloads pre-compiled binaries from the corresponding pre-built wheel
-
-👉 Advantage: Very fast, suitable for the majority of PRs.
-
----
-
-### 2) Path B: CUDA/C++ Changes (Requires Local Compilation)
-
-If you previously ran Path A, first **force-remove** the installed `vllm` Python package:
-
-```bash
-uv pip uninstall vllm
-```
-
-Install PyTorch (cu129):
-
-```bash
-uv pip install torch torchvision torchaudio \
-  --extra-index-url https://download.pytorch.org/whl/cu129
-```
-
-Install the current project in Editable Mode:
-
-```bash
-CCACHE_NOHASHDIR="true" uv pip install --no-build-isolation -e . -v
-CCACHE_NOHASHDIR="true" uv pip install -e . -v
-```
-
-<div style="background:#F5F5F5;border-left:4px solid #E8600A;border-radius:0 6px 6px 0;padding:12px 16px;margin:14px 0;font-size:14px;line-height:1.85"><span style="color:#E8600A;font-weight:700">Note: </span> <code style="background:#FFF3E0;color:#7a2e00;border-radius:4px;padding:1px 6px">uv pip install -e .</code> installs the project in the current directory in editable mode. <code style="background:#FFF3E0;color:#7a2e00;border-radius:4px;padding:1px 6px">.</code> refers to the current directory (i.e., the vllm repo root). It reads <code style="background:#FFF3E0;color:#7a2e00;border-radius:4px;padding:1px 6px">pyproject.toml</code> (primary) or <code style="background:#FFF3E0;color:#7a2e00;border-radius:4px;padding:1px 6px">setup.py</code> (legacy), then installs the project into your virtual environment.</div>
-
-#### Common Error: `ImportError: undefined symbol`
-
-<span style="color:#C0392B;font-weight:600">If you encounter the following error:</span>
+如果分支已经创建：
 
 ```
-(vllm) [xli49@ghpc008 vllm]$ python examples/offline_inference/basic/basic.py
-Traceback (most recent call last):
-  ...
-  File "/data/home/xli49/vllm/vllm/platforms/cuda.py", line 16, in <module>
-    import vllm._C  # noqa
-    ^^^^^^^^^^^^^^
-ImportError: /data/home/xli49/vllm/vllm/_C.abi3.so: undefined symbol: _ZN3c104cuda9SetDeviceEa
+git switch fix/sparse-nccl-contiguous
 ```
 
-The cause is a mismatch between the torch ABI used at compile time and the torch version at runtime. Ensure you use `--no-build-isolation` and recompile with the correct CUDA version:
-
-```bash
-uv pip install -e . --no-build-isolation
-```
-
-#### Why Does vLLM Require `--no-b`
-
-#### `uild-isolation`?
-
-Because compiling vLLM's C++/CUDA extensions depends heavily on:
-
-- The `torch` installed in your current environment
-- The matching CUDA version (cu129/cu128, etc.)
-- Other compilation-related packages
-
-Without this flag, the build system uses an isolated temporary environment, which may result in:
-
-- A mismatched `torch` being installed in the temporary environment
-- The current torch's CUDA configuration not being found
-- Compilation failures or incompatible binaries being generated
-
----
-
-## 4. Linting (Code Style & Formatting)
-
-vLLM uses <span style="color:#E8600A;font-weight:700">pre-commit</span> to enforce a unified code style.
-
-- <code style="background:#FFF3E0;color:#7a2e00;border-radius:4px;padding:1px 6px">uv pip install pre-commit</code>: installs the pre-commit tool
-- <code style="background:#FFF3E0;color:#7a2e00;border-radius:4px;padding:1px 6px">pre-commit install</code>: installs hooks into `.git/hooks/` so that checks run automatically on every `git commit`
-
-### 1) Install and Enable
-
-```bash
-uv pip install pre-commit
-pre-commit install
-```
-
-From now on, every `git commit` will automatically run the checks ✅
-
-### 2) Run Manually
-
-```bash
-pre-commit run      # Check only staged files
-pre-commit run -a   # Check all files (= --all-files)
-```
-
-### 3) CI-only Hooks (Trigger Locally on Demand)
-
-```bash
-pre-commit run --hook-stage manual markdownlint
-pre-commit run --hook-stage manual mypy-3.10
-```
-
----
-
-## 5. Documentation
-
-vLLM's docs are built with <span style="color:#E8600A;font-weight:700">MkDocs</span>.
-
-### 1) Install Documentation Dependencies
-
-```bash
-uv pip install -r requirements/docs.txt
-```
-
-### 2) Preview the Docs Site Locally
-
-```bash
-mkdocs serve
-```
-
-### 3) Faster Preview (Skip API Reference Generation)
-
-Controls whether the API Reference is generated.
-
-```bash
-API_AUTONAV_EXCLUDE=vllm mkdocs serve
-```
-
-<div style="background:#F5F5F5;border-left:4px solid #E8600A;border-radius:0 6px 6px 0;padding:12px 16px;margin:14px 0;font-size:14px;line-height:1.85"><span style="color:#E8600A;font-weight:700">Note: </span> Ensure your Python version is compatible with the plugins. For example, <code style="background:#FFF3E0;color:#7a2e00;border-radius:4px;padding:1px 6px">mkdocs-awesome-nav</code> requires Python 3.10+.</div>
-
-### 4) Forward the Port from a Remote Server
-
-<code style="background:#E8F4FD;color:#1a3a5c;border-radius:4px;padding:1px 6px">-L</code> = Local port forwarding: **maps a port on the remote machine to a port on your local machine**.
-
-```bash
-ssh -L 8000:127.0.0.1:8000 xli49@spiedie.binghamton.edu
-```
-
-### 5) Connect to a Remote GPU Node via Jump Host
-
-<code style="background:#E8F4FD;color:#1a3a5c;border-radius:4px;padding:1px 6px">-J</code> = Jump host: **connect to a target machine by hopping through an intermediate host first**.
-
-```bash
-ssh -J xli49@spiedie.binghamton.edu -L 8000:127.0.0.1:8000 xli49@ghpc005
-```
-
----
-
-## 6. Testing
-
-vLLM uses <span style="color:#E8600A;font-weight:700">pytest</span>.
-
-### 1) Path A: Full CI-equivalent Setup (CUDA)
-
-```bash
-uv pip install -r requirements/common.txt -r requirements/dev.txt --torch-backend=auto
-pytest tests/
-```
-
-### 2) Path B: Minimal Test Tooling Only
-
-```bash
-uv pip install pytest pytest-asyncio
-pytest tests/
-```
-
-### 3) Run a Single Test File (Useful for Debugging)
-
-```bash
-pytest -s -v tests/test_logger.py
-```
-
----
-
-## 7. Common Errors
-
-### 1) Missing `Python.h`
-
-If you encounter the following error during compilation or dependency installation:
+确认：
 
 ```
-Python.h: No such file or directory
+git status
+git branch --show-current
 ```
 
-Fix on Ubuntu:
+现有未跟踪文件会保留，因此后面不要使用 `git add .`。
 
-```bash
-sudo apt install python3-dev
+## 2. 修改并测试
+
+```
+.venv/bin/python -m pytest \
+  tests/distributed/test_weight_transfer.py \
+  -k sparse_nccl \
+  -v
+
+pre-commit run --files \
+  vllm/distributed/weight_transfer/sparse_nccl_engine.py \
+  tests/distributed/test_weight_transfer.py
 ```
 
----
+## 3. 提交
 
-## 8. Important Warnings
+```
+git diff
 
-<span style="color:#C0392B;font-weight:600">✅ The repository is not yet fully covered by mypy</span> — do not rely on mypy being fully green.
+git add \
+  vllm/distributed/weight_transfer/sparse_nccl_engine.py \
+  tests/distributed/test_weight_transfer.py
 
-<span style="color:#C0392B;font-weight:600">⚠️ Not all tests pass on CPU</span> — without a GPU, many tests will fail locally. The official stance is: rely on CI for those tests.
+git diff --cached
 
----
-
-## 9. PR Submission Guidelines
-
-### 1) DCO Sign-off
-
-Every commit must include a `Signed-off-by` line:
-
-```bash
-git commit -s -m "xxx"
+git commit -s \
+  -m "[Bugfix][RL] Make sparse NCCL patch tensors contiguous"
 ```
 
-### 2) PR Title Must Include a Category Prefix
+## 4. 推送并创建 PR
 
-Examples:
+```
+git push -u origin fix/sparse-nccl-contiguous
+```
 
-- `[Bugfix] ...`
-- `[Kernel] ...`
-- `[Core] ...`
-- `[Doc] ...`
-- `[CI/Build] ...`
+然后创建 PR：
 
-<span style="color:#C0392B;font-weight:600">PRs without a valid prefix may not be reviewed.</span>
+```
+gh pr create \
+  --repo vllm-project/vllm \
+  --base main \
+  --head lxy-alexander:fix/sparse-nccl-contiguous \
+  --web
+```
 
----
+后续修改原 PR：
 
-<div style="background:linear-gradient(135deg,#EBF0FF 0%,#FFF3E0 100%);border:1.5px solid #c5d3ff;border-radius:8px;padding:14px 20px;margin-top:24px"><span style="color:#3B5BDB;font-weight:700">💡 One-line Takeaway</span><br> For Python-only changes, use <code style="background:#FFF3E0;color:#7a2e00;border-radius:4px;padding:1px 6px">VLLM_USE_PRECOMPILED=1 uv pip install -e .</code> to get started in seconds; for CUDA/C++ changes, always compile with <code style="background:#FFF3E0;color:#7a2e00;border-radius:4px;padding:1px 6px">--no-build-isolation</code> and match your torch CUDA version to avoid ABI symbol errors.</div>
+```
+git add <修改文件>
+git commit -s -m "[Bugfix][RL] Address review feedback"
+git push
+```
+
+整个流程就是：
+
+```
+git switch -c fix/... upstream/main
+→ 修改
+→ 测试
+→ git add 指定文件
+→ git commit
+→ git push
+→ 创建 PR
+```
+
+
+
+核心规则：**PR 绑定的是分支，不是某个固定 commit。**
+只要继续 push 到同一个个人分支，PR 会自动更新，不需要重新创建 PR。
+
+先完成共同步骤：
+
+```
+git status
+git diff
+
+# 修改后运行相关测试
+.venv/bin/python -m pytest <相关测试> -v
+
+# 只添加相关文件
+git add <file1> <file2>
+
+git diff --cached --check
+git diff --cached
+```
+
+## 情况一：已经 commit，但还没 push
+
+如果修改属于刚才那个 commit，直接 amend 最干净：
+
+```
+git commit --amend --no-edit
+```
+
+如果需要修改 commit message：
+
+```
+git commit --amend
+```
+
+然后正常推送：
+
+```
+git push -u origin fix/sparse-nccl-contiguous
+```
+
+此时不需要 force，因为原 commit 从未推送。
+
+如果修改是一个独立逻辑，也可以创建新 commit：
+
+```
+git commit -s -m "[Bugfix][RL] Add sparse NCCL regression coverage"
+git push -u origin fix/sparse-nccl-contiguous
+```
+
+## 情况二：已经 push 到个人分支，但还没创建 PR
+
+推荐直接增加新 commit：
+
+```
+git commit -s -m "[Bugfix][RL] Handle strided sparse patch tensors"
+git push
+```
+
+个人 fork 上的分支会增加一个 commit。
+
+如果特别希望保持单 commit，可以 amend 后安全强推：
+
+```
+git commit --amend --no-edit
+
+git push --force-with-lease \
+  origin fix/sparse-nccl-contiguous
+```
+
+使用 `--force-with-lease`，不要使用普通 `--force`。它会在远端分支被别人更新时拒绝覆盖。
+
+## 情况三：PR 已经创建
+
+最推荐增加一个新 commit：
+
+```
+git commit -s -m "[Bugfix][RL] Address sparse NCCL review feedback"
+git push origin HEAD
+```
+
+结果是：
+
+```
+个人分支增加 commit
+        ↓
+现有 PR 自动出现新 commit
+        ↓
+GitHub 更新 Files changed
+        ↓
+CI 针对新 commit 重新运行
+```
+
+不需要：
+
+-   关闭旧 PR
+-   创建新 PR
+-   修改 PR 的 base/head
+-   手动把 commit 添加到 PR
+
+如果是 reviewer 要求的修改，新 commit 通常更合适，因为 reviewer 可以清楚看到增量。
+
+## PR 已创建，但想整理成一个 commit
+
+如果只修改最后一个 commit：
+
+```
+git commit --amend --no-edit
+
+git push --force-with-lease origin fix/sparse-nccl-contiguous
+```
+
+PR 会自动从旧 commit 切换到新 commit。
+
+如果有多个本地 commit，需要整理：
+
+```
+git fetch upstream main
+git rebase -i upstream/main
+```
+
+在编辑器里把后续 commit 改成 `fixup` 或 `squash`，完成后：
+
+```
+git push --force-with-lease \
+  origin fix/sparse-nccl-contiguous
+```
+
+不过 vLLM 通常会在合并时 squash，因此 review 期间保留多个清晰的修复 commit 通常没问题，不必频繁重写历史。
+
+## 修改 PR 描述
+
+代码 push 后 PR 内容会自动更新，但 PR 描述不会自动变化。
+
+如果测试命令、结果或设计发生变化，需要在网页中更新，或者：
+
+```
+gh pr edit <PR_NUMBER> \
+  --repo vllm-project/vllm \
+  --body-file pr-description.md
+```
+
+至少确保 PR 描述里的测试结果与最新 commit 一致。
+
+## Review 修改的推荐流程
+
+```
+# 1. 根据 review 修改
+git diff
+
+# 2. 运行测试
+.venv/bin/python -m pytest <相关测试> -v
+pre-commit run --files <修改文件>
+
+# 3. 精确暂存
+git add <修改文件>
+git diff --cached
+
+# 4. 增加 review commit
+git commit -s -m "[Bugfix][RL] Address review feedback"
+
+# 5. 更新原 PR
+git push origin HEAD
+```
+
+如果修改使用了 AI，新的 AI-assisted commit 也应保留相应 attribution trailer，例如：
+
+```
+Co-authored-by: OpenAI Codex <codex@openai.com>
+```
+
+## 特殊情况
+
+-   PR 已关闭但未合并：push 仍会更新分支，但 PR 不会自动重新打开，需要在 GitHub 上 reopen。
+-   PR 已经合并：不要继续复用原分支；从最新 `upstream/main` 创建新分支和新 PR。
+-   Push 新 commit 后旧 CI 结果不再代表最新代码，需要看最新 head commit 的 checks。
+-   不要用 `git add .`，避免把现有未跟踪文件混进 PR。
+
+
