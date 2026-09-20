@@ -238,6 +238,8 @@ flowchart TB
 
 
 
+# 第一层
+
 这里的“第一层”指总图中的 `L0：外部 RL 训练系统`。它逻辑上不属于 vLLM 核心，但负责调用 vLLM、消费 rollout、训练模型，再把新参数同步回 vLLM。
 
 当前仓库示例并没有真正执行 PPO/GRPO，而是用一个已经训练好的模型模拟“Optimizer 更新后的新权重”。
@@ -512,6 +514,14 @@ A_i = (r_i - mean) / std
 | 3        | 0.0    | -0.447    |
 | 4        | -0.5   | -1.342    |
 
+Reward:
+
+>   How much score this response receives on its own. 这条回答本身得了多少分。
+
+ Advantage:
+
+>   How much better or worse this response is compared with other responses in the same group.
+
 含义是：
 
 -   `A > 0`：增加这些 token 的生成概率
@@ -629,7 +639,9 @@ ModuleSource + NCCL
 
 
 
-第二层是 `L1：vLLM 对外入口层`。它的作用是把第一层的请求翻译成 vLLM 内部调用，本身不运行模型。
+# 第二层
+
+是 `L1：vLLM 对外入口层`。它的作用是把第一层的请求翻译成 vLLM 内部调用，本身不运行模型。
 
 这一层可以分成两个平面：
 
