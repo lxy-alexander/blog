@@ -10,114 +10,7 @@ lang: ""
 createdAt: "2026-09-19T03:00:49.708.672816897Z"
 ---
 
-```mermaid
-flowchart TB
 
-    subgraph L1["第一层：外部 RL 训练与编排层"]
-        direction LR
-
-        RL["RL 算法<br/>PPO / GRPO / DAPO"]
-        TRAIN["训练模型<br/>Forward / Backward / Optimizer"]
-        SOURCE["WeightSource<br/>ModuleSource / 自定义 Source"]
-        TFACTORY["WeightTransferTrainerFactory"]
-        TENGINE["TrainerWeightTransferEngine<br/>NCCL / IPC / Sparse NCCL / Sharded RDT"]
-        CLIENT["VLLMWeightSyncClient<br/>HTTP / Ray / 本地适配器"]
-
-        RL --> TRAIN
-        TRAIN --> SOURCE
-        SOURCE --> TFACTORY
-        TFACTORY --> TENGINE
-        TENGINE --> CLIENT
-    end
-
-    subgraph L2["第二层：vLLM 控制面入口层"]
-        direction LR
-
-        HTTP["HTTP RLHF Router<br/>/pause<br/>/resume<br/>/init_weight_transfer_engine<br/>/start_weight_update<br/>/update_weights<br/>/finish_weight_update"]
-
-        RAY["Ray Actor 接口"]
-        LOCAL["LLM / AsyncLLM 本地接口"]
-        ENGINE_API["EngineClient / AsyncLLM / LLM"]
-
-        HTTP --> ENGINE_API
-        RAY --> ENGINE_API
-        LOCAL --> ENGINE_API
-    end
-
-    subgraph L3["第三层：vLLM Engine 与调度层"]
-        direction LR
-
-        SCHEDULER["EngineCore Scheduler<br/>abort / wait / keep"]
-        DP_PAUSE["DPEP 两阶段暂停<br/>本地暂停 → 全局一致"]
-        RPC["collective_rpc<br/>向所有推理 Worker 广播命令"]
-
-        SCHEDULER --> DP_PAUSE
-        ENGINE_API --> SCHEDULER
-        ENGINE_API --> RPC
-    end
-
-    subgraph L4["第四层：推理 Worker 与权重传输层"]
-        direction LR
-
-        WORKER["GPUWorker"]
-        WFACTORY["WeightTransferEngineFactory"]
-        WENGINE["推理侧 WeightTransferEngine"]
-
-        NCCL["NCCL<br/>独立训练/推理 GPU"]
-        IPC["CUDA IPC<br/>训练推理共置"]
-        SPARSE["Sparse NCCL<br/>稀疏参数 Patch"]
-        RDT["Sharded RDT<br/>按 Worker 拉取权重切片"]
-
-        RPC --> WORKER
-        WORKER --> WFACTORY
-        WFACTORY --> WENGINE
-
-        WENGINE --> NCCL
-        WENGINE --> IPC
-        WENGINE --> SPARSE
-        WENGINE --> RDT
-    end
-
-    subgraph L5["第五层：模型执行与 MoE 推理层"]
-        direction LR
-
-        PARAM["模型参数<br/>Model Weights"]
-        RUNNER["GPUModelRunner"]
-        MOE["MoE Backend<br/>Triton / CUTLASS / DeepGEMM / Humming 等"]
-        OUTPUT["Rollout 输出<br/>Tokens / Logprobs / Routed Experts"]
-
-        RUNNER --> PARAM
-        RUNNER --> MOE
-        MOE --> OUTPUT
-    end
-
-    CLIENT -->|"控制面<br/>HTTP / Ray RPC"| HTTP
-    CLIENT -->|"Ray 调用"| RAY
-    CLIENT -->|"进程内调用"| LOCAL
-
-    TENGINE ==>|"权重数据面<br/>NCCL / IPC / Sparse / RDT"| WENGINE
-    SCHEDULER -->|"恢复后执行推理"| RUNNER
-    WENGINE -->|"更新或覆盖权重"| PARAM
-    OUTPUT -->|"Rollout 返回训练框架"| RL
-
-    classDef external fill:#f3e8ff,stroke:#7e22ce,stroke-width:2px,color:#111;
-    classDef control fill:#e0f2fe,stroke:#0369a1,stroke-width:2px,color:#111;
-    classDef engine fill:#dcfce7,stroke:#15803d,stroke-width:2px,color:#111;
-    classDef transfer fill:#fef3c7,stroke:#b45309,stroke-width:2px,color:#111;
-    classDef inference fill:#fee2e2,stroke:#b91c1c,stroke-width:2px,color:#111;
-
-    class RL,TRAIN,SOURCE,TFACTORY,TENGINE,CLIENT external;
-    class HTTP,RAY,LOCAL,ENGINE_API control;
-    class SCHEDULER,DP_PAUSE,RPC engine;
-    class WORKER,WFACTORY,WENGINE,NCCL,IPC,SPARSE,RDT transfer;
-    class PARAM,RUNNER,MOE,OUTPUT inference;
-
-    style L1 fill:#faf5ff,stroke:#7e22ce,stroke-width:3px
-    style L2 fill:#f0f9ff,stroke:#0369a1,stroke-width:3px
-    style L3 fill:#f0fdf4,stroke:#15803d,stroke-width:3px
-    style L4 fill:#fffbeb,stroke:#b45309,stroke-width:3px
-    style L5 fill:#fff1f2,stroke:#b91c1c,stroke-width:3px
-```
 
 ```mermaid
 flowchart TB
@@ -353,8 +246,14 @@ flowchart TB
 
 实线是仓库示例真实执行的路径，虚线是真实 GRPO/PPO 系统需要补充的路径。
 
-````
+-   weight swap: vLLM performs a hot update from V0 to V1.
+-   weight update: `/start_weight_update`、`/update_weights`、`/finish_weight_update`
+-   weight synchronization / weight sync: 强调 Trainer 把新权重同步到 inference engine。这个示例官方描述也是 “native weight syncing APIs”。
+
+
+
 ```mermaid
+
 flowchart LR
 
     subgraph L0["L0：外部 RL 训练系统"]
@@ -409,8 +308,8 @@ flowchart LR
 
     style L0 fill:#FFF8E1,stroke:#F57F17,stroke-width:3px
     style VLLM fill:#E3F2FD,stroke:#1565C0,stroke-width:3px
+
 ```
-````
 
 ## 2. Rollout Orchestrator：13 个并发请求
 
@@ -725,6 +624,591 @@ ModuleSource + NCCL
 ```
 
 所以第一层真正更新的是“Trainer 里的模型参数”，不是 vLLM 内部的数据集。vLLM 生成 rollout 数据并接收训练完成后的新权重。
+
+
+
+
+
+第二层是 `L1：vLLM 对外入口层`。它的作用是把第一层的请求翻译成 vLLM 内部调用，本身不运行模型。
+
+这一层可以分成两个平面：
+
+-   Rollout 数据面：提交 Prompt、接收 Token/Logprobs。
+-   RL 控制面：暂停、恢复、Sleep、权重更新。
+
+## 1. 第二层展开图
+
+```mermaid
+flowchart TB
+
+    subgraph L0["上一层 L0：外部 RL 系统"]
+        direction LR
+        ORCH["Rollout Orchestrator<br/>示例：13 个 Prompt"]
+        TRAINER["Trainer<br/>示例：1 个 Ray Actor"]
+        WEIGHTCLIENT["Weight Sync Client<br/>HTTP 或 Ray"]
+    end
+
+    subgraph L1["L1：vLLM 对外入口层"]
+        direction TB
+
+        subgraph L1A["L1-A：Rollout HTTP 数据入口"]
+            direction LR
+            CHAT["POST /v1/chat/completions<br/>ChatCompletionRequest"]
+            COMPLETION["POST /v1/completions<br/>CompletionRequest"]
+            RESPONSES["POST /v1/responses<br/>ResponsesRequest"]
+            STREAM["HTTP Response<br/>JSON 或 SSE Streaming"]
+
+            CHAT --> STREAM
+            COMPLETION --> STREAM
+            RESPONSES --> STREAM
+        end
+
+        subgraph L1B["L1-B：Python / Ray Rollout 入口"]
+            direction LR
+            LLMAPI["LLM.generate<br/>同步批量生成"]
+            ASYNCAPI["AsyncLLM.generate<br/>单请求异步流"]
+            RAYGEN["Ray Actor Method<br/>do_generate.remote"]
+
+            RAYGEN --> ASYNCAPI
+        end
+
+        subgraph L1C["L1-C：RL 生命周期控制入口"]
+            direction LR
+            PAUSE["POST /pause<br/>mode=abort / wait / keep"]
+            RESUME["POST /resume"]
+            ABORT["POST /abort_requests"]
+            STATUS["GET /is_paused"]
+            WORLD["GET /get_world_size"]
+            INFO["GET /weight_info"]
+        end
+
+        subgraph L1D["L1-D：权重同步控制入口"]
+            direction LR
+            INIT["POST /init_weight_transfer_engine<br/>每次启动调用 1 次"]
+            START["POST /start_weight_update<br/>每轮调用 1 次"]
+            UPDATE["POST /update_weights<br/>每轮调用 1～N 次"]
+            FINISH["POST /finish_weight_update<br/>每轮调用 1 次"]
+            VERSION["POST /update_weight_version"]
+        end
+
+        subgraph L1E["L1-E：显存生命周期入口"]
+            direction LR
+            SLEEP["POST /sleep<br/>level=0 / 1 / 2"]
+            RELEASE["POST /release_kv_cache_memory"]
+            WAKE["POST /wake_up<br/>可指定 tags"]
+            SLEEPSTATUS["GET /is_sleeping"]
+        end
+    end
+
+    subgraph L2["下一层 L2：Frontend 与 Engine Client"]
+        direction LR
+        OPENAISERVE["OpenAI Serving<br/>协议解析 / Tokenizer / Streaming"]
+        ASYNCLLM["AsyncLLM<br/>生成请求"]
+        ENGINECLIENT["EngineClient<br/>控制请求"]
+    end
+
+    ORCH -->|"HTTP Rollout"| CHAT
+    ORCH --> COMPLETION
+    ORCH --> RESPONSES
+    ORCH -->|"进程内调用"| LLMAPI
+    ORCH --> RAYGEN
+
+    TRAINER --> WEIGHTCLIENT
+    WEIGHTCLIENT --> INIT
+    WEIGHTCLIENT --> START
+    WEIGHTCLIENT --> UPDATE
+    WEIGHTCLIENT --> FINISH
+
+    ORCH --> PAUSE
+    ORCH --> RESUME
+    ORCH --> SLEEP
+    ORCH --> WAKE
+
+    CHAT --> OPENAISERVE
+    COMPLETION --> OPENAISERVE
+    RESPONSES --> OPENAISERVE
+    LLMAPI --> ASYNCLLM
+    ASYNCAPI --> ASYNCLLM
+
+    PAUSE --> ENGINECLIENT
+    RESUME --> ENGINECLIENT
+    ABORT --> ENGINECLIENT
+    STATUS --> ENGINECLIENT
+    WORLD --> ENGINECLIENT
+    INFO --> ENGINECLIENT
+    INIT --> ENGINECLIENT
+    START --> ENGINECLIENT
+    UPDATE --> ENGINECLIENT
+    FINISH --> ENGINECLIENT
+    VERSION --> ENGINECLIENT
+    SLEEP --> ENGINECLIENT
+    RELEASE --> ENGINECLIENT
+    WAKE --> ENGINECLIENT
+    SLEEPSTATUS --> ENGINECLIENT
+
+    style L0 fill:#FFF8E1,stroke:#F57F17,stroke-width:3px
+    style L1 fill:#E3F2FD,stroke:#1565C0,stroke-width:4px
+    style L1A fill:#E8F5E9,stroke:#2E7D32,stroke-width:2px
+    style L1B fill:#EDE7F6,stroke:#5E35B1,stroke-width:2px
+    style L1C fill:#FFF3E0,stroke:#EF6C00,stroke-width:2px
+    style L1D fill:#FCE4EC,stroke:#C2185B,stroke-width:2px
+    style L1E fill:#EFEBE9,stroke:#5D4037,stroke-width:2px
+    style L2 fill:#E0F2F1,stroke:#00796B,stroke-width:3px
+```
+
+## 2. Rollout HTTP 入口
+
+### `/v1/completions`
+
+路由定义：
+
+```
+@router.post("/v1/completions")
+async def create_completion(
+    request: CompletionRequest,
+    raw_request: Request,
+):
+    generator = await handler.create_completion(request, raw_request)
+```
+
+对应代码：[completion/api_router.py (line 35)](/data/home/xli49/lxy/vllm/vllm/entrypoints/openai/completion/api_router.py:35)
+
+如果把第一层的数值通过 HTTP 传入，一条请求大致是：
+
+```
+{
+  "model": "Qwen/Qwen3-1.7B-Base",
+  "prompt": "The capital of France is",
+  "temperature": 0,
+  "max_tokens": 110,
+  "logprobs": 1
+}
+```
+
+字段转换关系：
+
+```
+temperature = 0
+    ↓
+SamplingParams.temperature = 0
+
+max_tokens = 110
+    ↓
+SamplingParams.max_tokens = 110
+
+logprobs = 1
+    ↓
+每个生成 Token 返回所请求数量的候选 Logprob
+```
+
+如果 13 个 Prompt 分别发送一次：
+
+```
+HTTP 请求数 = 13
+每个请求最多生成 110 Token
+最大生成量 = 13 × 110 = 1430 Token
+```
+
+也可以使用 Completion API 的批量 prompt，但最终仍会拆成多个内部生成请求。
+
+### `/v1/chat/completions`
+
+Chat 路由：
+
+```
+@router.post("/v1/chat/completions")
+async def create_chat_completion(
+    request: ChatCompletionRequest,
+    raw_request: Request,
+):
+    generator = await handler.create_chat_completion(request, raw_request)
+```
+
+对应代码：[chat_completion/api_router.py (line 41)](/data/home/xli49/lxy/vllm/vllm/entrypoints/openai/chat_completion/api_router.py:41)
+
+请求可以是：
+
+```
+{
+  "model": "Qwen/Qwen3-1.7B-Base",
+  "messages": [
+    {
+      "role": "user",
+      "content": "The capital of France is"
+    }
+  ],
+  "temperature": 0,
+  "max_tokens": 110,
+  "logprobs": true,
+  "top_logprobs": 1
+}
+```
+
+Chat API 会多一个 Chat Template 渲染过程：
+
+```
+messages
+  → Chat Template
+  → 格式化 Prompt
+  → Token IDs
+  → AsyncLLM.generate
+```
+
+## 3. HTTP 返回方式
+
+同一个 endpoint 支持两种返回方式。
+
+### 非流式
+
+当 `stream=false` 时，入口等待请求完成，返回一个完整 JSON：
+
+```
+{
+  "choices": [
+    {
+      "text": " Paris.",
+      "finish_reason": "stop"
+    }
+  ]
+}
+```
+
+13 个请求会得到 13 个最终响应。
+
+### 流式
+
+当 `stream=true` 时，入口返回：
+
+```
+StreamingResponse(
+    content=...,
+    media_type="text/event-stream",
+)
+```
+
+也就是 SSE 流。
+
+假设每次 decode 返回 1 个 token，一条 110-token rollout 理论上可能产生约 110 个增量事件；13 条请求可能产生约：
+
+```
+13 × 110 = 1430 个 Token 增量
+```
+
+但一次 EngineCore 输出可能包含多个 token，所以 SSE 事件数量不保证严格等于 token 数量。
+
+## 4. Python/Ray 入口：当前 13 Prompt 示例真正使用的路径
+
+第一层解释的 `rlhf_async_new_apis.py` 没有走 HTTP，而是走 Ray：
+
+```
+gen_futures = [
+    llm.do_generate.remote(ptids, sampling_params)
+    for ptids in batch_prompt_token_ids
+]
+```
+
+13 个 Prompt 对应：
+
+```
+13 次 do_generate.remote()
+→ 13 次 AsyncLLM.generate()
+→ 13 个 request_id
+→ 13 个 RequestOutputCollector
+```
+
+`do_generate()` 内部调用：
+
+```
+async for request_output in self.generate(
+    {"prompt_token_ids": prompt_token_ids},
+    sampling_params,
+    request_id=str(uuid.uuid4()),
+):
+    ...
+```
+
+对应代码：[rlhf_async_new_apis.py (line 83)](/data/home/xli49/lxy/vllm/examples/rl/rlhf_async_new_apis.py:83)
+
+`AsyncLLM.generate()` 的接口为：
+
+```
+async def generate(
+    self,
+    prompt,
+    sampling_params,
+    request_id,
+    ...
+) -> AsyncGenerator[RequestOutput, None]:
+```
+
+对应代码：[async_llm.py (line 655)](/data/home/xli49/lxy/vllm/vllm/v1/engine/async_llm.py:655)
+
+这一入口绕过了：
+
+```
+HTTP
+FastAPI
+JSON 序列化
+OpenAI 协议对象
+```
+
+直接进入 `AsyncLLM`，适合同一 Python/Ray 集群里的 RL 系统。
+
+## 5. 一个真实 HTTP 示例的数值
+
+仓库的 `rlhf_http_nccl.py` 使用：
+
+```
+SERVER_PORT = 8000
+INFERENCE_TP_SIZE = 2
+SERVER_DEVICE_IDS = "0,1"
+TRAINER_DEVICE = "cuda:2"
+```
+
+对应代码：[rlhf_http_nccl.py (line 45)](/data/home/xli49/lxy/vllm/examples/rl/rlhf_http_nccl.py:45)
+
+硬件布局：
+
+```
+GPU 0：vLLM TP rank 0
+GPU 1：vLLM TP rank 1
+GPU 2：Trainer rank 0
+```
+
+总共使用 3 张 GPU。
+
+它使用 4 个 Prompt：
+
+```
+Prompt 数量 = 4
+max_tokens = 32
+temperature = 0
+```
+
+代码每个 Prompt 单独调用一次：
+
+```
+client.completions.create(
+    model=model,
+    prompt=prompt,
+    max_tokens=32,
+    temperature=0,
+)
+```
+
+因此单个生成阶段：
+
+```
+HTTP POST /v1/completions 次数 = 4
+最大生成 Token = 4 × 32 = 128
+```
+
+示例在权重同步前后各运行一次：
+
+```
+同步前：4 次请求，最多 128 Token
+同步后：4 次请求，最多 128 Token
+合计：8 次请求，最多 256 Token
+```
+
+## 6. RL 控制入口
+
+### `/pause`
+
+代码默认值：
+
+```
+mode = "abort"
+clear_cache = True
+```
+
+对应代码：[rlhf/api_router.py (line 30)](/data/home/xli49/lxy/vllm/vllm/entrypoints/serve/dev/rlhf/api_router.py:30)
+
+三种模式：
+
+| 请求                | 对当前 13 条 Rollout 的作用    |
+| ------------------- | ------------------------------ |
+| `/pause?mode=abort` | 终止全部正在运行的请求         |
+| `/pause?mode=wait`  | 等待 13 条请求完成后暂停       |
+| `/pause?mode=keep`  | 冻结未完成请求，更新权重后继续 |
+
+第一层 Ray 示例调用的是：
+
+```
+await pause_generation(mode="keep")
+```
+
+假设 13 个请求都尚未结束，则 13 个请求的状态会保留下来，权重更新后继续生成。
+
+HTTP NCCL 示例调用：
+
+```
+requests.post("http://localhost:8000/pause")
+```
+
+没有传 `mode`，因此使用默认值：
+
+```
+mode = abort
+```
+
+### `/get_world_size`
+
+HTTP NCCL 示例中 vLLM 使用：
+
+```
+TP = 2
+PP = 1
+DP = 1
+```
+
+所以接口默认返回：
+
+```
+vLLM world size = TP × PP × DP
+                = 2 × 1 × 1
+                = 2
+```
+
+Trainer 再加上自己：
+
+```
+world_size = get_world_size(BASE_URL) + 1
+```
+
+得到 NCCL 权重传输通信组：
+
+```
+Transfer world size = 2 个 vLLM Worker + 1 个 Trainer
+                    = 3
+```
+
+对应代码：[rlhf_http_nccl.py (line 167)](/data/home/xli49/lxy/vllm/examples/rl/rlhf_http_nccl.py:167)
+
+## 7. 权重同步控制入口
+
+HTTP Client 将一次权重更新转换为下面的调用：
+
+```
+POST /init_weight_transfer_engine   启动时 1 次
+
+每轮：
+POST /start_weight_update           1 次
+POST /update_weights                1～N 次
+POST /finish_weight_update          1 次
+```
+
+实现代码：[clients.py (line 58)](/data/home/xli49/lxy/vllm/vllm/distributed/weight_transfer/clients.py:58)
+
+默认 HTTP 超时：
+
+```
+timeout = 300 秒
+```
+
+需要注意：`/update_weights` 主要传输名称、shape、dtype、IPC handle 等控制信息。NCCL 后端的模型张量不经过 HTTP，而是通过 NCCL 数据面传输。
+
+Ray Client 则不经过 HTTP：
+
+```
+ray.get([
+    handle.update_weights.remote(request)
+    for handle in self.handles
+])
+```
+
+如果配置了 4 个独立 vLLM Ray Actor：
+
+```
+一次 update_weights
+→ fan-out 为 4 个 remote 调用
+→ ray.get 等待 4 个全部完成
+```
+
+对应代码：[clients.py (line 96)](/data/home/xli49/lxy/vllm/vllm/distributed/weight_transfer/clients.py:96)
+
+## 8. Sleep 入口
+
+Sleep 路由默认：
+
+```
+level = 1
+mode = abort
+```
+
+所以：
+
+```
+POST /sleep
+```
+
+等价于：
+
+```
+POST /sleep?level=1&mode=abort
+```
+
+相关入口：[sleep/api_router.py (line 20)](/data/home/xli49/lxy/vllm/vllm/entrypoints/serve/dev/sleep/api_router.py:20)
+
+也可以分阶段恢复：
+
+```
+POST /wake_up?tags=weights
+```
+
+只恢复模型权重；或者：
+
+```
+POST /wake_up?tags=kv_cache&tags=scheduling
+```
+
+恢复 KV cache 并允许调度。
+
+## 9. 这些接口什么时候注册
+
+普通 Rollout 接口在模型支持 `generate` 任务时注册：
+
+```
+if "generate" in supported_tasks:
+    register_generate_api_routers(app)
+```
+
+但 RL 控制和 Sleep 接口只有设置下面的环境变量才注册：
+
+```
+VLLM_SERVER_DEV_MODE=1
+```
+
+对应代码：[routers.py (line 34)](/data/home/xli49/lxy/vllm/vllm/entrypoints/launchers/api_server/routers.py:34)
+
+一个具体启动命令：
+
+```
+VLLM_SERVER_DEV_MODE=1 \
+vllm serve facebook/opt-125m \
+  --tensor-parallel-size 2 \
+  --device-ids 0,1 \
+  --weight-transfer-config '{"backend":"nccl"}' \
+  --enable-sleep-mode \
+  --port 8000
+```
+
+第二层最终完成的转换是：
+
+```
+外部 HTTP / Python / Ray 调用
+             ↓
+类型化的 CompletionRequest / ChatCompletionRequest
+或者 WeightTransferRequest / 生命周期控制命令
+             ↓
+OpenAI Serving 或 EngineClient
+             ↓
+进入第三层 EngineCore
+```
+
+这一层的核心价值不是计算，而是统一协议、校验请求、选择流式/非流式返回，并将数据面请求和控制面请求送入正确的内部对象。
+
+
 
 
 
