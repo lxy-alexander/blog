@@ -345,7 +345,386 @@ flowchart TB
 
 
 
+这里的“第一层”指总图中的 `L0：外部 RL 训练系统`。它逻辑上不属于 vLLM 核心，但负责调用 vLLM、消费 rollout、训练模型，再把新参数同步回 vLLM。
 
+当前仓库示例并没有真正执行 PPO/GRPO，而是用一个已经训练好的模型模拟“Optimizer 更新后的新权重”。
+
+## 1. 第一层带数值展开
+
+实线是仓库示例真实执行的路径，虚线是真实 GRPO/PPO 系统需要补充的路径。
+
+````
+```mermaid
+flowchart LR
+
+    subgraph L0["L0：外部 RL 训练系统"]
+        direction LR
+
+        ORCH["Rollout Orchestrator<br/>一次提交 13 个 Prompt<br/>每个 Prompt 生成 1 条 Response"]
+
+        REQUEST["Rollout 配置<br/>temperature = 0<br/>max_tokens = 10 + 100 = 110<br/>最多生成 13 × 110 = 1430 Token"]
+
+        RESULT["Rollout Results<br/>13 条生成结果<br/>记录 pause_idx<br/>区分新旧权重生成的 Token"]
+
+        VERIFY["示例中的 Verifier<br/>对比新模型重新生成结果<br/>NVIDIA 要求 13/13 完全一致<br/>ROCm 至少 12/13 一致"]
+
+        REWARD["真实 RL Reward<br/>示例没有实现<br/>例如：[1.0, 0.5, 0.0, -0.5]"]
+
+        ADV["真实 RL Advantage<br/>示例没有实现<br/>GRPO 组内归一化"]
+
+        TRAINER["真实 Policy Trainer<br/>Loss / Backward / Optimizer<br/>示例没有执行这些步骤"]
+
+        DEMOTRAINER["示例 TrainModel Ray Actor<br/>占用 1 张 GPU<br/>直接加载 Qwen3-1.7B<br/>BF16"]
+
+        POLICY["Trainer Policy Model<br/>约 1.7B 参数<br/>BF16 原始参数约 3.4 GB<br/>作为新权重 V1"]
+
+        WEIGHTS["权重同步输出<br/>ModuleSource<br/>NCCL world_size = 2<br/>1 Trainer + 1 vLLM Worker"]
+
+        ORCH --> REQUEST
+        RESULT --> VERIFY
+        DEMOTRAINER --> POLICY
+        POLICY --> WEIGHTS
+
+        RESULT -.-> REWARD
+        REWARD -.-> ADV
+        ADV -.-> TRAINER
+        TRAINER -.-> POLICY
+    end
+
+    subgraph VLLM["vLLM 边界"]
+        direction LR
+        OLD["初始 Rollout Model<br/>Qwen3-1.7B-Base<br/>权重版本 V0"]
+        PAUSE["任意请求达到 10 Token<br/>pause mode = keep"]
+        SWAP["接收 Trainer 权重<br/>V0 → V1"]
+        RESUME["恢复生成<br/>继续生成剩余 Token"]
+
+        OLD --> PAUSE
+        PAUSE --> SWAP
+        SWAP --> RESUME
+    end
+
+    REQUEST --> OLD
+    RESUME --> RESULT
+    WEIGHTS --> SWAP
+
+    style L0 fill:#FFF8E1,stroke:#F57F17,stroke-width:3px
+    style VLLM fill:#E3F2FD,stroke:#1565C0,stroke-width:3px
+```
+````
+
+## 2. Rollout Orchestrator：13 个并发请求
+
+示例定义了 13 个 Prompt：
+
+```
+PROMPTS = [
+    "The president of the United States is",
+    "The capital of France is",
+    ...
+    "DNA stands for deoxyribonucleic acid and it",
+]
+```
+
+对应代码：[rlhf_async_new_apis.py (line 217)](/data/home/xli49/lxy/vllm/examples/rl/rlhf_async_new_apis.py:217)
+
+然后为每个 Prompt 创建一个异步 Ray 调用：
+
+```
+gen_futures = [
+    llm.do_generate.remote(ptids, sampling_params)
+    for ptids in batch_prompt_token_ids
+]
+```
+
+对应代码：[rlhf_async_new_apis.py (line 258)](/data/home/xli49/lxy/vllm/examples/rl/rlhf_async_new_apis.py:258)
+
+所以这里的数值是：
+
+-   Prompt 数量：13
+-   每个 Prompt 生成数量：默认 `n=1`
+-   总 rollout 数量：`13 × 1 = 13`
+-   13 条请求并发提交，不是一条执行完再执行下一条
+
+实际工业 GRPO 通常会对每个 Prompt 生成多条结果。例如：
+
+```
+Prompt batch size = 128
+每个 Prompt 生成 G = 8 条 Response
+每轮 Rollout 数 = 128 × 8 = 1024
+```
+
+当前示例只是最小化演示，`G=1`，因此不能直接计算 GRPO 的组内相对 advantage。
+
+## 3. Rollout 参数：每条最多生成 110 Token
+
+代码中：
+
+```
+PAUSE_TOKEN_THRESHOLD = 10
+N_NEW_TOKENS = 100
+
+sampling_params = SamplingParams(
+    temperature=0,
+    max_tokens=PAUSE_TOKEN_THRESHOLD + N_NEW_TOKENS,
+)
+```
+
+对应位置：
+
+-   [rlhf_async_new_apis.py (line 63)](/data/home/xli49/lxy/vllm/examples/rl/rlhf_async_new_apis.py:63)
+-   [rlhf_async_new_apis.py (line 245)](/data/home/xli49/lxy/vllm/examples/rl/rlhf_async_new_apis.py:245)
+-   [rlhf_async_new_apis.py (line 254)](/data/home/xli49/lxy/vllm/examples/rl/rlhf_async_new_apis.py:254)
+
+代入数值：
+
+```
+max_tokens = 10 + 100 = 110
+```
+
+因此理论最大生成量：
+
+```
+13 个 Prompt × 110 Token = 1430 个生成 Token
+```
+
+`temperature=0` 表示贪心生成，主要用于保证更新前后结果能够确定性比较。真实 RL rollout 通常不会设成零，例如可能使用：
+
+```
+SamplingParams(
+    temperature=1.0,
+    top_p=0.95,
+    max_tokens=1024,
+    logprobs=1,
+)
+```
+
+因为 RL 需要从当前策略分布中采样，而不是永远选择概率最大的 token。
+
+## 4. 为什么在 10 Token 时暂停
+
+每个请求在流式生成期间统计已经生成的 token：
+
+```
+cur_token_count = len(output.outputs[0].token_ids)
+
+if cur_token_count >= PAUSE_TOKEN_THRESHOLD:
+    self._request_pause_flag = True
+```
+
+对应代码：[rlhf_async_new_apis.py (line 99)](/data/home/xli49/lxy/vllm/examples/rl/rlhf_async_new_apis.py:99)
+
+任意一条请求达到 10 个 token 后：
+
+```
+await super().pause_generation(mode="keep")
+```
+
+对应代码：[rlhf_async_new_apis.py (line 111)](/data/home/xli49/lxy/vllm/examples/rl/rlhf_async_new_apis.py:111)
+
+假设某条请求最后记录到：
+
+```
+pause_idx = 10
+总输出长度 = 110
+```
+
+那么它的输出被划分为：
+
+```
+Token 0～9：旧权重 V0 生成，共 10 个
+Token 10～109：新权重 V1 生成，共 100 个
+```
+
+但实际 `pause_idx` 不一定严格等于 10。因为请求是并发和分批执行的，pause 命令生效前可能又完成了一次 decode。例如：
+
+```
+请求 A：pause_idx = 10
+请求 B：pause_idx = 12
+请求 C：pause_idx = 9
+```
+
+代码因此为每个请求单独记录 `pause_idx`，而不是假设所有请求都是 10。
+
+## 5. Reward / Verifier：示例只有验证，没有奖励
+
+当前示例没有 Reward Model，也没有类似下面的逻辑：
+
+```
+reward = reward_model(prompt, response)
+```
+
+它使用“新鲜启动的 V2 模型是否能生成相同后缀”作为正确性验证：
+
+```
+expected = output.outputs[0].token_ids[pause_idx:]
+actual = val_output.outputs[0].token_ids
+match = actual == expected
+```
+
+对应代码：[rlhf_async_new_apis.py (line 316)](/data/home/xli49/lxy/vllm/examples/rl/rlhf_async_new_apis.py:316)
+
+验证门槛为：
+
+```
+MIN_PASS_RATE = 1.0 if not current_platform.is_rocm() else 0.9
+```
+
+代入 13 个 Prompt：
+
+-   NVIDIA：必须 `13/13 = 100%`
+-   ROCm：至少需要 `12/13 ≈ 92.31%`
+-   `11/13 ≈ 84.62%`，达不到 90%，会失败
+
+这个 verifier 只是测试权重热更新是否正确，不是 RL reward。
+
+## 6. Advantage：真实 GRPO 如何代入数值
+
+假设真实 GRPO 对同一个 Prompt 生成 4 条结果，Reward 分别为：
+
+```
+r = [1.0, 0.5, 0.0, -0.5]
+```
+
+组内平均值：
+
+```
+mean = (1.0 + 0.5 + 0.0 - 0.5) / 4
+     = 0.25
+```
+
+组内标准差：
+
+```
+std ≈ 0.559
+```
+
+GRPO 风格的归一化 advantage：
+
+```
+A_i = (r_i - mean) / std
+```
+
+代入后：
+
+| Response | Reward | Advantage |
+| -------- | ------ | --------- |
+| 1        | 1.0    | 1.342     |
+| 2        | 0.5    | 0.447     |
+| 3        | 0.0    | -0.447    |
+| 4        | -0.5   | -1.342    |
+
+含义是：
+
+-   `A > 0`：增加这些 token 的生成概率
+-   `A < 0`：降低这些 token 的生成概率
+-   这一步发生在外部 Trainer，不在 vLLM 内
+
+## 7. Trainer：当前示例没有真正训练
+
+示例中的 Trainer 是：
+
+```
+@ray.remote(num_gpus=1)
+class TrainModel:
+    ...
+```
+
+它占用 1 张 GPU，并直接加载：
+
+```
+self.model = AutoModelForCausalLM.from_pretrained(
+    "Qwen/Qwen3-1.7B",
+    dtype=torch.bfloat16,
+).to("cuda:0")
+```
+
+对应代码：[rlhf_async_new_apis.py (line 120)](/data/home/xli49/lxy/vllm/examples/rl/rlhf_async_new_apis.py:120)
+
+因此示例的真实情况是：
+
+```
+vLLM 初始模型 V0：Qwen/Qwen3-1.7B-Base
+Trainer 模型 V1：Qwen/Qwen3-1.7B
+```
+
+它没有执行：
+
+```
+loss.backward()
+optimizer.step()
+optimizer.zero_grad()
+```
+
+而是直接把 `Qwen3-1.7B` 当成“已经完成训练的新版本参数”。
+
+对于约 17 亿参数、BF16 每参数 2 字节，单纯参数大小粗略为：
+
+```
+1.7 × 10⁹ × 2 bytes
+= 3.4 × 10⁹ bytes
+≈ 3.4 GB
+≈ 3.17 GiB
+```
+
+实际显存还会包含：
+
+-   临时通信 Buffer
+-   CUDA/NCCL 状态
+-   模型 Buffer
+-   推理侧 KV Cache
+-   真实训练时的梯度和 Optimizer State
+
+所以真实训练显存会远大于 3.17 GiB。
+
+## 8. 第一层最后输出什么
+
+Trainer 模型通过：
+
+```
+source=ModuleSource(self.model)
+```
+
+变成可枚举的模型权重源，然后：
+
+```
+self.engine.send_weights()
+```
+
+触发权重同步。
+
+示例数值：
+
+```
+Trainer Rank = 0
+Trainer GPU = 1 张
+vLLM Worker = 1 个
+NCCL world_size = 2
+packed = True
+backend = nccl
+```
+
+代码位置：[rlhf_async_new_apis.py (line 138)](/data/home/xli49/lxy/vllm/examples/rl/rlhf_async_new_apis.py:138)
+
+完整第一层的数据关系可以概括为：
+
+```
+13 个 Prompt
+    ↓
+最多 13 条 × 110 Token 的 Rollout
+    ↓
+示例：只验证结果，不计算 Reward
+真实 RL：Reward → Advantage → Loss
+    ↓
+Optimizer 更新 Trainer Policy
+    ↓
+得到新模型参数 V1
+    ↓
+ModuleSource + NCCL
+    ↓
+同步给 vLLM
+```
+
+所以第一层真正更新的是“Trainer 里的模型参数”，不是 vLLM 内部的数据集。vLLM 生成 rollout 数据并接收训练完成后的新权重。
 
 
 
