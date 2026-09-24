@@ -10,554 +10,394 @@ lang: ""
 createdAt: "2026-09-24T03:08:38.549.972627620Z"
 ---
 
-1）中文
+![image-20260923232154646](https://pub-c69d652d2a0747fab9aad1fab48ff742.r2.dev/images/image-20260923232154646)
 
-### 语言建模
+先生成，再评价，再根据评价修改模型。
 
-自回归语言模型（Autoregressive Language Model）
-定义：模型按照从左到右的方式生成文本，每个 token 的预测都依赖前面已经出现的 token。
+**vLLM 是 RL 的 rollout/generation engine，veRL 或 vime 是外层 RL training framework。**
 
-$P_\theta(x)=\prod_{t=1}^{T}P_\theta(x_t|x_{
+```mermaid
+flowchart TD
+    A[Prompt Dataset]
+    --> B[Current Policy]
 
-例子：
-输入“今天天气很”，模型会根据前面的“今天天气很”预测下一个 token，例如“好”。
+    B --> C[vLLM Rollout<br/>生成多个 Completion]
 
-负对数似然损失（Negative Log-Likelihood, NLL）
-定义：训练时让模型尽可能提高真实下一个 token 的概率。真实 token 的概率越低，损失越大。
+    C --> D[Reward / Verifier<br/>对 Completion 打分]
 
-$L(\theta)=-\mathbb{E}\left[\sum_t\log P_\theta(x_t|x_{
+    D --> E[Advantage Estimation<br/>GRPO / PPO / etc.]
 
-交叉熵损失（Cross-Entropy Loss）
-定义：衡量模型预测的 token 概率分布和真实 token 之间的差异，是训练语言模型最常见的损失函数。
+    E --> F[veRL / vime Trainer<br/>计算 RL Loss + Backprop]
 
-Transformer
-定义：现代大语言模型最常用的神经网络架构。核心是自注意力机制，让模型判断上下文中哪些 token 最重要。
+    F --> G[Updated Policy]
 
-Self-Attention（自注意力）
-定义：模型在处理一个 token 时，可以参考上下文中的其他 token，并给不同 token 分配不同的重要程度。
+    G --> H[Weight Sync<br/>把新权重同步给 vLLM]
 
-LM Head
-定义：Transformer 最后的输出层，把模型内部的隐藏表示映射到整个词表中的 token 概率。
+    H --> C
+```
 
-例子：
-模型内部产生一个向量，LM Head 将其转换成：
+1）vLLM：负责 Rollout
+vLLM: Runs fast inference to generate training completions from the current policy.
 
-“苹果”：0.4
-“香蕉”：0.2
-“汽车”：0.01
+例如一个 Prompt：
 
-------
+```text
+Solve: 23 × 17
+```
 
-### KL 散度
+vLLM 可能一次生成：
 
-KL Divergence（KL 散度）
+```text
+Completion 1 → 391
+Completion 2 → 381
+Completion 3 → 391
+Completion 4 → 401
+```
 
-定义：衡量两个概率分布之间有多大差异。
-
-$D_{KL}(P||Q)=\sum_xP(x)\log\frac{P(x)}{Q(x)}$
-
-在 RLHF 中，它经常用于限制新模型不要偏离原模型太远。
-
-例子：
-原模型倾向：
-
-A：60%
-B：40%
-
-训练后变成：
-
-A：5%
-B：95%
-
-KL 散度会比较大。
+RL 阶段最耗时的一个部分就是大量生成，所以使用 vLLM 来提高 rollout 吞吐量。
 
 ------
 
-### NLP 基本概念
+2）Reward / Verifier：负责评价
 
-Prompt
-定义：输入给模型的文本。
+```mermaid
+flowchart LR
+    A[Prompt]
+    --> B[vLLM]
+    --> C1[Completion 1]
+    B --> C2[Completion 2]
+    B --> C3[Completion 3]
 
-例子：
-“解释一下什么是 RLHF。”
+    C1 --> D[Reward Function]
+    C2 --> D
+    C3 --> D
 
-Completion
-定义：模型根据 Prompt 生成的回答。
+    D --> E[Reward Scores]
+```
 
-Chosen Completion
-定义：多个回答中，人类更偏好的回答。
+例如数学：
 
-Rejected Completion
-定义：多个回答中，人类认为较差的回答。
+```text
+391 → reward = 1
+381 → reward = 0
+401 → reward = 0
+```
 
-Preference Relation
-
-$y_{chosen}\succ y_{rejected}$
-
-表示人类更偏好 chosen response。
-
-Policy
-
-$\pi_\theta(y|x)$
-
-定义：给定 Prompt $x$，模型生成不同回答 $y$ 的概率分布。
-
-换句话说，在 RLHF 中，语言模型本身就是 policy。
+也可以使用 Reward Model、代码测试、规则、LLM Judge 等作为 reward。veRL 当前支持 rule-based、reward model 等多种 reward 形式。([GitHub](https://github.com/verl-project/verl/blob/main/docs/blog/v0.7.md?utm_source=chatgpt.com))
 
 ------
 
-### 强化学习基本概念
+3）Advantage：决定“哪些回答应该强化”
 
-State（状态）
-定义：智能体当前所处的环境信息。
+Reward 本身还不一定直接用于训练，通常会进一步计算：
 
-在语言模型里，可以理解为目前已经生成的上下文。
-
-Action（动作）
-定义：智能体下一步采取的行为。
-
-在语言模型里，一个 action 通常可以理解为生成下一个 token。
-
-Reward（奖励）
-定义：一个数值，用来评价某个行为或回答有多好。
-
-例子：
-
-好回答：+1
-差回答：-1
-
-Trajectory（轨迹）
-定义：智能体从开始到结束经历的完整状态、动作和奖励序列。
-
-在语言模型中，可以近似理解为一次完整的文本生成过程。
-
-Policy（策略）
-定义：在某个状态下选择不同动作的概率。
-
-$\pi(a|s)$
-
-在 LLM 中，就是“根据已有文本，决定下一个 token 的概率”。
-
-Discount Factor（折扣因子，$\gamma$）
-定义：决定未来奖励的重要程度。
-
-$0\leq\gamma\leq1$
-
-$\gamma$ 越小，越重视近期奖励；越接近 1，越重视长期奖励。
-
-------
-
-### Value、Q 和 Advantage
-
-Value Function
-
-$V(s)$
-
-定义：从当前状态开始，未来预计能获得多少累计奖励。
-
-Q-Function
-
-$Q(s,a)$
-
-定义：在状态 $s$ 下先采取动作 $a$，之后预计能获得多少累计奖励。
-
-Advantage Function
-
-$A(s,a)=Q(s,a)-V(s)$
-
-定义：衡量某个动作比当前状态下的“平均选择”好多少。
-
-例子：
-
-当前状态平均预期奖励：
-
-$V(s)=5$
-
-采取动作 A：
-
-$Q(s,A)=8$
-
-那么：
-
-$A(s,A)=3$
-
-说明动作 A 比平均选择更好。
-
-------
-
-### 强化学习目标
-
-强化学习的核心目标是：
-
-$\max_\theta E[\text{累计奖励}]$
-
-也就是调整模型参数，让模型长期获得尽可能高的 reward。
-
-Finite Horizon Reward
-定义：只计算有限 $T$ 个步骤内的累计奖励。
-
-------
-
-### On-policy 与 Off-policy
-
-On-policy
-定义：训练数据由当前正在训练的模型自己生成。
-
-Off-policy
-定义：训练数据由其他模型或者旧版本模型生成。
-
-例子：
-
-当前模型生成回答，再拿这些回答训练当前模型：on-policy。
-
-GPT-4 生成数据，用来训练另一个小模型：off-policy。
-
-------
-
-### Reference Model
-
-Reference Model（参考模型）
-
-定义：RLHF 中保留的一个固定模型，用来约束训练后的模型不要偏离原模型太远。
-
-通常会通过 KL penalty 比较：
-
-$\pi_\theta$
-
-和
-
-$\pi_{ref}$
-
-------
-
-### Synthetic Data
-
-合成数据（Synthetic Data）
-
-定义：由 AI 模型生成，而不是人工直接创建的训练数据。
-
-例子：
-让一个强模型生成 100 万道数学题及答案，再用这些数据训练另一个模型。
-
-------
-
-### Distillation
-
-蒸馏（Distillation）
-
-定义：使用强模型的输出训练另一个模型。
-
-强模型通常叫 Teacher，训练出来的模型叫 Student。
-
-例子：
-
-GPT 类强模型生成答案
-→ 用这些答案训练一个 7B 小模型。
-
-------
-
-### Knowledge Distillation
-
-知识蒸馏（Knowledge Distillation）
-
-定义：学生模型不仅学习教师最终选出的 token，还学习教师对整个词表的概率分布。
-
-例如教师模型预测：
-
-苹果：0.6
-香蕉：0.3
-汽车：0.01
-
-学生不仅学习“苹果是正确答案”，还学习这种概率结构。
-
-------
-
-### In-context Learning
-
-上下文学习（In-Context Learning, ICL）
-
-定义：不给模型更新参数，而是在 Prompt 中提供信息或示例，让模型临时学会任务。
-
-例子：
-
-输入：
-
-猫 → cat
-狗 → dog
-苹果 →
-
-模型可能回答：
-
-apple
-
-这就是 few-shot ICL。
-
-------
-
-### Chain of Thought
-
-思维链（Chain of Thought, CoT）
-
-定义：让模型通过中间推理步骤解决复杂问题，而不是直接给最终答案。
-
-例子：
-
-问题：23 × 17 是多少？
-
-CoT：
-
-23 × 10 = 230
-23 × 7 = 161
-230 + 161 = 391
-
-答案：391。
-
-------
-
-2）English
-
-### Language Modeling
-
-Autoregressive Language Model
-Definition: A model generates text sequentially, where each token is predicted based on the tokens that came before it.
-
-$P_\theta(x)=\prod_{t=1}^{T}P_\theta(x_t|x_{
-
-Example:
-Given “The weather today is very”, the model predicts the next token based on the previous context.
-
-Negative Log-Likelihood (NLL)
-Definition: During training, the model is encouraged to assign high probability to the correct next token. A lower probability for the correct token produces a larger loss.
-
-Cross-Entropy Loss
-Definition: A loss function that measures the difference between the model's predicted token distribution and the true token.
-
-Transformer
-Definition: The dominant neural-network architecture used in modern large language models. Its central mechanism is self-attention.
-
-Self-Attention
-Definition: A mechanism that allows each token to attend to other tokens in the context and assign different levels of importance to them.
-
-LM Head
-Definition: The final layer that maps the model's internal hidden representation into probabilities over the vocabulary.
-
-------
-
-### KL Divergence
-
-Kullback-Leibler Divergence
-
-Definition: A measure of how different one probability distribution is from another.
-
-$D_{KL}(P||Q)=\sum_xP(x)\log\frac{P(x)}{Q(x)}$
-
-In RLHF, it is commonly used to prevent the trained model from moving too far away from a reference model.
-
-------
-
-### NLP Concepts
-
-Prompt
-Definition: The text provided as input to a language model.
-
-Completion
-Definition: The output generated by the model in response to the prompt.
-
-Chosen Completion
-Definition: The response preferred by a human or preference model.
-
-Rejected Completion
-Definition: The less preferred response.
-
-Preference Relation
-
-$y_{chosen}\succ y_{rejected}$
-
-This means the chosen response is preferred over the rejected response.
-
-Policy
-
-$\pi_\theta(y|x)$
-
-Definition: The probability distribution over possible outputs $y$ given a prompt $x$.
-
-In RLHF, the language model itself can be viewed as the policy.
-
-------
-
-### Reinforcement Learning Concepts
-
-State
-Definition: The current information available to the agent.
-
-For a language model, this can be viewed as the text generated so far.
-
-Action
-Definition: A decision made by the agent.
-
-For an LLM, an action can be viewed as selecting the next token.
-
+```text
 Reward
-Definition: A scalar value indicating how good an action or output is.
+   ↓
+Advantage
+   ↓
+Policy Gradient
+```
 
-Trajectory
-Definition: A complete sequence of states, actions, and rewards experienced by an agent.
+例如 GRPO：
 
-For an LLM, it can roughly correspond to one complete generation.
+```text
+Prompt
+├── Response A → reward 1
+├── Response B → reward 0
+├── Response C → reward 1
+└── Response D → reward 0
+        ↓
+group-relative advantage
+```
 
-Policy
-Definition: A probability distribution over actions given a state.
-
-$\pi(a|s)$
-
-For an LLM, this corresponds to the probability distribution over the next token.
-
-Discount Factor
-
-$\gamma$
-
-Definition: A parameter controlling how much future rewards matter.
-
-A smaller $\gamma$ emphasizes immediate rewards, while a value closer to 1 emphasizes long-term rewards.
+GRPO 会对同一个 Prompt 的多个回答进行组内相对比较，因此可以不使用独立 Critic。vime 当前直接支持 GRPO、GSPO、CISPO、REINFORCE++、PPO 等 advantage estimator。([vLLM](https://docs.vllm.ai/projects/vime/en/latest/get_started/usage.html?utm_source=chatgpt.com))
 
 ------
 
-### Value, Q, and Advantage
+4）veRL：更像 RL 的“总调度器”
 
-Value Function
+典型关系是：
 
-$V(s)$
+```mermaid
+flowchart TD
+    A[veRL RLTrainer]
 
-Definition: The expected cumulative future reward starting from state $s$.
+    A --> B[Actor<br/>训练 Policy]
+    A --> C[Rollout<br/>vLLM]
+    A --> D[Reference Policy]
+    A --> E[Reward / Critic]
 
-Q-Function
+    C --> F[Completions]
+    F --> E
+    E --> G[Reward / Advantage]
+    G --> B
 
-$Q(s,a)$
+    B --> H[Updated Actor]
+    H --> C
+```
 
-Definition: The expected cumulative reward after taking action $a$ in state $s$.
+veRL 使用 HybridFlow / Hybrid-Controller 架构：上层 `RLTrainer` 负责整个 RL dataflow，下层使用 FSDP、Megatron 等训练后端以及 vLLM 等 rollout engine 做分布式计算。([GitHub](https://github.com/verl-project/verl/blob/main/docs/blog/v0.7.md?utm_source=chatgpt.com))
 
-Advantage Function
+所以可以记成：
 
-$A(s,a)=Q(s,a)-V(s)$
-
-Definition: Measures how much better an action is compared with the average action in that state.
-
-------
-
-### Reinforcement Learning Objective
-
-The main goal of reinforcement learning is:
-
-$\max_\theta E[\text{cumulative reward}]$
-
-The model parameters are optimized so that the policy receives higher expected reward.
-
-Finite Horizon Reward
-Definition: The expected cumulative reward over a limited number of steps $T$.
-
-------
-
-### On-policy and Off-policy
-
-On-policy
-Definition: Training data is generated by the current model being optimized.
-
-Off-policy
-Definition: Training data is generated by another model or an older version of the model.
-
-Example:
-
-Current model generates responses and learns from them → on-policy.
-
-A stronger external model generates training responses → off-policy.
+```text
+veRL
+├── orchestration
+├── Actor training
+├── Reward
+├── Advantage
+├── PPO / GRPO
+└── vLLM
+    └── Rollout
+```
 
 ------
 
-### Reference Model
+5）vime：结构更直接地围绕“Training + vLLM”
 
-Reference Model
+vime 本身就是 vLLM 生态里的 RL post-training framework，它基于 slime，把 **Megatron training 和 vLLM rollout** 直接连接起来。([vLLM](https://docs.vllm.ai/projects/vime/en/latest/index.html?utm_source=chatgpt.com))
 
-Definition: A fixed model used during RLHF to prevent the optimized model from deviating too far from its original behavior.
+它的核心结构可以画成：
 
-The difference between
+```mermaid
+flowchart TD
+    A[Prompt / Data Buffer]
+    --> B[vLLM + Router<br/>Rollout]
 
-$\pi_\theta$
+    B --> C[Completion]
+    C --> D[Reward / Verifier]
 
-and
+    D --> E[Data Buffer]
+    E --> F[Megatron Trainer<br/>RL Update]
 
-$\pi_{ref}$
+    F --> G[Updated Weights]
+    G --> H[Weight Sync]
 
-is often controlled using KL divergence.
+    H --> B
+```
 
-------
+官方把它概括为三个部分：
 
-### Synthetic Data
+```text
+vime
+├── Training
+│   └── Megatron
+│
+├── Rollout
+│   └── vLLM + Router
+│
+└── Data Buffer
+    └── 连接 generation 与 training
+```
 
-Synthetic Data
-
-Definition: Training data generated by another AI system rather than directly created by humans.
-
-Example:
-A strong model generates one million math problems and solutions, which are then used to train another model.
-
-------
-
-### Distillation
-
-Distillation
-
-Definition: Training a new model using outputs generated by a stronger model.
-
-The stronger model is often called the teacher, while the trained model is called the student.
-
-------
-
-### Knowledge Distillation
-
-Knowledge Distillation
-
-Definition: The student learns the teacher model's full probability distribution over possible tokens rather than only learning the final selected answer.
-
-For example, the teacher may predict:
-
-Apple: 0.60
-Banana: 0.30
-Car: 0.01
-
-The student learns this probability structure.
+这正是 vime 的三阶段 train-inference 架构。([vLLM Blog](https://vllm-project.github.io/2026/06/09/announcing-vime.html?utm_source=chatgpt.com))
 
 ------
 
-### In-Context Learning
+6）所以 veRL + vLLM 和 vime + vLLM 的区别
 
-In-Context Learning (ICL)
+最简单记：
 
-Definition: The model learns how to perform a task from information or examples included in the prompt without changing its parameters.
+```text
+veRL + vLLM
 
-Example:
+veRL
+├── RL orchestration
+├── Actor / Critic / Ref
+├── PPO / GRPO / ...
+└── vLLM
+    └── rollout
+```
 
-Cat → cat
-Dog → dog
-Apple →
+而：
 
-The model predicts:
+```text
+vime
 
-apple
+vime
+├── Megatron training
+├── Data Buffer
+└── vLLM + Router
+    └── rollout
+```
 
-------
+**vime 已经把 vLLM 当作默认 rollout backend，因此通常不用理解成“vime 外面再加一个 vLLM”；vLLM 本身就是 vime 架构中的核心部分。** ([vLLM](https://docs.vllm.ai/projects/vime/en/latest/index.html?utm_source=chatgpt.com))
 
-### Chain of Thought
+最终还是你之前那条主线：
 
-Chain of Thought (CoT)
+```text
+Prompt
+  ↓
+Current Policy
+  ↓
+vLLM Rollout
+  ↓
+Completion
+  ↓
+Reward
+  ↓
+Advantage
+  ↓
+veRL / vime Optimization
+  ↓
+Updated Policy
+  ↓
+Sync to vLLM
+  ↓
+next rollout...
+```
 
-Definition: A method in which a model uses intermediate reasoning steps to solve a problem rather than immediately producing the final answer.
+也就是说，**RL LLM training 本质上就是不断循环：生成 → 打分 → 更新 → 用新模型重新生成。**
 
-Example:
 
-23 × 17
 
-23 × 10 = 230
-23 × 7 = 161
-230 + 161 = 391
 
-Final answer: 391.
+
+
+
+# 相关概念
+
+1）自回归语言模型：按照序列顺序生成 token，每个 token 的预测都依赖此前已经出现的 token。
+Autoregressive Language Model: A language model that predicts each token based on the tokens that precede it.
+Example: Given “The weather today is”, the model predicts the next token such as “sunny”.
+
+2）负对数似然损失（NLL）：衡量模型赋予真实 token 的概率，真实 token 概率越低，损失越大。
+Negative Log-Likelihood (NLL): A loss that penalizes the model when it assigns low probability to the correct token.
+Example: If the correct token has probability 0.01, the loss is larger than if its probability is 0.9.
+
+3）交叉熵损失：衡量模型预测的概率分布与真实目标分布之间的差异，是语言模型常用的训练损失。
+Cross-Entropy Loss: A loss function that measures the difference between the predicted probability distribution and the target distribution.
+Example: The model predicts probabilities over all vocabulary tokens and is penalized when the correct token receives low probability.
+
+4）仅解码器 Transformer：一种主要用于自回归生成的 Transformer 架构，只使用解码器模块根据已有上下文预测后续 token。
+Decoder-Only Transformer: A Transformer architecture that uses decoder blocks to autoregressively predict future tokens from previous context.
+Example: GPT-style models generate text one token at a time using a decoder-only architecture.
+
+5）自注意力机制：让每个 token 根据上下文中其他 token 的相关性分配不同注意力权重。
+Self-Attention: A mechanism that allows each token to assign different attention weights to other tokens in the context.
+Example: In “The animal didn’t cross the street because it was tired,” attention can help relate “it” to “animal”.
+
+6）LM Head：将模型内部隐藏表示映射到词表空间，从而得到每个候选 token 的分数或概率。
+Language Modeling Head: The final projection layer that maps hidden representations to scores over the vocabulary.
+Example: A hidden vector is converted into logits for tokens such as “apple”, “banana”, and “car”.
+
+7）KL 散度：衡量两个概率分布之间差异的指标，分布越不同，KL 散度通常越大。
+Kullback-Leibler Divergence: A measure of how one probability distribution differs from another probability distribution.
+Example: A model changing from {A: 0.6, B: 0.4} to {A: 0.1, B: 0.9} produces a relatively large KL divergence.
+
+8）Prompt（提示）：输入给语言模型、用于引导其生成回答或补全的文本。
+Prompt: The input text given to a language model to guide its response or completion.
+Example: “Explain reinforcement learning in simple terms.”
+
+9）Completion（补全）：语言模型针对给定 Prompt 生成的输出文本。
+Completion: The text generated by a language model in response to a prompt.
+Example: Prompt: “The capital of France is” → Completion: “Paris.”
+
+10）Chosen Completion（选中补全）：多个候选回答中被人类或偏好系统认为更好的回答。
+Chosen Completion: The response selected as preferable among multiple candidate completions.
+Example: Between two answers, the clearer and more accurate response is marked as chosen.
+
+11）Rejected Completion（被拒补全）：在偏好比较中被认为相对较差的候选回答。
+Rejected Completion: The response considered less preferable in a pairwise preference comparison.
+Example: A vague or incorrect answer may be labeled as rejected.
+
+12）偏好关系：用于表示一个回答相对于另一个回答更受偏好，通常写作 $y_{chosen}\succ y_{rejected}$。
+Preference Relation: A relation indicating that one completion is preferred over another, often written as $y_{chosen}\succ y_{rejected}$.
+Example: Response A ≻ Response B means Response A is preferred to Response B.
+
+13）Policy（语言模型语境）：给定 Prompt 后，模型对所有可能 Completion 的概率分布。
+Policy in Language Modeling: The probability distribution over possible completions given a prompt.
+Example: For the same prompt, the policy may assign different probabilities to several possible answers.
+
+14）Reward（奖励）：表示某个动作、状态或结果好坏程度的标量信号。
+Reward: A scalar signal representing how desirable an action, state, or outcome is.
+Example: A correct answer may receive reward +1, while an incorrect answer receives reward 0.
+
+15）Action（动作）：智能体在某个状态下选择执行的行为。
+Action: A decision or behavior selected by an agent in a given state.
+Example: In language generation, selecting the next token can be treated as an action.
+
+16）State（状态）：描述智能体当前所处环境或情境的信息。
+State: The current configuration or information describing the agent’s situation in an environment.
+Example: In text generation, the tokens generated so far can be treated as the current state.
+
+17）Trajectory（轨迹）：智能体与环境交互过程中形成的一系列状态、动作和奖励。
+Trajectory: A sequence of states, actions, and rewards generated during an agent’s interaction with an environment.
+Example: A complete episode from the initial state to the final state forms one trajectory.
+
+18）Trajectory Distribution（轨迹分布）：在特定策略和环境转移规则下，不同轨迹出现的概率分布。
+Trajectory Distribution: The probability distribution over trajectories induced by a policy and the environment dynamics.
+Example: Different action choices can lead to different trajectories with different probabilities.
+
+19）Policy（强化学习语境）：定义智能体在给定状态下选择各个动作概率的规则。
+Policy in Reinforcement Learning: A rule or probability distribution that determines which actions an agent selects in each state.
+Example: In state S, a policy may choose action A with probability 0.7 and action B with probability 0.3.
+
+20）Discount Factor（折扣因子）：控制未来奖励相对于当前奖励重要程度的参数，通常记为 $\gamma$。
+Discount Factor: A parameter, usually denoted by $\gamma$, that controls how much future rewards are valued relative to immediate rewards.
+Example: With γ = 0.9, rewards farther in the future contribute progressively less to the total return.
+
+21）Value Function（价值函数）：估计从某个状态开始，按照某策略未来能够获得的期望累计奖励。
+Value Function: The expected cumulative future reward starting from a given state under a particular policy.
+Example: If entering state S is expected to yield a total future reward of 8, then V(S) = 8.
+
+22）Q-Function（Q 函数）：估计在某状态采取特定动作后，未来能够获得的期望累计奖励。
+Q-Function: The expected cumulative future reward obtained by taking a particular action in a given state and then following a policy.
+Example: If taking action A in state S is expected to yield a return of 10, then Q(S,A) = 10.
+
+23）Advantage Function（优势函数）：衡量某个动作相对于该状态下平均策略行为好多少，通常定义为 $A(s,a)=Q(s,a)-V(s)$。
+Advantage Function: A function measuring how much better an action is than the policy’s average behavior in a given state.
+Example: If Q(S,A) = 10 and V(S) = 7, then A(S,A) = 3.
+
+24）策略条件下的取值：表示 Value、Q、Advantage 等量是在某个特定策略下计算或估计的。
+Policy-Conditioned Values: Values such as V, Q, and A that are defined or estimated with respect to a particular policy.
+Example: $V^{\pi_1}(s)$ and $V^{\pi_2}(s)$ may differ because the two policies behave differently.
+
+25）奖励优化期望：强化学习通过调整策略参数，使策略产生的轨迹获得尽可能高的期望累计奖励。
+Expectation of Reward Optimization: The reinforcement learning objective of adjusting policy parameters to maximize expected cumulative reward.
+Example: A policy is updated so that actions leading to higher long-term rewards become more likely.
+
+26）有限视野奖励：只考虑有限数量步骤内获得的累计奖励，而不是无限未来的奖励。
+Finite Horizon Reward: The cumulative reward evaluated over a fixed and finite number of time steps.
+Example: An agent may optimize the total reward obtained during the next 20 steps.
+
+27）On-Policy：训练数据由当前策略或当前模型版本自身生成。
+On-Policy: Training data is generated by the current policy or current version of the model being optimized.
+Example: The current model generates responses, receives rewards, and learns directly from those responses.
+
+28）Off-Policy：训练数据来自其他策略、其他模型或旧版本模型，而不是当前策略本身。
+Off-Policy: Training data is generated by a different policy, another model, or an older version of the current model.
+Example: A model is trained using responses previously generated by another model.
+
+29）Reference Model（参考模型）：RLHF 中保持固定的模型，用于限制正在优化的策略模型不要偏离原始行为过远。
+Reference Model: A fixed model used in RLHF to regularize the optimized policy and prevent it from drifting too far from its original behavior.
+Example: The policy is penalized when its output distribution becomes too different from the reference model.
+
+30）Synthetic Data（合成数据）：由人工智能系统生成，而不是由人工直接创建或真实世界直接收集的训练数据。
+Synthetic Data: Training data generated by an AI system rather than directly created by humans or collected from real-world observations.
+Example: A large model generates one million question-answer pairs for training another model.
+
+31）Distillation（蒸馏）：利用较强模型生成的输出训练另一个模型，使后者学习前者的能力或行为。
+Distillation: A training approach in which outputs from a stronger model are used to train another model to imitate its capabilities or behavior.
+Example: A large model generates high-quality answers that are used to fine-tune a smaller model.
+
+32）Knowledge Distillation（知识蒸馏）：让学生模型学习教师模型的输出概率分布，而不仅仅学习最终选出的正确答案。
+Knowledge Distillation: A teacher-student training method in which the student learns the teacher’s probability distribution over outputs rather than only the final target.
+Example: Instead of learning only “cat”, the student learns that the teacher assigns 0.8 to “cat”, 0.15 to “dog”, and 0.05 to other tokens.
+
+33）Teacher Model（教师模型）：知识蒸馏中提供目标概率分布或行为示范的较强模型。
+Teacher Model: The stronger model that provides target distributions or behavioral supervision during knowledge distillation.
+Example: A 70B model can act as the teacher for a smaller 7B model.
+
+34）Student Model（学生模型）：知识蒸馏中通过学习教师模型输出而被训练的模型。
+Student Model: The model trained to imitate the outputs or probability distributions of a teacher model.
+Example: A 7B model learns from probability distributions produced by a larger teacher model.
+
+35）In-Context Learning（上下文学习，ICL）：通过在 Prompt 中加入说明或示例，让模型在不更新参数的情况下临时适应任务。
+In-Context Learning (ICL): The ability of a model to adapt to a task using instructions or examples in its context without updating its parameters.
+Example: “cat → animal, apple → fruit, dog →” allows the model to infer the expected answer “animal”.
+
+36）Chain of Thought（思维链，CoT）：通过生成或利用中间推理步骤来完成复杂问题求解的方法。
+Chain of Thought (CoT): An approach in which intermediate reasoning steps are used to solve a complex problem.
+Example: “23 × 17 = 23 × 10 + 23 × 7 = 230 + 161 = 391.”
