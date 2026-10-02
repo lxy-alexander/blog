@@ -10,7 +10,107 @@ lang: ""
 createdAt: "2026-09-19T03:00:49.708.672816897Z"
 ---
 
+截至 2026-09-24，官方以 “vLLM × RL Roadmap” 命名的总表只有 [2026 Q2 Roadmap #41733](https://github.com/vllm-project/vllm/issues/41733)，共 18 项。父 issue 已关闭，但部分子项目仍在推进。
 
+状态：✅ 已交付/基础能力已落地；🟡 仍在推进；⚪ 原方案未合并或取消。
+
+| 方向            | Roadmap 项目                                 | 当前状态                                                     |
+| --------------- | -------------------------------------------- | ------------------------------------------------------------ |
+| 训练—推理一致性 | 1. R3 MoE routing replay                     | ✅ [#39568](https://github.com/vllm-project/vllm/pull/39568) 已合并 |
+|                 | 2. P/D 分离部署支持 R3                       | 🟡 [#45419](https://github.com/vllm-project/vllm/pull/45419) 开放草稿 |
+|                 | 3. KV offload 支持 R3                        | ✅ [#45635](https://github.com/vllm-project/vllm/pull/45635) 已合并 |
+|                 | 4. FlashInfer MoE 支持 R3                    | ✅ [#44214](https://github.com/vllm-project/vllm/pull/44214) 已合并 |
+|                 | 5. `render/derender` reasoning、tool parsing | ✅ [#45919](https://github.com/vllm-project/vllm/pull/45919) 已合并 |
+|                 | 6. logits/logprobs 语义与确定性统一          | 🟡 [#42259](https://github.com/vllm-project/vllm/issues/42259) |
+| 运行时切换      | 7. 原生、标准化权重同步 API                  | ✅ 基础能力已发布；[#31848](https://github.com/vllm-project/vllm/issues/31848) 仍在继续完善 |
+|                 | 8. Sparse/增量权重更新                       | 🟡 Roadmap 已勾选，但 [#39451](https://github.com/vllm-project/vllm/issues/39451) 仍开放 |
+|                 | 9. DPEP/coordinator-safe pause/resume        | ✅ [#32103](https://github.com/vllm-project/vllm/issues/32103)；已支持 `abort/wait/keep` |
+|                 | 10. Sleep 时卸载 CUDA Graph/NCCL context     | ⚪ [#46234](https://github.com/vllm-project/vllm/pull/46234) 已关闭、未合并 |
+| Rollout 性能    | 11. KV cache/prefix cache 跨阶段复用         | ✅ [#42694](https://github.com/vllm-project/vllm/pull/42694) 已合并 |
+|                 | 12. Prefill/Decode 分离 rollout              | ✅ [verl #6243](https://github.com/verl-project/verl/pull/6243) 已合并 |
+|                 | 13. 长尾场景吞吐/延迟动态 profile            | ⚪ [#41821](https://github.com/vllm-project/vllm/issues/41821) 以 `not planned` 关闭；部分能力由动态 speculative decoding 承接 |
+|                 | 14. 更成熟的 FP8 WA KV-cache rollout         | 🟡 无独立总 tracker                                           |
+|                 | 15. RDMA rollout artifact 数据面             | 🟡 [#45221](https://github.com/vllm-project/vllm/issues/45221) |
+| 工作负载        | 16. 多模态 RL，vLLM-Omni × verl-omni         | ✅ 基线已建立，后续仍在 [verl-omni](https://github.com/verl-project/verl-omni) 持续开发 |
+| 可观测性/CI     | 17. Rollout 活性、配置和调试信号             | 🟡 [#38147](https://github.com/vllm-project/vllm/issues/38147) |
+|                 | 18. Sleep/wake/pause/weight-update E2E CI    | 🟡 原 [#45586](https://github.com/vllm-project/vllm/pull/45586) 未合并；新版总设计 [#45585](https://github.com/vllm-project/vllm/issues/45585) 已完成 |
+
+### Q2 之后的实际主线
+
+现在应重点跟踪下面几个长期 RFC，而不是只看已经关闭的 Q2 总表：
+
+-   [训练—推理一致性 #48305](https://github.com/vllm-project/vllm/issues/48305)：token/logprob replay、R3、DSA index replay、GPU 数据面、hidden-state replay、FP32 logits。
+-   [Engine lifecycle #48311](https://github.com/vllm-project/vllm/issues/48311)：`rollout → drain → sleep → train → wake → update → rollout`。
+-   [Sleep/Wake 正确性 #48310](https://github.com/vllm-project/vllm/issues/48310)：并发静默、显存所有权、状态恢复、异构 KV/SSM 状态、缓存失效、请求连续性。
+-   [Weight Reload 正确性 #48312](https://github.com/vllm-project/vllm/issues/48312)：storage identity、运行时派生权重刷新、loader 生命周期、TP/PP 分片、名称映射、缓存版本一致性。
+-   [模型专项权重更新 #50079](https://github.com/vllm-project/vllm/issues/50079)：Kimi K3、DeepSeek V4.1 Flash、Qwen Flash 系列的 reload/sleep-wake 修复。
+
+
+
+看过了。官方 Q3 专项总表是 [2026 Q3 vLLM × RL #48314](https://github.com/vllm-project/vllm/issues/48314)，属于总 [vLLM Q3 Roadmap #48168](https://github.com/vllm-project/vllm/issues/48168) 的 RL Ecosystem 部分。截至 2026-09-24，专项 roadmap 仍然开放。
+
+## Q3 全部路线
+
+| 主线               | 内容                        | 当前情况                                                     |
+| ------------------ | --------------------------- | ------------------------------------------------------------ |
+| 1. 状态切换        | 权重更新生命周期            | [Native Weight Sync #31848](https://github.com/vllm-project/vllm/issues/31848)；基础 NCCL/IPC API 已落地，RFC 重开继续处理多并行、reshard、正确性 |
+|                    | Sleep/Wake/Drain 调度       | [Engine Lifecycle #48311](https://github.com/vllm-project/vllm/issues/48311)；仍开放 |
+| 2. RL 信息获取     | RL Dev API                  | [#48306](https://github.com/vllm-project/vllm/issues/48306)：`abort_requests` 已合并，pause-state metric 尚未完成 |
+|                    | Weight Version Tagging      | 为每个 rollout 标记生成时使用的权重版本；HTTP 查询及响应 metadata 尚未完成 |
+|                    | Runtime Data Endpoints      | 暴露引擎配置、运行状态和调试数据，仍在推进                   |
+| 3. 训练—推理一致性 | Logprobs 与 Token-ID replay | [Consistency RFC #48305](https://github.com/vllm-project/vllm/issues/48305) |
+|                    | R3 MoE routing replay       | 覆盖 FlashInfer、P/D、KV offload                             |
+|                    | DSA index replay            | 面向 DeepSeek V3.2/V4 类动态稀疏注意力                       |
+|                    | Rollout artifact data plane | 把 logprobs、routing indices、DSA indices 直接传回 trainer   |
+|                    | Hidden-state replay         | 面向 OPD/teacher-student 等训练                              |
+|                    | Dtype replay                | 解决推理 logits 精度与训练 FP32 路径不一致                   |
+| 4. 能力扩展        | 两阶段性能 profile          | [#41821](https://github.com/vllm-project/vllm/issues/41821) 已以 `not planned` 关闭，是 Q3 中明确没有按原 RFC 推进的一项 |
+|                    | 多模态生成 RL               | [verl #5755](https://github.com/verl-project/verl/issues/5755)，已迁移到 verl-omni；图像 rollout 基线已具备，DP、FP8、全异步、视频/音频/Omni 仍未完成 |
+|                    | RL LoRA 生命周期            | [#48297](https://github.com/vllm-project/vllm/issues/48297)：Sleep/Wake 崩溃、adapter-only sync、LoRA+MoE logprob mismatch 三个重点 |
+
+## Q3 真正的核心
+
+Q2 更偏“把功能接起来”；Q3 明显转向“让 RL 生命周期可证明地正确”：
+
+```
+pause/drain
+  → sleep
+  → wake(weights)
+  → reload/update
+  → post-load finalize
+  → wake(KV cache)
+  → invalidate stale caches
+  → resume
+```
+
+因此实际还要同时关注两个开放的正确性 tracker：
+
+-   [Sleep/Wake Correctness #48310](https://github.com/vllm-project/vllm/issues/48310)：并发静默、显存映射、KV/SSM 状态恢复、缓存一致性。
+-   [Weight Reload Correctness #48312](https://github.com/vllm-project/vllm/issues/48312)：CUDA Graph storage identity、派生权重刷新、loader 生命周期、TP 分片、key mapping、缓存版本。
+
+## 判断
+
+Q3 尚未“完成”。当前成熟度大致是：
+
+-   原生权重同步、pause/resume、基础多模态 rollout：已有可用实现。
+-   权重版本追踪、完整 runtime introspection：仍缺。
+-   Sleep/wake + reload 在 MoE、量化、LoRA、Mamba、CUDA Graph 等组合下：仍处于系统性补正确性阶段。
+-   训练—推理一致性已经成为主轴，尤其是 logprob、routing、DSA、hidden state 和 dtype replay。
+-   Q3 最值得 Megatron × vLLM 集成跟进的是 `#31848 + #48305 + #48310 + #48312`，而不是已取消的 adaptive-profile RFC。
+
+
+
+### 与当前 Megatron-LM 仓库的关系
+
+这里需要明确区分：
+
+-   Megatron 原生 inference 是面向 RL rollout 的另一条路线，与 vLLM 是互补关系，不是直接嵌入 vLLM 引擎，见 [MCore inference guide (line 43)](/data/home/xli49/lxy/Megatron-LM/docs/mcore-inference-user-guide.md:43)。
+-   代码里的 “vLLM-style API” 和 “vLLM fused MoE kernel” 不等于完整的 vLLM rollout backend。
+-   如果目标是 **Megatron 训练 × vLLM rollout**，目前最直接的官方路线是 [vime](https://github.com/vllm-project/vime)：后续重点是 P/D、FP8、多模型服务、全异步 RL、train-inference mismatch correction、Agentic RL、MoE/VLM。Megatron-RL 自身则采用可替换的 `InferenceInterface`，见 [Megatron-RL README (line 19)](/data/home/xli49/lxy/Megatron-LM/megatron/rl/README.md:19)。
+
+
+
+# Arch
 
 
 

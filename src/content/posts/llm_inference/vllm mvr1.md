@@ -1,14 +1,18 @@
 ---
-title: "vllm mvr1 mvr2"
+title: "vllm mvr1"
 published: 2026-08-28
-description: "vllm mvr1 mvr2"
+description: "vllm mvr1"
 image: ""
-tags: ["llm_inference","vllm mvr1 mvr2"]
+tags: ["llm_inference","vllm mvr1"]
 category: llm_inference
 draft: false
 lang: ""
 createdAt: "2026-08-28T21:59:11.772.051269411Z"
 ---
+
+
+
+# MRV1
 
 下面按照架构图中的箭头，用同一组数值追踪一次真实 MRV1 step。
 

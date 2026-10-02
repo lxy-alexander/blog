@@ -401,3 +401,297 @@ Example: “cat → animal, apple → fruit, dog →” allows the model to infe
 36）Chain of Thought（思维链，CoT）：通过生成或利用中间推理步骤来完成复杂问题求解的方法。
 Chain of Thought (CoT): An approach in which intermediate reasoning steps are used to solve a complex problem.
 Example: “23 × 17 = 23 × 10 + 23 × 7 = 230 + 161 = 391.”
+
+
+
+
+
+
+
+
+
+有，围绕“大模型怎么在多卡上训练”，最常见的是这些：
+
+1）Data Parallel（数据并行）：每张 GPU 放一份完整模型，但处理不同数据，再同步梯度。
+Data Parallel: Each GPU keeps a full model copy, processes different data, and synchronizes gradients.
+Example: GPU 0 trains batch A while GPU 1 trains batch B.
+
+2）Tensor Parallel（张量并行，TP）：把同一层里的大矩阵计算拆到多张 GPU 上。
+Tensor Parallel: Splits the computation of large tensors within the same layer across multiple GPUs.
+Example: A large linear layer is divided across four GPUs.
+
+3）Pipeline Parallel（流水线并行，PP）：把不同 Transformer 层分配到不同 GPU，像流水线一样执行。
+Pipeline Parallel: Splits different model layers across GPUs and executes them as a pipeline.
+Example: Layers 1–20 run on GPU group A and layers 21–40 on GPU group B.
+
+4）Sequence Parallel（序列并行，SP）：沿 token 序列维度拆分部分计算和激活，减少单卡显存压力。
+Sequence Parallel: Splits certain computations and activations along the sequence dimension across GPUs.
+Example: A long sequence is partitioned across multiple GPUs during training.
+
+5）Context Parallel（上下文并行，CP）：专门把超长上下文的 token 分散到多张 GPU 上处理。
+Context Parallel: Distributes long-context tokens across GPUs to support very large context windows.
+Example: A 128K-token context is divided across several GPUs.
+
+6）ZeRO：把参数、梯度或优化器状态分片到不同 GPU，核心思想和 FSDP 很接近。
+ZeRO: Shards parameters, gradients, and optimizer states across GPUs to reduce memory usage.
+Example: Optimizer states are distributed instead of replicated on every GPU.
+
+7）DDP（Distributed Data Parallel）：PyTorch 常见的数据并行方式，每张 GPU 有完整模型并同步梯度。
+Distributed Data Parallel: A PyTorch data-parallel method where each GPU holds a full model replica and synchronizes gradients.
+Example: Eight GPUs each process a different mini-batch and then average gradients.
+
+8）Gradient Accumulation（梯度累积）：多次 forward/backward 后再更新一次参数，用来模拟更大的 batch size。
+Gradient Accumulation: Accumulates gradients over multiple steps before updating parameters to simulate a larger batch size.
+Example: Four micro-batches are accumulated before one optimizer step.
+
+9）Micro Batch：单次送进一张 GPU 进行 forward/backward 的小批数据。
+Micro Batch: A small batch processed by one GPU in a single forward and backward pass.
+Example: A global batch of 1024 may use micro-batches of 4 per GPU.
+
+10）Global Batch Size（全局批大小）：所有 GPU、所有 micro-batch、所有累积步数加起来的总 batch size。
+Global Batch Size: The total effective batch size across all GPUs and gradient accumulation steps.
+Example: 8 GPUs × 4 samples × 8 accumulation steps = 256 global batch size.
+
+11）Activation Checkpointing（激活检查点）：不保存所有中间激活，反向传播时重新计算，用计算换显存。
+Activation Checkpointing: Saves memory by recomputing intermediate activations during backward instead of storing them all.
+Example: Transformer activations are recomputed during backpropagation.
+
+12）Mixed Precision（混合精度）：用 BF16、FP16 等低精度进行大部分计算，降低显存和提高吞吐。
+Mixed Precision: Uses lower-precision formats such as BF16 or FP16 for faster and more memory-efficient training.
+Example: Matrix multiplications run in BF16 while some optimizer states remain in FP32.
+
+13）BF16：大模型训练中常用的低精度格式，相比 FP16 数值范围更大，通常更稳定。
+BF16: A low-precision format commonly used in LLM training because it provides a wider numeric range than FP16.
+Example: Large-model training often uses BF16 for forward and backward computation.
+
+14）Optimizer State（优化器状态）：Adam 之类优化器额外保存的动量和方差参数，显存占用通常很大。
+Optimizer State: Extra tensors maintained by optimizers such as Adam, often consuming substantial GPU memory.
+Example: Adam stores first- and second-moment estimates for every parameter.
+
+15）All-Reduce：多 GPU 之间聚合梯度或张量的通信操作。
+All-Reduce: A collective communication operation that aggregates tensors across multiple GPUs.
+Example: Gradients from eight GPUs are summed and redistributed to all workers.
+
+16）All-Gather：把各 GPU 上分片的数据收集起来，组成完整张量。
+All-Gather: Collects tensor shards from multiple GPUs to reconstruct a larger tensor.
+Example: Parameter shards are gathered before a forward computation.
+
+17）Reduce-Scatter：先聚合数据，再把结果分片发送给不同 GPU。
+Reduce-Scatter: Reduces tensors across GPUs and distributes different shards of the result to each GPU.
+Example: Gradient shards are aggregated and split across workers.
+
+18）NCCL：NVIDIA 多 GPU 通信库，负责 All-Reduce、All-Gather 等高速 GPU 通信。
+NCCL: NVIDIA’s communication library for high-performance multi-GPU collective operations.
+Example: NCCL performs gradient synchronization across GPUs.
+
+19）FSDP：主要解决“模型状态怎么分片”。
+FSDP: Primarily solves how model states are sharded across GPUs.
+
+20）Megatron：主要解决“模型计算怎么并行”。
+Megatron: Primarily solves how model computation is parallelized across GPUs.
+
+最核心的一张关系图可以记成：
+
+```text
+Large Model Training
+│
+├── Data Parallel
+│   ├── DDP
+│   ├── FSDP
+│   └── ZeRO
+│
+├── Model Parallel
+│   ├── Tensor Parallel
+│   ├── Pipeline Parallel
+│   ├── Sequence Parallel
+│   └── Context Parallel
+│
+├── Memory Optimization
+│   ├── Gradient Accumulation
+│   ├── Activation Checkpointing
+│   └── Mixed Precision
+│
+└── Communication
+    ├── All-Reduce
+    ├── All-Gather
+    ├── Reduce-Scatter
+    └── NCCL
+```
+
+如果你接下来在看 veRL、slime、Megatron、FSDP，这些基本都会反复出现。
+
+## EP
+
+EP 是 **Expert Parallelism，专家并行**，主要用于 **MoE（Mixture of Experts，混合专家）模型**。
+
+1）为什么需要 EP
+
+MoE 模型里，一层通常不是只有一个 FFN，而是有很多个 Expert。
+
+例如一层有 8 个 Expert：
+
+```text
+Expert 0
+Expert 1
+Expert 2
+...
+Expert 7
+```
+
+每个 token 会经过 Router，通常只选择其中少数几个 Expert，比如 Top-2。
+
+问题是：如果 8 个 Expert 全放在一张 GPU 上，显存压力会很大。
+
+所以可以把 Expert 分散到不同 GPU 上，这就是 EP。
+
+2）一个简单例子
+
+假设：
+
+```text
+8 个 Expert
+4 张 GPU
+EP = 4
+```
+
+那么可以分成：
+
+```text
+GPU 0: Expert 0, 1
+GPU 1: Expert 2, 3
+GPU 2: Expert 4, 5
+GPU 3: Expert 6, 7
+```
+
+如果某个 token 被 Router 分配给 Expert 6，那么这个 token 的 hidden state 就要被发送到 GPU 3。
+
+计算完之后，再把结果发回来。
+
+所以 EP 的核心可以理解成：
+
+```text
+Router
+  ↓
+token 分配给不同 Expert
+  ↓
+All-to-All 通信
+  ↓
+不同 GPU 上的 Expert 计算
+  ↓
+All-to-All 返回结果
+```
+
+3）EP 和 TP 最大的区别
+
+TP 是 **Tensor Parallelism**，把“一个大矩阵”切到多个 GPU。
+
+例如一个 FFN：
+
+```text
+W = 一个很大的矩阵
+```
+
+TP=4：
+
+```text
+GPU0: W 的一部分
+GPU1: W 的一部分
+GPU2: W 的一部分
+GPU3: W 的一部分
+```
+
+而 EP 是把“不同 Expert”放到不同 GPU：
+
+```text
+GPU0: Expert 0
+GPU1: Expert 1
+GPU2: Expert 2
+GPU3: Expert 3
+```
+
+所以：
+
+```text
+TP：切一个模型层
+EP：切多个 Expert
+```
+
+4）为什么 EP 通信比较特殊
+
+TP 经常会看到：
+
+```text
+AllReduce
+AllGather
+ReduceScatter
+```
+
+而 EP 最经典的是：
+
+```text
+All-to-All
+```
+
+因为 token 要被动态发送到对应 Expert。
+
+例如原本：
+
+```text
+GPU0:
+token A
+token B
+token C
+token D
+```
+
+Router 得到：
+
+```text
+A → Expert 0
+B → Expert 3
+C → Expert 1
+D → Expert 3
+```
+
+如果 Expert 分布在不同 GPU，那么就需要：
+
+```text
+GPU0 → GPU0
+GPU0 → GPU3
+GPU0 → GPU1
+GPU0 → GPU3
+```
+
+这就是为什么 MoE 训练里，网络通信特别重要。
+
+5）在 Megatron 里怎么看
+
+你以后看 Megatron/Megatron-Core 配置时，经常会看到类似：
+
+```text
+tensor_model_parallel_size = 4
+pipeline_model_parallel_size = 2
+expert_model_parallel_size = 8
+```
+
+这里：
+
+```text
+TP = 4
+PP = 2
+EP = 8
+```
+
+意味着：
+
+```text
+TP：一个 tensor operation 分 4 份
+PP：Transformer layers 分成 2 个 pipeline stage
+EP：Experts 分到 8 个并行 rank
+```
+
+最值得记住的一句话是：
+
+>   **EP = 把 MoE 的不同 Expert 分散到不同 GPU，让 token 根据 Router 的选择跨 GPU 找 Expert 做计算。**
+
+你后面学 Megatron MoE 时，建议紧接着理解 **EP + All-to-All + Router + Top-K + Load Balancing**，这几个基本是一套东西。

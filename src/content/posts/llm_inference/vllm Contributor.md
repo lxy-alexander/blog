@@ -12,6 +12,10 @@ createdAt: "2026-04-27T17:06:30.677.574426455Z"
 
 # Contributing to vLLM 
 
+```python
+srun -p gpucompute-h100-preempt --cpus-per-task=8 --gpus-per-node=1 --time=120:00:00 --pty /bin/bash
+```
+
 ## 1. 整体思路
 
 -   **conda**（外层）：管 Python 版本、编译器（gcc/g++）、cmake/ninja、CUDA toolkit
@@ -469,5 +473,4 @@ Co-authored-by: OpenAI Codex <codex@openai.com>
 -   PR 已经合并：不要继续复用原分支；从最新 `upstream/main` 创建新分支和新 PR。
 -   Push 新 commit 后旧 CI 结果不再代表最新代码，需要看最新 head commit 的 checks。
 -   不要用 `git add .`，避免把现有未跟踪文件混进 PR。
-
 
