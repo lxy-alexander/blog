@@ -331,7 +331,7 @@ grep -E 'eval/[a-zA-Z]|successfully loaded checkpoint' \
 
 **不要用 loss 是否接近零判断训练是否有效。** 你的 GRPO 配置会对组内奖励进行中心化，日志里的平均 advantage、`pg_loss` 接近零可以是正常现象；应结合非零梯度、权重更新和独立评估结果判断。
 
-
+# 架构
 
 
 
@@ -543,9 +543,9 @@ class ROLLOUT_PHASE,OFFLOAD,TRAIN_PHASE,SYNC_PHASE,KV_PHASE lifecycle
 
 
 
-# 第一层
+## 第一层
 
-## 第一层代码调用 Tree
+### 第一层代码调用 Tree
 
 ```
 scripts/run-qwen3-4B.sh                                      # 第一层总入口：准备环境、组装参数并提交训练任务
@@ -701,125 +701,719 @@ scripts/run-qwen3-4B.sh                                      # 第一层总入�
                 └── rollout_manager.onload_kv.remote()       # 恢复 KV Cache/CUDA Graph；调用第 2、4 层
 ```
 
-## 第一层总结
+### 第一层总结
 
-第一层可以分成三个职责区域：
+第一层负责把“我想怎样训练”变成后续模块可以执行的配置。最重要的是三件事：**组合启动参数、校验并推导配置、用 `train.py` 控制执行顺序。**
+
+下面假设：**单机 8 张 GPU，首次训练，使用你图里的 Qwen3-4B 脚本。**
+
+**1. 启动脚本：把模型、数据、算法和资源配置拼在一起**
+
+入口是 [run-qwen3-4B.sh (line 146)](/data/home/xli49/lxy/vime/scripts/run-qwen3-4B.sh:146)。将 `${NUM_GPUS}` 代入 8，关键启动命令等价于：
 
 ```
-Shell 启动入口
+ray job submit --address="http://127.0.0.1:8265" \
+  --runtime-env-json="${RUNTIME_ENV_JSON}" \
+  -- python3 train.py \
+  --actor-num-nodes 1 \
+  --actor-num-gpus-per-node 8 \
+  --colocate \
+  ${MODEL_ARGS[@]} \
+  ${CKPT_ARGS[@]} \
+  ${ROLLOUT_ARGS[@]} \
+  ${OPTIMIZER_ARGS[@]} \
+  ${GRPO_ARGS[@]} \
+  ${PERF_ARGS[@]} \
+  ${EVAL_ARGS[@]} \
+  ${VLLM_ARGS[@]} \
+  ${MISC_ARGS[@]}
+```
+
+这里的 `${ROLLOUT_ARGS[@]}` 等变量是 Bash 数组，展开后就是一串命令行参数。它们的分组方便人阅读，进入 Python 后会汇集到同一个 `args` 对象。
+
+| 配置组           | 关键数值                          | 决定什么                           |
+| ---------------- | --------------------------------- | ---------------------------------- |
+| `MODEL_ARGS`     | 36 层、Hidden=2560、32 个注意力头 | Megatron 构建什么模型              |
+| `ROLLOUT_ARGS`   | 32 个 Prompt，每个 8 个回答       | 每轮生成多少数据                   |
+| `PERF_ARGS`      | TP=2、PP=1、CP=1；Token 预算 9216 | 模型如何并行、Micro-batch 如何组织 |
+| `GRPO_ARGS`      | `grpo`；KL、Entropy 系数均为 0    | 使用什么训练算法和损失配置         |
+| `OPTIMIZER_ARGS` | Adam、学习率 `1e-6`               | 参数如何更新                       |
+| `VLLM_ARGS`      | 每个引擎 2 GPU，显存利用率 0.7    | 推理引擎如何部署                   |
+
+**训练端和推理端的并行参数是分别配置的。** 这里两边都是 TP=2，是脚本配置的结果。
+
+------
+
+**2. 先理解三个数量：采样量、训练批次、Token 预算**
+
+脚本中最值得先看的是：
+
+```
+--rollout-batch-size 32
+--n-samples-per-prompt 8
+--global-batch-size 256
+
+--use-dynamic-batch-size
+--max-tokens-per-gpu 9216
+```
+
+前两个决定每轮采样量：
+
+```
+32 个 Prompt × 每个 8 个回答 = 256 个样本
+```
+
+`global-batch-size=256` 表示一次优化步骤使用的全局样本量。因此，在默认的一回答对应一个训练样本的路径中：
+
+```
+每轮训练步骤数 = 256 ÷ 256 = 1
+```
+
+**一个优化步骤内部可以有很多个 Micro-batch**：它们分别执行前向、反向，累积梯度，最后进行一次优化器更新。
+
+`9216` 则是动态 Micro-batch 的 Token 预算，统计 **Prompt + Response**。例如三个样本各有 3000 Token：
+
+```
+3 × 3000 = 9000 ≤ 9216，可以装进同一个 Micro-batch
+4 × 3000 = 12000 > 9216，需要分开
+```
+
+所以，`9216` 不表示每个回答最多生成 9216 Token。回答生成上限由另一个参数决定：
+
+```
+--rollout-max-response-len 8192
+```
+
+单个超长样本、Padding 等细节后面再看；第一层先分清这三个配置的职责。[批次参数定义 (line 703)](/data/home/xli49/lxy/vime/vime/utils/arguments.py:703)
+
+------
+
+**3. `parse_args()`：分开解析，再合并和校验**
+
+Python 入口很短：
+
+```
+if __name__ == "__main__":
+    args = parse_args()
+    train(args)
+```
+
+`--rollout-batch-size 32` 解析后变成：
+
+```
+args.rollout_batch_size == 32
+```
+
+实际解析流程可以精简为：
+
+```
+# 先解析 vLLM 参数
+vllm_ns = vllm_parse_args()
+
+# 再解析 Megatron + Vime 参数
+args = megatron_parse_args(
+    extra_args_provider=add_vime_arguments,
+    skip_hf_validate=pre.debug_rollout_only,
+)
+
+# 合并到统一 args
+for key, value in vars(vllm_ns).items():
+    setattr(args, key, value)
+
+# 分别执行校验
+vime_validate_args(args)
+megatron_validate_args(args)
+vllm_validate_args(args)
+```
+
+这是正常训练路径的摘录，省略了预解析和调试分支。[完整解析入口 (line 1724)](/data/home/xli49/lxy/vime/vime/utils/arguments.py:1724)
+
+为什么分开解析？因为三个系统各有自己的参数。Megatron 解析器会忽略不属于它的参数，vLLM 参数随后合并进来。
+
+校验也有实际作用。例如，代码会读取 `--hf-checkpoint` 下的模型配置，与 Megatron 参数比较：
+
+```
+HF 模型层数 36       ↔ --num-layers 36
+HF hidden_size 2560  ↔ --hidden-size 2560
+HF 注意力头数 32     ↔ --num-attention-heads 32
+```
+
+如果把层数误写成 32，会在配置校验时报告不一致。[模型配置校验 (line 118)](/data/home/xli49/lxy/vime/vime/backends/megatron_utils/arguments.py:118)
+
+------
+
+**4. 解析时还会推导配置：脚本没写，也可能启用**
+
+最重要的推导是 `--colocate`。当前脚本没有启用 `release_train`，也没有显式设置卸载开关，因此以下逻辑生效：
+
+```
+if args.colocate:
+    # 此处摘录当前脚本走到的分支
+    if args.offload_train is None:
+        args.offload_train = True
+
+    if args.offload_rollout is None:
+        args.offload_rollout = True
+
+    if args.rollout_num_gpus is None:
+        args.rollout_num_gpus = (
+            args.actor_num_gpus_per_node * args.actor_num_nodes
+        )
+```
+
+代入数值：
+
+```
+rollout_num_gpus = 8 × 1 = 8
+offload_train   = True
+offload_rollout = True
+```
+
+这三个结果直接决定后续的显存生命周期：**训练端和推理端分阶段使用同一组 GPU。** [Colocate 配置推导 (line 2071)](/data/home/xli49/lxy/vime/vime/utils/arguments.py:2071)
+
+另外几个结果是：
+
+| 最终配置                       | 数值及来源                                        |
+| ------------------------------ | ------------------------------------------------- |
+| 训练 `world_size`              | `1 × 8 = 8`                                       |
+| 训练 DP                        | `8 ÷ (TP=2 × PP=1 × CP=1) = 4`                    |
+| vLLM TP                        | 每引擎 2 GPU，其余推理并行维度为默认 1，因此 TP=2 |
+| 推理引擎数量                   | `8 ÷ 2 = 4`                                       |
+| `use_critic`                   | `grpo == ppo` 为 False，因此不创建 Critic         |
+| `over_sampling_batch_size`     | 未设置，默认取 `rollout_batch_size=32`            |
+| `log_probs_max_tokens_per_gpu` | 未设置，默认取 9216                               |
+
+这里 **DP=4 表示四组训练副本，每组内部两张 GPU 做 TP**。256 个样本平均每组约 64 个，但动态打包与负载均衡后，每组实际样本数可以不同。
+
+还有一个容易误解的关系：
+
+```
+if args.num_steps_per_rollout is not None:
+    global_batch_size = (
+        args.rollout_batch_size
+        * args.n_samples_per_prompt
+        // args.num_steps_per_rollout
+    )
+```
+
+当前脚本没有设置 `num_steps_per_rollout`，直接使用显式的 `global_batch_size=256`。
+
+如果加上：
+
+```
+--num-steps-per-rollout 2
+```
+
+那么要求：
+
+```
+global_batch_size = 32 × 8 ÷ 2 = 128
+```
+
+此时仍保留 `--global-batch-size 256`，就会触发一致性校验失败。[批次配置推导 (line 2109)](/data/home/xli49/lxy/vime/vime/utils/arguments.py:2109)
+
+------
+
+**5. Checkpoint 参数决定“从头训练还是继续训练”**
+
+这三个路径需要分清：
+
+```
+--hf-checkpoint /root/Qwen3-4B
+--ref-load      /root/Qwen3-4B_torch_dist
+--load         /root/Qwen3-4B_vime/
+```
+
+| 参数            | 当前脚本中的职责                                          |
+| --------------- | --------------------------------------------------------- |
+| `hf-checkpoint` | 提供 HF 模型配置、Tokenizer，以及推理初始化所需资源       |
+| `ref-load`      | 提供参考模型权重；也是首次训练时 Actor 初始权重的回退来源 |
+| `load`          | 尝试恢复已有训练 Checkpoint                               |
+
+代码首先检查 `load` 目录里是否存在 Megatron 的标记文件：
+
+```
+load_is_megatron = (
+    args.load is not None
+    and os.path.exists(args.load)
+    and os.path.exists(
+        os.path.join(args.load, "latest_checkpointed_iteration.txt")
+    )
+)
+```
+
+假设首次运行，`load` 目录没有有效 Megatron Checkpoint，也没有可加载的 HF Checkpoint，则会得到：
+
+```
+args.load = args.ref_load
+args.no_load_optim = True
+args.no_load_rng = True
+args.finetune = True
+args.start_rollout_id = 0
+```
+
+含义是：**加载初始模型权重，重新建立优化器状态，从第 0 轮开始。**
+
+如果 `load` 已有有效训练 Checkpoint，则走恢复训练路径，起始轮次由恢复后的训练状态确定。[Checkpoint 判断逻辑 (line 1942)](/data/home/xli49/lxy/vime/vime/utils/arguments.py:1942)
+
+------
+
+**6. `train.py`：根据最终配置控制顺序**
+
+初始化阶段的核心代码是：
+
+```
+pgs = create_placement_groups(args)
+
+rollout_manager, num_rollout_per_epoch = create_rollout_manager(
+    args, pgs["rollout"]
+)
+
+actor_model, critic_model = create_training_models(
+    args, pgs, rollout_manager
+)
+
+# 第一次采样之前，先同步 Actor 权重
+actor_model.update_weights()
+```
+
+**首次采样前的权重同步很重要**：Actor 可能恢复了训练 Checkpoint，vLLM 必须先收到对应权重，才能生成这一轮的训练样本。
+
+按当前 GRPO + Colocate 配置，主循环可精简为：
+
+```
+for rollout_id in range(args.start_rollout_id, args.num_rollout):
+    # 生成数据，并等待生成结束
+    rollout_data_ref = ray.get(
+        rollout_manager.generate.remote(rollout_id)
+    )
+
+    # 释放推理端显存
+    ray.get(rollout_manager.offload.remote())
+
+    # 训练，并等待训练结束
+    ray.get(
+        actor_model.async_train(rollout_id, rollout_data_ref)
+    )
+
+    # 此处省略周期保存；训练端按配置自动卸载
+
+    # 恢复推理权重空间，同步更新后的权重
+    ray.get(rollout_manager.onload_weights.remote())
+    actor_model.update_weights()
+
+    # 恢复推理缓存等资源
+    ray.get(rollout_manager.onload_kv.remote())
+```
+
+这是按本配置精简后的执行顺序。[训练主循环 (line 49)](/data/home/xli49/lxy/vime/train.py:49)
+
+注意两点：
+
+-   **`async_train` 的名字不代表这里采样与训练重叠。** 外层 `ray.get(...)` 会等待训练完成，再继续同步权重，因此这个入口执行的是同步闭环。
+-   **`num_rollout=3000` 是总轮次上限。** 首次运行是 `range(0, 3000)`；如果恢复起点是 100，就执行 `range(100, 3000)`。
+
+当前脚本每完成 20 轮保存、评估一次：对应 `rollout_id=19、39、59…`；第 0 轮采样前默认还会做一次初始评估。这样第一层既确定“如何训练”，也确定“从哪里开始、运行多少轮、何时检查结果”。
+
+
+
+## 第二层
+
+第二层负责把第一层的配置变成真正运行的进程，并安排它们使用 GPU。
+
+```python
+scripts/run-qwen3-4B.sh
+└── ray job submit：提交入口命令
+    └── Ray Jobs 服务
+        └── JobSupervisor：启动和监控作业
+            └── subprocess.Popen(...)
+                └── python3 train.py：Driver 进程
+                    ├── parse_args()
+                    └── train(args)
+                        ├── 创建 Placement Group
+                        ├── 请求 Ray 创建 RolloutManager Actor
+                        ├── 请求 Ray 创建 8 个训练 Actor
+                        └── 控制每轮生成、训练、权重同步
+```
+
+
+
+继续代入这组数值：
+
+```
+单机 8 GPU
+Megatron：TP=2、PP=1、CP=1 → DP=4
+vLLM：每个引擎使用 2 GPU → 4 个推理引擎
+Colocate=True
+```
+
+重点看五件事：**谁负责调度、如何预留 GPU、如何创建进程、如何共享 GPU、如何等待任务完成。**
+
+**1. 先分清三个角色：Driver、RolloutManager、RayTrainGroup**
+
+入口在 [train.py (line 13)](/data/home/xli49/lxy/vime/train.py:13)：
+
+```
+pgs = create_placement_groups(args)
+
+rollout_manager, num_rollout_per_epoch = create_rollout_manager(
+    args, pgs["rollout"]
+)
+
+actor_model, critic_model = create_training_models(
+    args, pgs, rollout_manager
+)
+```
+
+这三行分别完成资源预留、推理侧创建和训练侧创建。
+
+
+
+| 对象                             | 在哪里运行                                                   | 负责什么                                     |
+| -------------------------------- | ------------------------------------------------------------ | -------------------------------------------- |
+| Driver，即执行 `train.py` 的进程 | Ray Job 的入口进程， ray start --head ... --dashboard-port=8265， 启动 Ray 集群相关服务，让它能够接收作业、安排进程。 | 控制生成、训练、保存、同步的顺序             |
+| `RolloutManager`                 | 独立的 CPU Ray Actor 进程                                    | 管理数据源、推理服务和生成任务，整理训练数据 |
+| `RayTrainGroup`                  | Driver 中的普通 Python 对象                                  | 管理并调用 8 个训练 Actor                    |
+| `MegatronTrainRayActor`          | 8 个独立的 Ray Actor 进程                                    | 每个绑定一张 GPU，参与 Megatron 分布式训练   |
+
+**`RayTrainGroup` 自己不是训练进程。** 它持有训练 Actor 的远程句柄，负责向这些进程发命令。
+
+`RolloutManager` 则确实是远程 Actor：==让 Ray 创建一个独立的 RolloutManager 进程，并拿到调用它的句柄。==
+
+```
+@ray.remote
+class RolloutManager:
+    ...
+```
+
+创建时申请的资源是, 字典指定这个进程申请的资源：
+
+```
+rollout_manager_options = {
+    "num_cpus": 1,
+    "num_gpus": 0,
+    # 省略运行环境配置
+}
+
+rollout_manager = RolloutManager.options(
+    **rollout_manager_options
+).remote(args, pg)
+```
+
+它自己不申请 GPU，但会创建、管理使用 GPU 的 vLLM 服务。[创建代码 (line 227)](/data/home/xli49/lxy/vime/vime/ray/placement_group.py:227)
+
+------
+
+**2. Placement Group：先预留这 8 张 GPU**
+
+Placement Group，简称 PG，是 Ray 的一组资源预留。这里每个 Bundle 包含：
+
+```
+{"GPU": 1, "CPU": 1}
+```
+
+代码如下：
+
+```
+bundles = [
+    {"GPU": 1, "CPU": 1}
+    for _ in range(num_gpus)
+]
+
+pg = placement_group(bundles, strategy="PACK")
+```
+
+代入 `num_gpus=8`：
+
+```
+PG
+├─ Bundle 0：1 GPU + 1 CPU
+├─ Bundle 1：1 GPU + 1 CPU
+├─ ...
+└─ Bundle 7：1 GPU + 1 CPU
+```
+
+`PACK` 表示尽量把这些资源集中安排在较少的节点上。本例是单机，所以都安排在这一台机器。
+
+随后代码等待整组资源可用：
+
+```
+ready_ref = pg.ready()
+
+while not ray.wait([ready_ref], timeout=30)[0]:
+    # 打印已注册 GPU 数量和可用 GPU 数量
+    ...
+```
+
+如果申请 8 GPU，但 Ray 集群里只有 4 GPU 可用，就会在这里等待，后面的训练进程尚未创建。[PG 创建代码 (line 42)](/data/home/xli49/lxy/vime/vime/ray/placement_group.py:42)
+
+**为什么 Colocate 只申请 8 张，而不是 16 张？**
+
+代码决定总量的方式是：
+
+```
+actor_num_gpus = (
+    args.actor_num_nodes * args.actor_num_gpus_per_node
+)
+
+if args.colocate:
+    return max(actor_num_gpus, args.rollout_num_gpus), 0
+
+return actor_num_gpus + args.rollout_num_gpus, actor_num_gpus
+```
+
+当前配置：
+
+```
+训练需要：1 × 8 = 8 GPU
+推理需要：8 GPU
+
+Colocate：max(8, 8) = 8 GPU
+```
+
+训练端和推理端从同一组 GPU 槽位开始分配。若分别给训练和推理各配置 8 GPU，并关闭 Colocate，则会预留 `8+8=16 GPU`。[布局计算 (line 100)](/data/home/xli49/lxy/vime/vime/ray/placement_group.py:100)
+
+这里还会用临时 `InfoActor` 查询每个 Bundle 实际对应的节点和 GPU ID，排序后再创建正式进程。因此，**Bundle 编号与物理 GPU 编号需要通过映射确认**。
+
+------
+
+**3. 训练侧：8 个 Actor，组成 4 组 TP 副本**
+
+训练进程数由下面这行决定：
+
+```
+world_size = self._num_nodes * self._num_gpus_per_node
+```
+
+代入：
+
+```
+world_size = 1 × 8 = 8
+```
+
+然后逐个创建：
+
+```
+for rank in range(world_size):
+    actor = TrainRayActor.options(
+        num_cpus=num_gpus_per_actor,
+        num_gpus=num_gpus_per_actor,
+        scheduling_strategy=PlacementGroupSchedulingStrategy(
+            placement_group=pg,
+            placement_group_bundle_index=reordered_bundle_indices[rank],
+        ),
+    ).remote(world_size, rank, master_addr, master_port)
+
+    if rank == 0:
+        master_addr, master_port = ray.get(
+            actor.get_master_addr_and_port.remote()
+        )
+
+    self._actor_handlers.append(actor)
+```
+
+这段代码做了三件重要的事：
+
+-   创建 `rank=0…7` 共 8 个独立进程。
+-   每个 rank 固定安排到对应的 GPU Bundle。
+-   rank 0 选出分布式通信的地址和端口，后面的 rank 使用同一个地址。
+
+[训练 Actor 创建代码 (line 115)](/data/home/xli49/lxy/vime/vime/ray/actor_group.py:115)
+
+每个进程还会设置：
+
+```
+os.environ["WORLD_SIZE"] = str(self._world_size)
+os.environ["RANK"] = str(self._rank)
+os.environ["MASTER_ADDR"] = self.master_addr
+os.environ["MASTER_PORT"] = str(self.master_port)
+```
+
+随后初始化 PyTorch 分布式通信，再由 Megatron 建立 TP、DP 等通信组。
+
+假设物理 GPU 映射为 `0…7`，当前配置的对应关系是：
+
+| GPU  | 训练进程  | Megatron 分组   | 推理阶段使用者 |
+| ---- | --------- | --------------- | -------------- |
+| 0、1 | rank 0、1 | DP 0，内部 TP=2 | vLLM Engine 0  |
+| 2、3 | rank 2、3 | DP 1，内部 TP=2 | vLLM Engine 1  |
+| 4、5 | rank 4、5 | DP 2，内部 TP=2 | vLLM Engine 2  |
+| 6、7 | rank 6、7 | DP 3，内部 TP=2 | vLLM Engine 3  |
+
+**一组里的两张 GPU 合作运行一份模型；四个 DP 组处理不同的数据，训练时同步梯度。**
+
+所以，8 个训练 Actor 不等于 8 份完整模型；这里是 **4 份模型副本，每份分在 2 张 GPU 上**。
+
+Ray 负责进程创建、位置安排和任务调用；Megatron/PyTorch 的通信组负责训练中的张量与梯度通信。
+
+------
+
+**4. Colocate 的核心：调度允许共存，显存按阶段切换**
+
+这里有个很容易误解的参数：
+
+```
+# 创建 RayTrainGroup 时传入
+num_gpus_per_actor=0.4
+```
+
+它使每个训练 Actor 实际向 Ray 申请：
+
+```
+num_gpus=0.4
+```
+
+推理引擎管理 Actor 则申请：
+
+```
+num_gpus = 0.2
+
+rollout_engine = RolloutRayActor.options(
+    num_gpus=num_gpus,
+    ...
+).remote(
+    ...,
+    base_gpu_id=base_gpu_id,
+    num_gpus_per_engine=2,
+)
+```
+
+**`0.4` 和 `0.2` 是 Ray 的调度额度，不会把显存切成 40% 和 20%。**
+
+例如 GPU 0 对应的 Bundle 容量是 1：
+
+```
+训练 rank 0 申请：0.4
+Engine 0 管理 Actor 申请：0.2
+
+0.4 + 0.2 = 0.6 ≤ 1
+```
+
+这样 Ray 允许两者安排到同一个 Bundle。
+
+但 Engine 0 实际运行的是 TP=2。代码会显式设置推理服务的可见 GPU：
+
+```
+kwargs["_visible_devices"] = ",".join(
+    str(base + i) for i in range(local_num_gpus)
+)
+```
+
+代入 `base=0、local_num_gpus=2`：
+
+```
+CUDA_VISIBLE_DEVICES="0,1"
+```
+
+因此，**管理 Actor 申请的调度额度，与整个 vLLM 引擎实际使用的 GPU 数量，要分开理解。** [推理 Actor 创建 (line 124)](/data/home/xli49/lxy/vime/vime/backends/vllm_utils/engine_group.py:124)、[GPU 可见性配置 (line 745)](/data/home/xli49/lxy/vime/vime/backends/vllm_utils/vllm_engine.py:745)
+
+真正避免显存冲突的是执行阶段的切换：
+
+```
+生成阶段：vLLM 活跃，Megatron 休眠
     ↓
-参数解析与配置派生
+卸载 vLLM 显存资源
     ↓
-全局训练 Driver
+训练阶段：Megatron 唤醒，训练后休眠
+    ↓
+恢复 vLLM 权重空间，同步新权重，再恢复缓存
+    ↓
+下一轮生成
 ```
 
-### 1. 准备运行环境
-
-Shell 脚本负责：
-
--   清理旧进程；
--   检测 GPU 和 NVLink；
--   设置 Ray、NCCL 和 Megatron 所需的环境变量；
--   启动 Ray Head；
--   把 `train.py` 作为 Ray Job 提交。
-
-这部分让后续代码获得一个可用的分布式运行环境。
-
-### 2. 收集所有静态配置
-
-第一层集中定义：
-
--   Qwen3-4B 模型结构；
--   Checkpoint 路径；
--   Prompt 和 Eval 数据集；
--   Rollout 数量和采样参数；
--   Megatron 并行拓扑；
--   GRPO 算法；
--   Optimizer；
--   vLLM Engine 配置；
--   保存和评估周期。
-
-这些参数描述“整个任务应该怎样运行”，但还没有真正创建模型或生成数据。
-
-### 3. 解析、校验并派生配置
-
-`parse_args()` 把 Vime、Megatron 和 vLLM 三套参数合并成统一的 `args`。
-
-对于当前 8 GPU 配置，它会进一步得到：
+训练 Actor 内部就实现了这个流程：
 
 ```
-actor_num_gpus       = 8
-rollout_num_gpus     = 8
-colocate             = true
-offload_train        = true
-offload_rollout      = true
+if self.args.offload_train:
+    self.wake_up()
 
-Megatron World Size  = 8
-TP                    = 2
-PP                    = 1
-CP                    = 1
-DP                    = 4
+# 读取数据并执行训练
+...
 
-vLLM GPU / Engine    = 2
-vLLM Engine Count    = 4
-
-Rollout Prompts       = 32
-Samples / Prompt      = 8
-Training Samples      = 256
-Global Batch Size     = 256
-Train Steps / Rollout = 1
-
-Advantage Estimator   = GRPO
-use_critic            = false
+if self.args.offload_train:
+    self.sleep()
 ```
 
-### 4. 决定新训练还是恢复训练
+休眠后 Actor 进程仍然存在，后续通过远程调用唤醒。[训练端切换代码 (line 341)](/data/home/xli49/lxy/vime/vime/backends/megatron_utils/actor.py:341)
 
-第一层检查 `--load`：
+------
 
--   如果存在合法 Megatron Checkpoint，从已保存的 rollout id 下一轮继续；
--   如果不存在，则使用 Reference/HF 权重初始化并令 `start_rollout_id=0`。
+**5. `.remote()` 发任务，`ray.get()` 等结果**
 
-因此原图中的 `rollout_id = 0 ... 2999` 只适用于新训练。恢复训练可能从任意中间位置开始。
+这是理解 Ray 编排最重要的调用方式。
 
-### 5. 维护跨层训练状态机
-
-`train(args)` 属于第一层 Driver。它自己不实现推理、Reward 或反向传播，而是按固定顺序调用后续层：
+例如：
 
 ```
-Eval
-→ Rollout
-→ 卸载 vLLM
-→ Policy Train
-→ Checkpoint
-→ 同步 Policy 权重
-→ 恢复 vLLM KV Cache
-→ 下一轮
+ref = rollout_manager.generate.remote(rollout_id)
 ```
 
-第一层因此拥有全局控制权，后续层负责完成具体工作。
-
-## 第一层和哪些层有关
-
-| 后续层                     | 第一层提供什么                           | 调用入口                           |
-| -------------------------- | ---------------------------------------- | ---------------------------------- |
-| 第 2 层：Ray 编排          | GPU 数量、节点数、Colocate、Offload      | `create_placement_groups()`        |
-| 第 3 层：Rollout 与 Reward | Prompt、采样数量、Reward 类型、Eval 数据 | `rollout_manager.generate()`       |
-| 第 4 层：vLLM 推理         | Engine 数量、TP、显存比例、生成参数      | `create_rollout_manager()`         |
-| 第 5 层：数据桥接          | Global batch、动态 Packing、Token 上限   | `generate()` 返回 DP Shards        |
-| 第 6 层：Megatron 训练     | 模型结构、并行配置、GRPO、Optimizer      | `actor_model.async_train()`        |
-| 第 7 层：同步与持久化      | Checkpoint、数据游标、权重同步、Metrics  | `save_model()`、`update_weights()` |
-
-第一层的核心输出是：
+含义是：
 
 ```
-一个运行中的 Ray Job
-+
-一份统一且经过校验的 args
-+
-一个驱动第 2～7 层的 train(args) 状态机
+Driver 向 RolloutManager 进程提交 generate 任务
+立即拿到一个 ObjectRef，表示未来的结果
 ```
 
-对应的主要源码是 [run-qwen3-4B.sh (line 1)](/data/home/xli49/lxy/vime/scripts/run-qwen3-4B.sh:1)、[qwen3-4B.sh (line 1)](/data/home/xli49/lxy/vime/scripts/models/qwen3-4B.sh:1)、[arguments.py (line 1724)](/data/home/xli49/lxy/vime/vime/utils/arguments.py:1724) 和 [train.py (line 9)](/data/home/xli49/lxy/vime/train.py:9)。
+再执行：
 
-###### 
+```
+result = ray.get(ref)
+```
+
+Driver 才会等待任务完成，并取回结果。
+
+训练组则向全部 8 个进程提交任务：
+
+```
+return [
+    actor.train.remote(rollout_id, rollout_data_ref)
+    for actor in self._actor_handlers
+]
+```
+
+返回的是 **8 个 ObjectRef**。Driver 中：
+
+```
+ray.get(
+    actor_model.async_train(rollout_id, rollout_data_ref)
+)
+```
+
+会等待这 8 个训练 Actor 都完成。
+
+所以当前主循环的顺序是：
+
+```
+# 等生成完成
+rollout_data_ref = ray.get(
+    rollout_manager.generate.remote(rollout_id)
+)
+
+# 等推理端卸载完成
+ray.get(rollout_manager.offload.remote())
+
+# 等全部训练进程完成
+ray.get(
+    actor_model.async_train(rollout_id, rollout_data_ref)
+)
+```
+
+**虽然任务通过远程接口提交，Driver 在关键位置等待，因此当前入口执行的是同步的“生成 → 训练”闭环。**
+
+启动时也遵守这个顺序：先创建推理服务并卸载，再初始化训练模型；训练端初始化后休眠，随后恢复推理端并同步 Actor 权重，为第一次采样做好准备。
+
+
+
+
+
+第三层
+
+第四层
+
+第五层
+
+第六层
+
+第七层
+
