@@ -13,7 +13,7 @@ createdAt: "2026-04-27T17:06:30.677.574426455Z"
 # Contributing to vLLM 
 
 ```python
-srun -p gpucompute-h100-preempt --cpus-per-task=8 --gpus-per-node=1 --time=120:00:00 --pty /bin/bash
+srun -p gpucompute-h100-preempt --cpus-per-task=8 --gpus-per-node=4 --time=120:00:00 --pty /bin/bash
 ```
 
 ## 1. 整体思路
